@@ -26,7 +26,21 @@ config :my_liege_web, MyLiegeWeb.Endpoint,
   secret_key_base: "OQnPWt6RERllI4gghbK1OftMcvlft9ee//Ncz+NHa/gJO6d0mL6yIli7JnP1RULG",
   watchers: [
     # Start the esbuild watcher by calling Esbuild.install_and_run(:default, args)
-    esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]}
+    esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]},
+    npx: [
+      "tailwindcss",
+      "--input=css/app.css",
+      "--output=../priv/static/assets/app.css",
+      "--postcss",
+      "--watch",
+      cd: Path.expand("../apps/my_liege_web/assets", __DIR__)
+    ],
+    npx: [
+      "cpx",
+      "./node_modules/line-awesome/dist/line-awesome/fonts/*",
+      "../priv/static/fonts",
+      cd: Path.expand("../apps/my_liege_web/assets", __DIR__)
+    ]
   ]
 
 # ## SSL Support
