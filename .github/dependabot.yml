@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: mix
+    directory: "/"
+    schedule:
+      interval: weekly
+      time: "04:00"
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/apps/my_liege_web/assets"
+    schedule:
+      interval: weekly
+      time: "04:00"
+    open-pull-requests-limit: 10

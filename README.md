@@ -1,3 +1,5 @@
+[![Elixir CI](https://github.com/grrrisu/my_liege/actions/workflows/elixir.yml/badge.svg)](https://github.com/grrrisu/my_liege/actions/workflows/elixir.yml)
+
 # MyLiege
 
 Inspired by board games.
