@@ -17,6 +17,10 @@ defmodule MyLiegeWeb.Router do
   scope "/", MyLiegeWeb do
     pipe_through :browser
 
+    live_session :game do
+      live "/", DashboardLive.Index, :index
+      live "/board", BoardLive.Index, :index
+    end
   end
 
   # Other scopes may use custom stacks.
