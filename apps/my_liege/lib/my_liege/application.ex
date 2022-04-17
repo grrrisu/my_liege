@@ -8,12 +8,18 @@ defmodule MyLiege.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Start the Ecto repository
       MyLiege.Repo,
-      # Start the PubSub system
-      {Phoenix.PubSub, name: MyLiege.PubSub}
-      # Start a worker by calling: MyLiege.Worker.start_link(arg)
-      # {MyLiege.Worker, arg}
+      {Phoenix.PubSub, name: MyLiege.PubSub},
+      {
+        Sim.Realm.Supervisor,
+        name: Game,
+        domain_services: [
+          # {Meeple.Service.Admin, partition: :admin, max_demand: 1},
+          # {Meeple.Service.User, partition: :user, max_demand: 1},
+          # {Meeple.Service.Sim, partition: :sim, max_demand: 1}
+        ],
+        reducers: [MyLiege.PubSubReducer]
+      }
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: MyLiege.Supervisor)
