@@ -17,7 +17,6 @@ defmodule MyLiegeWeb.Router do
   scope "/", MyLiegeWeb do
     pipe_through :browser
 
-    get "/", PageController, :index
   end
 
   # Other scopes may use custom stacks.
