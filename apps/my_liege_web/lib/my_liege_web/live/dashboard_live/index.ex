@@ -16,10 +16,9 @@ defmodule MyLiegeWeb.DashboardLive.Index do
     socket
   end
 
-  def handle_action(:create, %{"level" => level}, _session, socket) do
-    socket
-    |> put_flash(:info, "created level #{level}")
-    |> push_redirect(to: Routes.board_index_path(socket, :index))
+  def handle_action(:create, %{"name" => name}, _session, socket) do
+    :ok = MyLiege.create(name)
+    put_flash(socket, :info, "creating level #{name} ...")
   end
 
   def render(assigns) do
@@ -27,10 +26,17 @@ defmodule MyLiegeWeb.DashboardLive.Index do
     <h1>My Liege</h1>
     <section>
       <ul>
-        <li id="link-create-one"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, level: "one")) %></li>
+        <li id="link-create-one"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, name: "one")) %></li>
       </ul>
     </section>
     """
+  end
+
+  def handle_info({:game_created, name: name}, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "level #{name} created")
+     |> push_redirect(to: Routes.board_index_path(socket, :index))}
   end
 
   defp subscribe() do
