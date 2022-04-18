@@ -24,4 +24,10 @@ defmodule MyLiegeWeb.DashboardLive.IndexTest do
     send(view.pid, {:game_created, name: "test"})
     assert_redirect(view, "/board")
   end
+
+  test "show error from service execution", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/")
+    send(view.pid, {:error, "error message"})
+    assert render(view) =~ "error message"
+  end
 end
