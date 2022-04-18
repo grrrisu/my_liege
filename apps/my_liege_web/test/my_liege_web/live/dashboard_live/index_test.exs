@@ -13,4 +13,9 @@ defmodule MyLiegeWeb.DashboardLive.IndexTest do
     {:ok, _view, html} = live(conn)
     assert html =~ "<h1>My Liege</h1>"
   end
+
+  test "redirect to board after creation", %{conn: conn} do
+    assert {:error, {:live_redirect, %{to: "/board", flash: %{"info" => "created level one"}}}} =
+             live(conn, "/create?level=one")
+  end
 end

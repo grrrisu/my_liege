@@ -19,6 +19,7 @@ defmodule MyLiegeWeb.Router do
 
     live_session :game do
       live "/", DashboardLive.Index, :index
+      live "/create", DashboardLive.Index, :create
       live "/board", BoardLive.Index, :index
     end
   end
