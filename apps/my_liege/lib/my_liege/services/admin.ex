@@ -2,10 +2,10 @@ defmodule MyLiege.Service.Admin do
   @behaviour Sim.CommandHandler
 
   alias Sim.Realm.Data
-  alias MyLiege.Service.Creation
+  alias MyLiege.Game
 
   def execute(:create, name: name) do
-    name |> Creation.create() |> set_data()
+    name |> Game.create() |> set_data()
     [{:game_created, name: name}]
   end
 

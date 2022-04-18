@@ -10,6 +10,6 @@ defmodule MyLiege do
   end
 
   defp send_command(command) do
-    CommandBus.dispatch(Game.CommandBus, command)
+    CommandBus.dispatch(MyLiege.Game.CommandBus, command)
   end
 end

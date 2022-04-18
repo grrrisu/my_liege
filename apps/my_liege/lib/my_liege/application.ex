@@ -12,7 +12,7 @@ defmodule MyLiege.Application do
       {Phoenix.PubSub, name: MyLiege.PubSub},
       {
         Sim.Realm.Supervisor,
-        name: Game,
+        name: MyLiege.Game,
         domain_services: [
           {MyLiege.Service.Admin, partition: :admin, max_demand: 1}
           # {MyLiege.Service.User, partition: :user, max_demand: 1},

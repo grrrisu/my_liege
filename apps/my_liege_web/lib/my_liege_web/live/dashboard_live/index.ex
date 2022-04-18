@@ -27,6 +27,8 @@ defmodule MyLiegeWeb.DashboardLive.Index do
     <section>
       <ul>
         <li id="link-create-one"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, name: "one")) %></li>
+        <li id="link-create-one"><%= live_patch("Create Test", to: Routes.dashboard_index_path(@socket, :create, name: "test")) %></li>
+        <li id="link-create-one"><%= live_patch("Create Foobar", to: Routes.dashboard_index_path(@socket, :create, name: "foobar")) %></li>
       </ul>
     </section>
     """
@@ -36,7 +38,14 @@ defmodule MyLiegeWeb.DashboardLive.Index do
     {:noreply,
      socket
      |> put_flash(:info, "level #{name} created")
-     |> push_redirect(to: Routes.board_index_path(socket, :index))}
+     |> push_redirect(to: Routes.board_index_path(socket, :index), replace: true)}
+  end
+
+  def handle_info({:error, message}, socket) do
+    {:noreply,
+     socket
+     |> clear_flash(:info)
+     |> put_flash(:error, message)}
   end
 
   defp subscribe() do
