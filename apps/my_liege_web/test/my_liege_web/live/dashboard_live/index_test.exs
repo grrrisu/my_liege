@@ -14,8 +14,14 @@ defmodule MyLiegeWeb.DashboardLive.IndexTest do
     assert html =~ "<h1>My Liege</h1>"
   end
 
+  test "push create level event", %{conn: conn} do
+    {:ok, _view, html} = live(conn, "/create?name=test")
+    assert html =~ "creating level test ..."
+  end
+
   test "redirect to board after creation", %{conn: conn} do
-    assert {:error, {:live_redirect, %{to: "/board", flash: %{"info" => "created level one"}}}} =
-             live(conn, "/create?level=one")
+    {:ok, view, _html} = live(conn, "/")
+    send(view.pid, {:game_created, name: "test"})
+    assert_redirect(view, "/board")
   end
 end
