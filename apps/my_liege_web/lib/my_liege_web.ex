@@ -95,6 +95,7 @@ defmodule MyLiegeWeb do
       # Import basic rendering functionality (render, render_layout, etc)
       import Phoenix.View
 
+      import MyLiegeWeb.LiveHelpers
       import MyLiegeWeb.ErrorHelpers
       import MyLiegeWeb.Gettext
       alias MyLiegeWeb.Router.Helpers, as: Routes
