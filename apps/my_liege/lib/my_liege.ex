@@ -9,6 +9,10 @@ defmodule MyLiege do
     send_command({:admin, :create, name: name})
   end
 
+  def tick() do
+    send_command({:sim, :tick})
+  end
+
   defp send_command(command) do
     CommandBus.dispatch(MyLiege.Game.CommandBus, command)
   end
