@@ -18,7 +18,10 @@ defmodule MyLiegeWeb.DashboardLive.Index do
 
   def handle_action(:create, %{"name" => name}, _session, socket) do
     :ok = MyLiege.create(name)
-    put_flash(socket, :info, "creating level #{name} ...")
+
+    socket
+    |> put_flash(:info, "creating level #{name} ...")
+    |> assign(board_exists: false)
   end
 
   def render(assigns) do
@@ -27,11 +30,11 @@ defmodule MyLiegeWeb.DashboardLive.Index do
     <section>
       <ul>
         <%= if @board_exists do %>
-          <li id="link-current-board"><%= live_redirect("Current Board", to: Routes.board_index_path(@socket, :index)) %></li>
+          <li id="link-current-board" class="mb-4"><%= live_redirect("Current Board", to: Routes.board_index_path(@socket, :index)) %></li>
         <% end %>
-        <li id="link-create-one"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, name: "one")) %></li>
-        <li id="link-create-one"><%= live_patch("Create Test", to: Routes.dashboard_index_path(@socket, :create, name: "test")) %></li>
-        <li id="link-create-one"><%= live_patch("Create Foobar", to: Routes.dashboard_index_path(@socket, :create, name: "foobar")) %></li>
+        <li id="link-create-one" class="mb-4"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, name: "one"), class: "btn") %></li>
+        <li id="link-create-one" class="mb-4"><%= live_patch("Create Test", to: Routes.dashboard_index_path(@socket, :create, name: "test"), class: "btn") %></li>
+        <li id="link-create-one" class="mb-4"><%= live_patch("Create Foobar", to: Routes.dashboard_index_path(@socket, :create, name: "foobar"), class: "btn") %></li>
       </ul>
     </section>
     """

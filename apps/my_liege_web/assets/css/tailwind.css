@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /* headlines */
+
+  h1 {
+    @apply text-4xl font-light mb-6;
+  }
+
+  a {
+    @apply text-sky-400 hover:underline;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply py-2 px-4 bg-sky-500 text-white font-semibold rounded-lg shadow-md hover:bg-sky-700 hover:no-underline focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-opacity-75;
+  }
+}
