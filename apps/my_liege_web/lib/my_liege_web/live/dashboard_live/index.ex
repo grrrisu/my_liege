@@ -13,7 +13,7 @@ defmodule MyLiegeWeb.DashboardLive.Index do
   end
 
   def handle_action(:index, _params, _session, socket) do
-    socket
+    assign(socket, board_exists: MyLiege.board_exists?())
   end
 
   def handle_action(:create, %{"name" => name}, _session, socket) do
@@ -26,6 +26,9 @@ defmodule MyLiegeWeb.DashboardLive.Index do
     <h1>My Liege</h1>
     <section>
       <ul>
+        <%= if @board_exists do %>
+          <li id="link-current-board"><%= live_redirect("Current Board", to: Routes.board_index_path(@socket, :index)) %></li>
+        <% end %>
         <li id="link-create-one"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, name: "one")) %></li>
         <li id="link-create-one"><%= live_patch("Create Test", to: Routes.dashboard_index_path(@socket, :create, name: "test")) %></li>
         <li id="link-create-one"><%= live_patch("Create Foobar", to: Routes.dashboard_index_path(@socket, :create, name: "foobar")) %></li>
@@ -41,11 +44,25 @@ defmodule MyLiegeWeb.DashboardLive.Index do
      |> push_redirect(to: Routes.board_index_path(socket, :index), replace: true)}
   end
 
+  def handle_info({:sim_started, started: started}, socket) do
+    Logger.info("sim started #{started}")
+
+    {:noreply,
+     socket
+     |> clear_flash(:info)
+     |> put_flash(:info, if(started, do: "sim started", else: "sim stopped"))}
+  end
+
   def handle_info({:error, message}, socket) do
     {:noreply,
      socket
      |> clear_flash(:error)
      |> put_flash(:error, message)}
+  end
+
+  def handle_info(unknown, socket) do
+    Logger.debug("dashboard: unhandled message #{inspect(unknown)}")
+    {:noreply, socket}
   end
 
   defp subscribe() do
