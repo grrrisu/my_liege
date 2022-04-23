@@ -8,4 +8,8 @@ defmodule MyLiege.Game do
   def create(name) do
     Board.create(name)
   end
+
+  def send_command(command) do
+    MyLiege.send_command(command)
+  end
 end
