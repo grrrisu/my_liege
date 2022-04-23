@@ -14,9 +14,9 @@ defmodule MyLiege.Application do
         Sim.Realm.Supervisor,
         name: MyLiege.Game,
         domain_services: [
-          {MyLiege.Service.Admin, partition: :admin, max_demand: 1}
+          {MyLiege.Service.Admin, partition: :admin, max_demand: 1},
+          {MyLiege.Service.Sim, partition: :sim, max_demand: 1}
           # {MyLiege.Service.User, partition: :user, max_demand: 1},
-          # {MyLiege.Service.Sim, partition: :sim, max_demand: 1}
         ],
         reducers: [MyLiege.PubSubReducer]
       }
