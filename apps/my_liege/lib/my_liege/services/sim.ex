@@ -1,27 +1,36 @@
 defmodule MyLiege.Service.Sim do
+  use Sim.Commands.DataHelpers, app_module: MyLiege.Game
   @behaviour Sim.CommandHandler
 
   alias Sim.Realm.Data
   alias MyLiege.Game.Workplace
 
   def execute(:tick, []) do
-    Data.get_data(Game.Data)
+    get_data()
     |> Map.fetch(:workplaces)
     |> workplace_events()
+  end
+
+  def execute(:add_inventory, input) do
+    change_data(fn data ->
+      %{data | inventory: aggregate_map(data.inventory, input)}
+    end)
+
+    [{:inventory_updated, input: input}]
   end
 
   def workplace_events(workplaces) do
     workplaces
     |> Enum.map(&Workplace.produce(&1))
-    |> Enum.reduce(%{}, &merge_output(&1, &2))
-    |> inventory_command()
+    |> Enum.reduce(%{}, &aggregate_map(&2, &1))
+    |> inventory_commands()
     |> event
   end
 
-  defp merge_output(nil, acc), do: acc
+  defp aggregate_map(map, nil), do: map
 
-  defp merge_output(output, acc) when is_map(output) do
-    Enum.reduce(output, acc, fn {key, value}, acc ->
+  defp aggregate_map(map, input) when is_map(input) do
+    Enum.reduce(input, map, fn {key, value}, acc ->
       case Map.has_key?(acc, key) do
         true -> Map.put(acc, key, Map.get(acc, key) + value)
         false -> Map.put(acc, key, value)
@@ -29,9 +38,9 @@ defmodule MyLiege.Service.Sim do
     end)
   end
 
-  defp inventory_command(output) when map_size(output) == 0, do: []
+  defp inventory_commands(output) when map_size(output) == 0, do: []
 
-  defp inventory_command(output) when map_size(output) > 0 do
+  defp inventory_commands(output) when map_size(output) > 0 do
     [{:command, {:sim, :add_inventory, output}}]
   end
 
