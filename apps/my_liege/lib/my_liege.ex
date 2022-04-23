@@ -13,7 +13,7 @@ defmodule MyLiege do
     send_command({:sim, :tick})
   end
 
-  defp send_command(command) do
+  def send_command(command) do
     CommandBus.dispatch(MyLiege.Game.CommandBus, command)
   end
 end
