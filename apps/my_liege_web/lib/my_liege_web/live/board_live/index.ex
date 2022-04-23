@@ -37,7 +37,12 @@ defmodule MyLiegeWeb.BoardLive.Index do
 
   def handle_info({:sim_started, started: started}, socket) do
     Logger.info("sim started #{started}")
-    {:noreply, assign(socket, started: started)}
+
+    {:noreply,
+     socket
+     |> assign(started: started)
+     |> clear_flash(:info)
+     |> put_flash(:info, if(started, do: "sim started", else: "sim stopped"))}
   end
 
   def handle_info({:workplaces_produced, :time_unit}, socket) do

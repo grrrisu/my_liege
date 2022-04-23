@@ -44,7 +44,7 @@ defmodule MyLiegeWeb.DashboardLive.Index do
   def handle_info({:error, message}, socket) do
     {:noreply,
      socket
-     |> clear_flash(:info)
+     |> clear_flash(:error)
      |> put_flash(:error, message)}
   end
 
