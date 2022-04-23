@@ -10,7 +10,11 @@ defmodule MyLiege do
   end
 
   def board_exists?() do
-    not (Data.get_data(MyLiege.Game.Data) |> is_nil())
+    not (get_data() |> is_nil())
+  end
+
+  def get_data() do
+    Data.get_data(MyLiege.Game.Data)
   end
 
   def tick() do
@@ -27,6 +31,14 @@ defmodule MyLiege do
 
   def started?() do
     SimulationLoop.running?(MyLiege.Game.SimulationLoop)
+  end
+
+  def add_pawn_to_workplace(id) do
+    send_command({:user, :add_pawn_to_workplace, workplace_id: id})
+  end
+
+  def remove_pawn_from_workplace(id) do
+    send_command({:user, :remove_pawn_from_workplace, workplace_id: id})
   end
 
   def send_command(command) do
