@@ -7,7 +7,7 @@ defmodule MyLiege.Service.Sim do
 
   def execute(:tick, []) do
     get_data()
-    |> Map.fetch(:workplaces)
+    |> Map.get(:workplaces)
     |> workplace_events()
   end
 

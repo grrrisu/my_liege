@@ -12,12 +12,12 @@ defmodule MyLiege.Service.Admin do
 
   def execute(:start_sim, []) do
     start_simulation_loop(1_000, &MyLiege.tick/0)
-    [{:day_started, running: true}]
+    [{:sim_started, started: true}]
   end
 
   def execute(:stop_sim, []) do
     stop_simulation_loop()
-    [{:day_started, running: false}]
+    [{:sim_started, started: false}]
   end
 
   defp set_data(data) do
