@@ -5,13 +5,32 @@ defmodule MyLiegeWeb.BoardLive.Index do
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: subscribe()
-    {:ok, assign(socket, started: MyLiege.started?())}
+    {:ok, socket}
+  end
+
+  def handle_params(params, session, socket) do
+    {:noreply, handle_action(socket.assigns.live_action, params, session, socket)}
+  end
+
+  def handle_action(:index, _params, _session, socket) do
+    case MyLiege.board_exists?() do
+      false ->
+        socket
+        |> put_flash(:error, "no board created or loaded")
+        |> redirect(to: "/")
+
+      _ ->
+        assign(socket, started: MyLiege.started?())
+    end
   end
 
   def render(assigns) do
     ~H"""
     <h1>My Liege - Board</h1>
     <.start_button started={@started}></.start_button>
+    <div>
+      <%= live_redirect("Back to Dashboard", to: Routes.dashboard_index_path(@socket, :index)) %>
+    </div>
     """
   end
 

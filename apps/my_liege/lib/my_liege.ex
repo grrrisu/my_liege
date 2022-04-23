@@ -1,5 +1,5 @@
 defmodule MyLiege do
-  alias Sim.Realm.{CommandBus, SimulationLoop}
+  alias Sim.Realm.{CommandBus, Data, SimulationLoop}
 
   @moduledoc """
   MyLiege keeps the contexts that define your domain
@@ -7,6 +7,10 @@ defmodule MyLiege do
   """
   def create(name) do
     send_command({:admin, :create, name: name})
+  end
+
+  def board_exists?() do
+    not (Data.get_data(MyLiege.Game.Data) |> is_nil())
   end
 
   def tick() do
