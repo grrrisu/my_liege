@@ -2,6 +2,8 @@ defmodule MyLiege.BoardLive.WorkplacesComponent do
   use MyLiegeWeb, :live_component
   require Logger
 
+  alias MyLiege.Game.Workplace
+
   def update(assigns, socket) do
     {:ok,
      socket
@@ -10,18 +12,21 @@ defmodule MyLiege.BoardLive.WorkplacesComponent do
   end
 
   defp get_workplaces() do
-    MyLiege.get_data() |> Map.get(:workplaces) |> IO.inspect()
+    MyLiege.get_data() |> Map.get(:workplaces)
   end
 
   def render(assigns) do
     ~H"""
-    <section>
+    <section class="my-2">
       <%= for {id, workplace} <- @workplaces do %>
         <div id={"workplace-#{id}"}>
           <%= workplace.type %>
           <%= workplace.pawn %>
-          <button phx-click="add-pawn" phx-value-workplace={id} phx-target={@myself} class="btn">+</button>
-          <button phx-click="remove-pawn" phx-value-workplace={id} phx-target={@myself} class="btn">-</button>
+          <%= if Workplace.has_capacity?(workplace) do %>
+            <button phx-click="add-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">+</button>
+          <% else %>
+            <button phx-click="remove-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">-</button>
+          <% end %>
         </div>
       <% end %>
     </section>
