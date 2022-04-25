@@ -8,4 +8,7 @@ defmodule MyLiege.Game.Workplace do
   def produce(%Workplace{type: :farm}) do
     %{food: 5}
   end
+
+  def has_capacity?(%Workplace{pawn: nil}), do: true
+  def has_capacity?(%Workplace{pawn: _}), do: false
 end
