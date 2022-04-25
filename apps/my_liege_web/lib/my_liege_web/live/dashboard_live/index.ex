@@ -32,9 +32,9 @@ defmodule MyLiegeWeb.DashboardLive.Index do
         <%= if @board_exists do %>
           <li id="link-current-board" class="mb-4"><%= live_redirect("Current Board", to: Routes.board_index_path(@socket, :index)) %></li>
         <% end %>
-        <li id="link-create-one" class="mb-4"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, name: "one"), class: "btn") %></li>
-        <li id="link-create-one" class="mb-4"><%= live_patch("Create Test", to: Routes.dashboard_index_path(@socket, :create, name: "test"), class: "btn") %></li>
-        <li id="link-create-one" class="mb-4"><%= live_patch("Create Foobar", to: Routes.dashboard_index_path(@socket, :create, name: "foobar"), class: "btn") %></li>
+        <li id="link-create-one" class="mb-4"><%= live_patch("Create One", to: Routes.dashboard_index_path(@socket, :create, name: "one"), class: "btn btn-lg") %></li>
+        <li id="link-create-one" class="mb-4"><%= live_patch("Create Test", to: Routes.dashboard_index_path(@socket, :create, name: "test"), class: "btn btn-lg") %></li>
+        <li id="link-create-one" class="mb-4"><%= live_patch("Create Foobar", to: Routes.dashboard_index_path(@socket, :create, name: "foobar"), class: "btn btn-lg") %></li>
       </ul>
     </section>
     """

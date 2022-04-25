@@ -34,7 +34,7 @@ defmodule MyLiegeWeb.BoardLive.Index do
     <h1>My Liege - Board</h1>
     <.start_button started={@started}></.start_button>
     <.live_component module={WorkplacesComponent} id="workplaces"></.live_component>
-    <div><%= @pawn_pool.normal %></div>
+    <div><%= Map.get(@pawn_pool, :normal) %></div>
     <div>
       <%= live_redirect("Back to Dashboard", to: Routes.dashboard_index_path(@socket, :index)) %>
     </div>
@@ -45,7 +45,7 @@ defmodule MyLiegeWeb.BoardLive.Index do
     label = if assigns.started, do: "stop", else: "start"
 
     ~H"""
-    <button phx-click="run-sim" phx-value-running={"#{@started}"} class="btn"><%= label %></button>
+    <button phx-click="run-sim" phx-value-running={"#{@started}"} class="btn btn-lg"><%= label %></button>
     """
   end
 
@@ -83,14 +83,14 @@ defmodule MyLiegeWeb.BoardLive.Index do
 
   def handle_info({action, _}, socket)
       when action in [:pawn_added_to_workplace, :pawn_removed_from_workplace] do
-    Logger.info(action)
+    Logger.info(inspect(action))
     send_update(WorkplacesComponent, id: "workplaces")
     {:noreply, socket}
   end
 
   def handle_info({action, _}, socket)
       when action in [:pawn_added_to_pool, :pawn_removed_from_pool] do
-    Logger.info(action)
+    Logger.info(inspect(action))
     {:noreply, assign(socket, pawn_pool: get_pawn_pool())}
   end
 
