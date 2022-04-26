@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.BoardLive.Index do
 
   require Logger
 
-  alias MyLiege.BoardLive.WorkplacesComponent
+  alias MyLiege.BoardLive.{InventoryComponent, WorkplacesComponent}
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: subscribe()
@@ -34,6 +34,7 @@ defmodule MyLiegeWeb.BoardLive.Index do
     <h1>My Liege - Board</h1>
     <.start_button started={@started}></.start_button>
     <.live_component module={WorkplacesComponent} id="workplaces"></.live_component>
+    <.live_component module={InventoryComponent} id="inventory"></.live_component>
     <div><%= Map.get(@pawn_pool, :normal) %></div>
     <div>
       <%= live_redirect("Back to Dashboard", to: Routes.dashboard_index_path(@socket, :index)) %>
@@ -78,6 +79,7 @@ defmodule MyLiegeWeb.BoardLive.Index do
 
   def handle_info({:inventory_updated, input: _input}, socket) do
     Logger.info("inventory_updated")
+    send_update(InventoryComponent, id: "inventory")
     {:noreply, socket}
   end
 
