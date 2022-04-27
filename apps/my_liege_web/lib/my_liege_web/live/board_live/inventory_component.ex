@@ -10,7 +10,7 @@ defmodule MyLiege.BoardLive.InventoryComponent do
   end
 
   defp get_inventory() do
-    MyLiege.get_data() |> Map.get(:inventory) |> IO.inspect()
+    MyLiege.get_data() |> Map.get(:inventory)
   end
 
   def render(assigns) do
