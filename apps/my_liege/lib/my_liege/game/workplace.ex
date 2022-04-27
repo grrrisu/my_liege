@@ -11,4 +11,7 @@ defmodule MyLiege.Game.Workplace do
 
   def has_capacity?(%Workplace{pawn: nil}), do: true
   def has_capacity?(%Workplace{pawn: _}), do: false
+
+  def get_pawns(%Workplace{pawn: nil}), do: 0
+  def get_pawns(%Workplace{pawn: _}), do: 1
 end

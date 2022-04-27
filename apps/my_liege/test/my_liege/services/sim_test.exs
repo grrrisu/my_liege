@@ -31,4 +31,11 @@ defmodule MyLiege.Service.SimTest do
              ] == events
     end
   end
+
+  describe "needed food" do
+    test "pawns in workplaces and pawn_pool" do
+      data = %{workplaces: %{1 => %Workplace{id: 1, pawn: %Pawn{}}}, pawn_pool: %{normal: 2}}
+      assert 3 == Sim.needed_food(data)
+    end
+  end
 end
