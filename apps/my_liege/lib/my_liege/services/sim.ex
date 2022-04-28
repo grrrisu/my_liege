@@ -3,7 +3,7 @@ defmodule MyLiege.Service.Sim do
   @behaviour Sim.CommandHandler
 
   alias Sim.Realm.Data
-  alias MyLiege.Game.Workplace
+  alias MyLiege.Game.{Board, Workplace}
 
   def execute(:tick, []) do
     [
