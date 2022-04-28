@@ -2,7 +2,7 @@ defmodule MyLiege.Service.SimTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Service.Sim
-  alias MyLiege.Game.{Pawn, Workplace}
+  alias MyLiege.Game.{Board, Pawn, Workplace}
 
   describe "workplaces produced event" do
     test "no workplaces" do
@@ -34,7 +34,7 @@ defmodule MyLiege.Service.SimTest do
 
   describe "needed food" do
     test "pawns in workplaces and pawn_pool" do
-      data = %{workplaces: %{1 => %Workplace{id: 1, pawn: %Pawn{}}}, pawn_pool: %{normal: 2}}
+      data = %Board{workplaces: %{1 => %Workplace{id: 1, pawn: %Pawn{}}}, pawn_pool: %{normal: 2}}
       assert 3 == Sim.needed_food(data)
     end
   end
