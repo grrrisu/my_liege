@@ -2,13 +2,16 @@ defmodule MyLiege.Service.Sim do
   use Sim.Commands.DataHelpers, app_module: MyLiege.Game
   @behaviour Sim.CommandHandler
 
+  import MyLiege.MapAggregator
+
   alias Sim.Realm.Data
   alias MyLiege.Game.{Board, Workplace}
 
   def execute(:tick, []) do
     [
       {:command, {:sim, :workplace_productions}},
-      {:command, {:sim, :pawn_nutrition}}
+      {:command, {:sim, :pawn_nutrition}},
+      {:command, {:sim, :pawn_poverty}}
     ]
   end
 
@@ -41,17 +44,6 @@ defmodule MyLiege.Service.Sim do
     |> event
   end
 
-  defp aggregate_map(map, nil), do: map
-
-  defp aggregate_map(map, input) when is_map(input) do
-    Enum.reduce(input, map, fn {key, value}, acc ->
-      case Map.has_key?(acc, key) do
-        true -> Map.put(acc, key, Map.get(acc, key) + value)
-        false -> Map.put(acc, key, value)
-      end
-    end)
-  end
-
   defp inventory_commands(output) when map_size(output) == 0, do: []
 
   defp inventory_commands(output) when map_size(output) > 0 do
@@ -69,5 +61,19 @@ defmodule MyLiege.Service.Sim do
     Enum.reduce(workplaces, 0, fn {_id, workplace}, food_needed ->
       Workplace.get_pawns(workplace) + food_needed
     end)
+  end
+
+  # --- poverty ---
+  def pawn_poverty(%Board{inventory: %{food: food}} = data) do
+    cond do
+      # food < 0 && (is_nil(poverty.normal) || poverty.normal == 0) -> dec_workplaces(food)
+      food < 0 ->
+        aggregate_map(data, %{pawn_pool: %{normal: -food}, poverty: %{normal: food}})
+
+      # food > 0 && (is_nil(poverty.normal) || poverty.normal == 0) -> nil
+
+      food > 0 && data.poverty.normal > 0 ->
+        aggregate_map(data, %{pawn_pool: %{normal: food}, poverty: %{normal: -food}})
+    end
   end
 end
