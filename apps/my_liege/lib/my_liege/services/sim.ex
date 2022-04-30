@@ -69,6 +69,13 @@ defmodule MyLiege.Service.Sim do
   # --- poverty ---
   def pawn_poverty(%Board{} = data) do
     cond do
+      !Board.has_food?(data) && !Board.has_free_pawns?(data) && Board.employed_pawns(data) <= 0 ->
+        {data,
+         [
+           {:game_over, reason: "no pawns available anymore"},
+           {:command, {:admin, :stop_sim}}
+         ]}
+
       !Board.has_food?(data) && Board.has_poverty?(data) ->
         starving = ceil(Board.get_in(data, [:poverty, :normal]) / 5)
 
@@ -84,7 +91,7 @@ defmodule MyLiege.Service.Sim do
          }), [{:pawns_changed, pool: -starving, poverty: starving}]}
 
       Board.has_food?(data) && Board.has_poverty?(data) ->
-        delta = ceil(Board.get_in(data, [:inventory, :food] / 5))
+        delta = ceil(Board.get_in(data, [:inventory, :food]) / 5)
 
         {aggregate_map_min_zero(data, %{pawn_pool: %{normal: delta}, poverty: %{normal: -delta}}),
          [{:pawns_changed, pool: delta, poverty: -delta}]}

@@ -104,6 +104,11 @@ defmodule MyLiegeWeb.BoardLive.Index do
     {:noreply, socket}
   end
 
+  def handle_info({:game_over, reason: reason}, socket) do
+    Logger.info("game over!")
+    {:noreply, put_flash(socket, :error, "GAME OVER! #{reason}")}
+  end
+
   def handle_info({:error, message}, socket) do
     {:noreply,
      socket
