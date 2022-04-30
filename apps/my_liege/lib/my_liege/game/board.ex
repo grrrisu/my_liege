@@ -35,6 +35,12 @@ defmodule MyLiege.Game.Board do
     has_attribute?(pawn_pool, :normal)
   end
 
+  def employed_pawns(%Board{} = data) do
+    Enum.reduce(data.workplaces, 0, fn {_id, workplace}, sum ->
+      sum + Workplace.get_pawns(workplace)
+    end)
+  end
+
   defp has_attribute?(map, attr) do
     case Map.get(map, attr) do
       nil -> false

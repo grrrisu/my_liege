@@ -40,8 +40,25 @@ defmodule MyLiege.Service.SimTest do
   end
 
   describe "pawn poverty" do
+    test "no pawns available" do
+      {data, events} =
+        Sim.pawn_poverty(%Board{
+          inventory: %{food: 0},
+          poverty: %{normal: 5}
+        })
+
+      assert [{:game_over, _}, _] = events
+      assert 5 == Board.get_in(data, [:poverty, :normal])
+    end
+
     test "no food and poverty" do
-      {data, _events} = Sim.pawn_poverty(%Board{inventory: %{food: 0}, poverty: %{normal: 5}})
+      {data, _events} =
+        Sim.pawn_poverty(%Board{
+          inventory: %{food: 0},
+          workplaces: %{1 => %Workplace{id: 1, pawn: %Pawn{}}},
+          poverty: %{normal: 5}
+        })
+
       assert 4 == Board.get_in(data, [:poverty, :normal])
     end
 
