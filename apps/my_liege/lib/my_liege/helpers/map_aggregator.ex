@@ -1,5 +1,5 @@
 defmodule MyLiege.MapAggregator do
-  def aggregate_map(map, input) do
+  def aggregate_map(%{} = map, input) do
     aggregate_map_func(
       map,
       input,
@@ -21,7 +21,7 @@ defmodule MyLiege.MapAggregator do
     )
   end
 
-  def aggregate_map_func(map, nil, _, _), do: map
+  def aggregate_map_func(map, nil, _, _, _), do: map
 
   def aggregate_map_func(map, input, aggregate_map_func, aggregate_fun, set_fun)
       when is_map(input) do
