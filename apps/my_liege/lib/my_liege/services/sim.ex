@@ -27,12 +27,15 @@ defmodule MyLiege.Service.Sim do
     {:command, {:sim, :add_inventory, %{food: -food}}}
   end
 
+  def execute(:pawn_poverty, []) do
+    change_data(&pawn_poverty/1)
+  end
+
   def execute(:add_inventory, input) do
     change_data(fn data ->
-      %{data | inventory: aggregate_map(data.inventory, input)}
+      {%Board{data | inventory: aggregate_map(data.inventory, input)},
+       [{:inventory_updated, input: input}]}
     end)
-
-    [{:inventory_updated, input: input}]
   end
 
   # --- workplace_productions ---
@@ -64,16 +67,31 @@ defmodule MyLiege.Service.Sim do
   end
 
   # --- poverty ---
-  def pawn_poverty(%Board{inventory: %{food: food}} = data) do
+  def pawn_poverty(%Board{} = data) do
     cond do
-      # food < 0 && (is_nil(poverty.normal) || poverty.normal == 0) -> dec_workplaces(food)
-      food < 0 ->
-        aggregate_map(data, %{pawn_pool: %{normal: -food}, poverty: %{normal: food}})
+      !Board.has_food?(data) && Board.has_poverty?(data) ->
+        starving = ceil(Board.get_in(data, [:poverty, :normal]) / 5)
 
-      # food > 0 && (is_nil(poverty.normal) || poverty.normal == 0) -> nil
+        {aggregate_map_min_zero(data, %{poverty: %{normal: -starving}}),
+         [{:pawns_changed, poverty: -starving}]}
 
-      food > 0 && data.poverty.normal > 0 ->
-        aggregate_map(data, %{pawn_pool: %{normal: food}, poverty: %{normal: -food}})
+      !Board.has_food?(data) && Board.has_free_pawns?(data) ->
+        starving = ceil(Board.get_in(data, [:pawn_pool, :normal]) / 5)
+
+        {aggregate_map_min_zero(data, %{
+           pawn_pool: %{normal: -starving},
+           poverty: %{normal: starving}
+         }), [{:pawns_changed, pool: -starving, poverty: starving}]}
+
+      Board.has_food?(data) && Board.has_poverty?(data) ->
+        delta = ceil(Board.get_in(data, [:inventory, :food] / 5))
+
+        {aggregate_map_min_zero(data, %{pawn_pool: %{normal: delta}, poverty: %{normal: -delta}}),
+         [{:pawns_changed, pool: delta, poverty: -delta}]}
+
+      Board.has_food?(data) && !Board.has_poverty?(data) ->
+        # growth ?
+        {data, []}
     end
   end
 end
