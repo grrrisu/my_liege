@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.BoardLive.Index do
 
   require Logger
 
-  alias MyLiege.BoardLive.{InventoryComponent, WorkplacesComponent}
+  alias MyLiege.BoardLive.{InventoryComponent, PawnsComponent, WorkplacesComponent}
 
   def mount(_params, _session, socket) do
     if connected?(socket), do: subscribe()
@@ -35,7 +35,8 @@ defmodule MyLiegeWeb.BoardLive.Index do
     <.start_button started={@started}></.start_button>
     <.live_component module={WorkplacesComponent} id="workplaces"></.live_component>
     <.live_component module={InventoryComponent} id="inventory"></.live_component>
-    <div><%= Map.get(@pawn_pool, :normal) %></div>
+    <.live_component module={PawnsComponent} id="pawns"></.live_component>
+
     <div>
       <%= live_redirect("Back to Dashboard", to: Routes.dashboard_index_path(@socket, :index)) %>
     </div>
@@ -93,7 +94,14 @@ defmodule MyLiegeWeb.BoardLive.Index do
   def handle_info({action, _}, socket)
       when action in [:pawn_added_to_pool, :pawn_removed_from_pool] do
     Logger.info(inspect(action))
-    {:noreply, assign(socket, pawn_pool: get_pawn_pool())}
+    send_update(PawnsComponent, id: "pawns")
+    {:noreply, socket}
+  end
+
+  def handle_info({:pawns_changed, _changes}, socket) do
+    Logger.info("pawns_changed")
+    send_update(PawnsComponent, id: "pawns")
+    {:noreply, socket}
   end
 
   def handle_info({:error, message}, socket) do
