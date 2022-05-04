@@ -3,6 +3,7 @@ defmodule MyLiege.Service.Sim do
   @behaviour Sim.CommandHandler
 
   import MyLiege.MapAggregator
+  import MyLiege.Service.Sim.WorkplaceProduction
 
   alias Sim.Realm.Data
   alias MyLiege.Game.{Board, Workplace}
@@ -16,10 +17,14 @@ defmodule MyLiege.Service.Sim do
   end
 
   def execute(:workplace_productions, []) do
-    get_data()
-    |> Map.get(:workplaces)
-    |> Map.values()
-    |> workplace_events()
+    change_data(fn data ->
+      {workplaces, events} =
+        data
+        |> Map.get(:workplaces)
+        |> workplaces_production()
+
+      {%{data | workplaces: workplaces}, events}
+    end)
   end
 
   def execute(:pawn_nutrition, []) do
@@ -37,23 +42,6 @@ defmodule MyLiege.Service.Sim do
        [{:inventory_updated, input: input}]}
     end)
   end
-
-  # --- workplace_productions ---
-  def workplace_events(workplaces) do
-    workplaces
-    |> Enum.map(&Workplace.produce(&1))
-    |> Enum.reduce(%{}, &aggregate_map(&2, &1))
-    |> inventory_commands()
-    |> event
-  end
-
-  defp inventory_commands(output) when map_size(output) == 0, do: []
-
-  defp inventory_commands(output) when map_size(output) > 0 do
-    [{:command, {:sim, :add_inventory, output}}]
-  end
-
-  defp event(commands), do: [{:workplaces_produced, :time_unit} | commands]
 
   # --- pawn_nutrition ---
   def needed_food(%{workplaces: workplaces, pawn_pool: pawn_pool}) do
@@ -89,6 +77,10 @@ defmodule MyLiege.Service.Sim do
            pawn_pool: %{normal: -starving},
            poverty: %{normal: starving}
          }), [{:pawns_changed, pool: -starving, poverty: starving}]}
+
+      !Board.has_food?(data) && Board.employed_pawns(data) > 0 ->
+        # TODO remove pawn from workplace
+        {data, []}
 
       Board.has_food?(data) && Board.has_poverty?(data) ->
         delta = ceil(Board.get_in(data, [:inventory, :food]) / 5)
