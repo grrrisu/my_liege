@@ -5,7 +5,11 @@ defmodule MyLiege.Game.Board do
 
   def create("one") do
     %Board{
-      workplaces: %{1 => %Workplace{id: 1, type: :farm}},
+      workplaces: %{
+        1 => %Workplace{id: 1, type: :farm, input: %{manpower: 5}, output: %{food: 5}},
+        2 => %Workplace{id: 2, type: :construction_site},
+        3 => %Workplace{id: 3, type: :construction_site}
+      },
       pawn_pool: %{normal: 3},
       inventory: %{}
     }
