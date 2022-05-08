@@ -21,6 +21,7 @@ defmodule MyLiege.BoardLive.WorkplacesComponent do
       <%= for {id, workplace} <- @workplaces do %>
         <div id={"workplace-#{id}"}>
           <%= workplace.type %>
+          <.workplace_progress workplace={workplace} />
           <%= workplace.pawn %>
           <%= if Workplace.has_capacity?(workplace) do %>
             <button phx-click="add-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">+</button>
@@ -41,5 +42,15 @@ defmodule MyLiege.BoardLive.WorkplacesComponent do
   def handle_event("remove-pawn", %{"workplace" => id}, socket) do
     MyLiege.remove_pawn_from_workplace(String.to_integer(id))
     {:noreply, socket}
+  end
+
+  def workplace_progress(assigns) do
+    ~H"""
+    <div class="flex mb-2">
+      <%= for {key, value} <- @workplace.input do %>
+        <div class=""><%= key %>: <%= Map.get(@workplace.inventory, key) || 0 %>/<%= value %></div>
+      <% end %>
+    </div>
+    """
   end
 end
