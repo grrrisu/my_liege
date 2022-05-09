@@ -25,8 +25,9 @@ defmodule MyLiege.BoardLive.WorkplacesComponent do
             <%= workplace.type %>
           </div>
           <.workplace_progress workplace={workplace} />
-          <div class="flex">
-            <div class="mr-1"><%= workplace.pawn || 0 %></div>
+          <div class="flex items-center">
+            <i class="las la-street-view"></i>
+            <div class="mx-2"><%= workplace.pawn || 0 %></div>
             <%= if Workplace.has_capacity?(workplace) do %>
               <button phx-click="add-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">+</button>
             <% else %>
