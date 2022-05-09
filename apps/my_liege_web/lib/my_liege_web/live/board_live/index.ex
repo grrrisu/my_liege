@@ -38,7 +38,9 @@ defmodule MyLiegeWeb.BoardLive.Index do
     <.live_component module={PawnsComponent} id="pawns"></.live_component>
 
     <div>
-      <%= live_redirect("Back to Dashboard", to: Routes.dashboard_index_path(@socket, :index)) %>
+      <%= live_redirect(to: Routes.dashboard_index_path(@socket, :index)) do %>
+        <i class="las la-caret-left"></i>Back to Dashboard
+      <% end %>
     </div>
     """
   end
