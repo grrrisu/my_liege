@@ -17,17 +17,22 @@ defmodule MyLiege.BoardLive.WorkplacesComponent do
 
   def render(assigns) do
     ~H"""
-    <section class="my-2">
+    <section class="flex my-2 ">
       <%= for {id, workplace} <- @workplaces do %>
-        <div id={"workplace-#{id}"}>
-          <%= workplace.type %>
+        <div id={"workplace-#{id}"} class="flex flex-col mr-4 p-2 border rounded">
+          <div class="flex items-center">
+            <i class="las la-home mr-1"></i>
+            <%= workplace.type %>
+          </div>
           <.workplace_progress workplace={workplace} />
-          <%= workplace.pawn %>
-          <%= if Workplace.has_capacity?(workplace) do %>
-            <button phx-click="add-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">+</button>
-          <% else %>
-            <button phx-click="remove-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">-</button>
-          <% end %>
+          <div class="flex">
+            <div class="mr-1"><%= workplace.pawn || 0 %></div>
+            <%= if Workplace.has_capacity?(workplace) do %>
+              <button phx-click="add-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">+</button>
+            <% else %>
+              <button phx-click="remove-pawn" phx-value-workplace={id} phx-target={@myself} class="btn btn-sm">-</button>
+            <% end %>
+          </div>
         </div>
       <% end %>
     </section>
@@ -46,10 +51,25 @@ defmodule MyLiege.BoardLive.WorkplacesComponent do
 
   def workplace_progress(assigns) do
     ~H"""
-    <div class="flex mb-2">
+    <div class="flex flex-col mb-2">
       <%= for {key, value} <- @workplace.input do %>
-        <div class=""><%= key %>: <%= Map.get(@workplace.inventory, key) || 0 %>/<%= value %></div>
+        <div class=""><%= key %>:</div>
+        <.progress_bar part={inventory_value(@workplace.inventory, key)} full={value} />
       <% end %>
+    </div>
+    """
+  end
+
+  defp inventory_value(inventory, key) do
+    Map.get(inventory, key) || 0
+  end
+
+  def progress_bar(assigns) do
+    width = round(assigns.part / assigns.full * 100)
+
+    ~H"""
+    <div class='bg-gray-300 w-full mb-4' style="height: 4px">
+      <div class='bg-green-500 w-4/6 h-full' style={"width: #{width}%"}></div>
     </div>
     """
   end

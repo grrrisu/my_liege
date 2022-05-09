@@ -16,7 +16,7 @@ defmodule MyLiege.BoardLive.PawnsComponent do
 
   def render(assigns) do
     ~H"""
-    <section class="my-2">
+    <section class="border rounded p-2 my-2">
         <div id={"pawn-pool"}>
           Pawns: <%= Map.get(@pawn_pool, :normal) %>
         </div>
