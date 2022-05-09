@@ -14,6 +14,8 @@ defmodule MyLiege.Service.User do
     [{:pawn_removed_from_workplace, workplace_id: id}, {:pawn_added_to_pool, pawn: :normal}]
   end
 
+  def add_pawn_to_workplace(%Board{pawn_pool: %{normal: 0}} = data, _id), do: data
+
   def add_pawn_to_workplace(data, id) do
     data
     |> Board.update_in([:workplaces, id], &Map.put(&1, :pawn, 1))
@@ -21,8 +23,12 @@ defmodule MyLiege.Service.User do
   end
 
   def remove_pawn_from_workplace(data, id) do
-    data
-    |> Board.update_in([:workplaces, id], &Map.put(&1, :pawn, nil))
-    |> Board.update_in([:pawn_pool, :normal], &(&1 + 1))
+    if Board.get_in(data, [:workplaces, id]) |> Map.get(:pawn) == 0 do
+      data
+    else
+      data
+      |> Board.update_in([:workplaces, id], &Map.put(&1, :pawn, nil))
+      |> Board.update_in([:pawn_pool, :normal], &(&1 + 1))
+    end
   end
 end
