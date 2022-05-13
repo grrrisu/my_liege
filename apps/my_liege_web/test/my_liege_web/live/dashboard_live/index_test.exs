@@ -1,5 +1,5 @@
 defmodule MyLiegeWeb.DashboardLive.IndexTest do
-  use MyLiegeWeb.ConnCase
+  use MyLiegeWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
 
   setup do
