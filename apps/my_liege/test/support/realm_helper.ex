@@ -8,7 +8,7 @@ defmodule MyLiege.RealmHelper do
   end
 
   def change_realm(delta) do
-    Data.set_data(MyLiege.Game.Data, fn current ->
+    Data.update(MyLiege.Game.Data, fn current ->
       aggregate_map(current, delta)
     end)
   end

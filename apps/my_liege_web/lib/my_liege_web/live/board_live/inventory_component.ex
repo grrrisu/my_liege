@@ -15,7 +15,7 @@ defmodule MyLiege.BoardLive.InventoryComponent do
 
   def render(assigns) do
     ~H"""
-    <section class="border rounded p-2 my-2">
+    <section id="inventory" class="border rounded p-2 my-2">
       <%= for {key, value} <- @inventory do %>
         <div id={"inventory-#{key}"}>
           <%= key %>
