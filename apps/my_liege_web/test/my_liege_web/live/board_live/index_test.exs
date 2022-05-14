@@ -6,7 +6,8 @@ defmodule MyLiegeWeb.BoardLive.IndexTest do
   alias MyLiege.Game.Board
 
   setup do
-    :ok = Phoenix.PubSub.subscribe(MyLiege.PubSub, "Game")
+    set_realm(%Board{})
+    :ok
   end
 
   test "redirect to dashboard", %{conn: conn} do
@@ -15,7 +16,6 @@ defmodule MyLiegeWeb.BoardLive.IndexTest do
   end
 
   test "board index", %{conn: conn} do
-    set_realm(%Board{})
     conn = get(conn, "/board")
     assert html_response(conn, 200) =~ "<h1>My Liege - Board</h1>"
 
@@ -24,12 +24,17 @@ defmodule MyLiegeWeb.BoardLive.IndexTest do
   end
 
   test "start and stop sim", %{conn: conn} do
-    set_realm(%Board{})
     {:ok, view, html} = live(conn, "/board")
     assert html =~ "start"
     send(view.pid, {:sim_started, started: true})
     assert render(view) =~ "stop"
     send(view.pid, {:sim_started, started: false})
     assert render(view) =~ "start"
+  end
+
+  test "game over", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/board")
+    send(view.pid, {:game_over, reason: "all pawns died"})
+    assert render(view) =~ "all pawns died"
   end
 end
