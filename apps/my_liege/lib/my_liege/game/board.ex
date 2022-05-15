@@ -4,11 +4,13 @@ defmodule MyLiege.Game.Board do
   defstruct workplaces: %{}, pawn_pool: %{}, poverty: %{}, inventory: %{}
 
   def create("one") do
+    farm = %Workplace{id: 1, type: :farm, input: %{manpower: 4}, output: %{food: 15}}
+
     %Board{
       workplaces: %{
-        1 => %Workplace{id: 1, type: :farm, input: %{manpower: 4}, output: %{food: 15}},
-        2 => %Workplace{id: 2, type: :construction_site},
-        3 => %Workplace{id: 3, type: :construction_site}
+        1 => %Workplace{farm | id: 1},
+        2 => %Workplace{id: 2, type: :construction_site, input: %{manpower: 5}, output: farm},
+        3 => %Workplace{id: 3, type: :construction_site, input: %{manpower: 5}, output: farm}
       },
       pawn_pool: %{normal: 3},
       inventory: %{food: 15}
