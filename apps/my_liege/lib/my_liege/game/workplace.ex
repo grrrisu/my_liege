@@ -6,25 +6,31 @@ defmodule MyLiege.Game.Workplace do
   def produce(%Workplace{pawn: nil}), do: {nil, nil}
 
   def produce(
-        %Workplace{type: :farm, inventory: %{manpower: x} = inventory, input: %{manpower: x}} =
+        %Workplace{
+          type: :construction_site,
+          inventory: %{manpower: x},
+          input: %{manpower: x}
+        } = construction_site
+      ) do
+    {%Workplace{construction_site.output | id: construction_site.id}, nil}
+  end
+
+  def produce(
+        %Workplace{type: _factory, inventory: %{manpower: x} = inventory, input: %{manpower: x}} =
           farm
       ) do
     farm = %Workplace{farm | inventory: %{inventory | manpower: 0}}
     {farm, farm.output}
   end
 
-  def produce(%Workplace{type: :farm, inventory: %{manpower: x} = inventory} = farm) do
+  def produce(%Workplace{type: _factory, inventory: %{manpower: x} = inventory} = farm) do
     farm = %Workplace{farm | inventory: %{inventory | manpower: x + 1}}
     {farm, nil}
   end
 
-  def produce(%Workplace{type: :farm, inventory: inventory} = farm) do
+  def produce(%Workplace{type: _factory, inventory: inventory} = farm) do
     farm = %Workplace{farm | inventory: Map.put(inventory, :manpower, 1)}
     {farm, nil}
-  end
-
-  def produce(%Workplace{type: :construction_site}) do
-    {nil, nil}
   end
 
   def has_capacity?(%Workplace{pawn: nil}), do: true
