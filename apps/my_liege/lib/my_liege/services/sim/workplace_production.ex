@@ -1,40 +1,64 @@
 defmodule MyLiege.Service.Sim.WorkplaceProduction do
-  import MyLiege.MapAggregator
-
   alias MyLiege.Game.Workplace
 
+  @type workplaces :: %{integer => %Workplace{}}
+  @type event :: {atom, any} | {:command, {atom, keyword}}
+
+  @spec workplaces_production(workplaces) :: {workplaces, [event]}
   def workplaces_production(workplaces) do
     workplaces
-    |> Enum.reduce({workplaces, [], %{}}, &reduce_production/2)
-    |> workplace_event()
-    |> inventory_event()
+    |> Enum.reduce({[], []}, &production_events/2)
+    |> replace_workplaces(workplaces)
   end
 
-  def reduce_production({_id, workplace}, {data, workplace_ids, outputs}) do
-    {workplace, output} = Workplace.produce(workplace)
-    {ids, workplaces} = replace_workplace(data, workplace_ids, workplace)
-    {workplaces, ids, aggregate_map(outputs, output)}
+  def production_events({_id, workplace}, {changed_workplaces, events}) do
+    case produce(workplace) do
+      {nil, new_events} -> {changed_workplaces, new_events ++ events}
+      {workplace, new_events} -> {[workplace | changed_workplaces], new_events ++ events}
+    end
   end
 
-  def replace_workplace(data, ids, nil), do: {ids, data}
+  def replace_workplaces({[], []}, all_workplaces), do: {all_workplaces, []}
 
-  def replace_workplace(data, ids, workplace) do
-    {[workplace.id | ids], Map.replace(data, workplace.id, workplace)}
+  def replace_workplaces({changed_workplaces, events}, all_workplaces) do
+    workplaces =
+      Enum.reduce(changed_workplaces, all_workplaces, fn workplace, all_workplaces ->
+        Map.replace(all_workplaces, workplace.id, workplace)
+      end)
+
+    ids = Enum.map(changed_workplaces, & &1.id)
+    {workplaces, [{:workplaces_updated, ids: ids}] ++ events}
   end
 
-  def workplace_event({data, ids, outputs}) when ids == [] do
-    {data, [], outputs}
+  def produce(%Workplace{pawn: nil}), do: {nil, []}
+
+  def produce(%Workplace{} = workplace) do
+    with true <- Workplace.has_material?(workplace) do
+      next_step(workplace)
+    else
+      _ -> {nil, []}
+    end
   end
 
-  def workplace_event({data, ids, outputs}) do
-    {data, [{:workplaces_updated, ids: ids}], outputs}
+  defp next_step(
+         %Workplace{
+           type: :construction_site,
+           inventory: %{manpower: x},
+           input: %{manpower: x}
+         } = construction_site
+       ) do
+    {Workplace.construct_site(construction_site),
+     [{:command, {:user, :remove_pawn_from_workplace, workplace_id: construction_site.id}}]}
   end
 
-  def inventory_event({data, events, outputs}) when map_size(outputs) == 0 do
-    {data, events}
+  defp next_step(
+         %Workplace{type: _factory, inventory: %{manpower: x}, input: %{manpower: x}} = factory
+       ) do
+    {factory, output} = Workplace.produce_output(factory)
+    {factory, [{:command, {:sim, :add_inventory, output}}]}
   end
 
-  def inventory_event({data, events, outputs}) do
-    {data, [{:command, {:sim, :add_inventory, outputs}} | events]}
+  defp next_step(%Workplace{} = factory) do
+    {Workplace.inc_manpower(factory), []}
   end
 end
