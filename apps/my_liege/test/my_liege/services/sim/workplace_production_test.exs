@@ -75,7 +75,7 @@ defmodule MyLiege.Service.Sim.WorkplaceProductionTest do
       assert workplace.inventory.manpower == 0
       assert workplace.inventory.tools == 0
 
-      assert [{:command, {:sim, :add_inventory, %{food: 5}}}, {:workplaces_updated, [ids: [1]]}] ==
+      assert [{:workplaces_updated, [ids: [1]]}, {:command, {:sim, :add_inventory, %{food: 5}}}] ==
                events
     end
   end
@@ -97,7 +97,10 @@ defmodule MyLiege.Service.Sim.WorkplaceProductionTest do
       assert %Workplace{id: 1, type: :farm, pawn: %Pawn{}, inventory: %{wood: 0, manpower: 0}} =
                workplace
 
-      assert [{:workplaces_updated, [ids: [1]]}] == events
+      assert [
+               {:workplaces_updated, [ids: [1]]},
+               {:command, {:user, :remove_pawn_from_workplace, [workplace_id: 1]}}
+             ] == events
     end
   end
 end
