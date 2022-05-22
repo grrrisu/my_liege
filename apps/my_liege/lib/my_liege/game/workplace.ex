@@ -17,6 +17,20 @@ defmodule MyLiege.Game.Workplace do
     end)
   end
 
+  def needed_material(%Workplace{inventory: inventory, input: input}) do
+    input
+    |> without_manpower()
+    |> Enum.reduce(%{}, fn {material, amount}, needed ->
+      current = Map.get(inventory, material, 0)
+
+      if current < amount do
+        Map.put_new(needed, material, amount - current)
+      else
+        needed
+      end
+    end)
+  end
+
   defp consume_matrial(%Workplace{inventory: inventory, input: input}) do
     input
     |> without_manpower()

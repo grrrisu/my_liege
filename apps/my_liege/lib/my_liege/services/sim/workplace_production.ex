@@ -18,7 +18,7 @@ defmodule MyLiege.Service.Sim.WorkplaceProduction do
     end
   end
 
-  def replace_workplaces({[], []}, all_workplaces), do: {all_workplaces, []}
+  def replace_workplaces({[], events}, all_workplaces), do: {all_workplaces, events}
 
   def replace_workplaces({changed_workplaces, events}, all_workplaces) do
     workplaces =
@@ -33,10 +33,15 @@ defmodule MyLiege.Service.Sim.WorkplaceProduction do
   def produce(%Workplace{pawn: nil}), do: {nil, []}
 
   def produce(%Workplace{} = workplace) do
-    with true <- Workplace.has_material?(workplace) do
+    if Workplace.has_material?(workplace) do
       next_step(workplace)
     else
-      _ -> {nil, []}
+      [{material, _amount}] =
+        workplace
+        |> Workplace.needed_material()
+        |> Enum.take(1)
+
+      {nil, [{:command, {:user, :transport_to_workplace, goods: %{material => 1}}}]}
     end
   end
 
