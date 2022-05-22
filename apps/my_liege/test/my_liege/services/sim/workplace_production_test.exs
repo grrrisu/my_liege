@@ -18,11 +18,17 @@ defmodule MyLiege.Service.Sim.WorkplaceProductionTest do
     test "not enough material in inventory" do
       {%{1 => workplace}, events} =
         WorkplaceProduction.workplaces_production(%{
-          1 => %Workplace{id: 1, type: :farm, inventory: %{tools: 1}, input: %{tools: 2}}
+          1 => %Workplace{
+            id: 1,
+            type: :farm,
+            inventory: %{tools: 1},
+            input: %{tools: 2},
+            pawn: %Pawn{}
+          }
         })
 
       assert Map.get(workplace.inventory, :manpower) |> is_nil()
-      assert Enum.count(events) == 0
+      assert [{:command, {:user, :transport_to_workplace, [goods: %{tools: 1}]}}] == events
     end
 
     test "starting work" do
