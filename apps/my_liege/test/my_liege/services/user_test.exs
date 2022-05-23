@@ -39,4 +39,21 @@ defmodule MyLiege.Service.UserTest do
                )
     end
   end
+
+  describe "transport to workplace" do
+    test "enough goods in inventory" do
+      data = %Board{inventory: %{wood: 5}, workplaces: %{1 => %Workplace{}}}
+      {data, events} = User.transport_to_workplace(data, %{wood: 3}, 1)
+
+      assert data == %Board{
+               inventory: %{wood: 4},
+               workplaces: %{1 => %Workplace{inventory: %{wood: 1}}}
+             }
+
+      assert events == [
+               {:workplace_updated, [id: 1]},
+               {:inventory_updated, [removed: %{wood: 1}]}
+             ]
+    end
+  end
 end

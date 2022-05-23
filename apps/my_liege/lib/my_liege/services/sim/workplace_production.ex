@@ -36,12 +36,12 @@ defmodule MyLiege.Service.Sim.WorkplaceProduction do
     if Workplace.has_material?(workplace) do
       next_step(workplace)
     else
-      [{material, _amount}] =
-        workplace
-        |> Workplace.needed_material()
-        |> Enum.take(1)
-
-      {nil, [{:command, {:user, :transport_to_workplace, goods: %{material => 1}}}]}
+      {nil,
+       [
+         {:command,
+          {:user, :transport_to_workplace,
+           workplace_id: workplace.id, goods: Workplace.needed_material(workplace)}}
+       ]}
     end
   end
 
