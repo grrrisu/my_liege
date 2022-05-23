@@ -75,14 +75,19 @@ defmodule MyLiegeWeb.BoardLive.Index do
      |> put_flash(:info, if(started, do: "sim started", else: "sim stopped"))}
   end
 
-  def handle_info({:inventory_updated, input: _input}, socket) do
+  def handle_info({:inventory_updated, _}, socket) do
     Logger.info("inventory_updated")
     send_update(InventoryComponent, id: "inventory")
     {:noreply, socket}
   end
 
   def handle_info({action, _}, socket)
-      when action in [:workplaces_updated, :pawn_added_to_workplace, :pawn_removed_from_workplace] do
+      when action in [
+             :workplaces_updated,
+             :workplace_updated,
+             :pawn_added_to_workplace,
+             :pawn_removed_from_workplace
+           ] do
     Logger.info(inspect(action))
     send_update(WorkplacesComponent, id: "workplaces")
     {:noreply, socket}

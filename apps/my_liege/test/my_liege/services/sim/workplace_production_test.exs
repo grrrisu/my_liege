@@ -28,7 +28,10 @@ defmodule MyLiege.Service.Sim.WorkplaceProductionTest do
         })
 
       assert Map.get(workplace.inventory, :manpower) |> is_nil()
-      assert [{:command, {:user, :transport_to_workplace, [goods: %{tools: 1}]}}] == events
+
+      assert [
+               {:command, {:user, :transport_to_workplace, [workplace_id: 1, goods: %{tools: 1}]}}
+             ] == events
     end
 
     test "starting work" do

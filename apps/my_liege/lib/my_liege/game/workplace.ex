@@ -51,6 +51,20 @@ defmodule MyLiege.Game.Workplace do
     %Workplace{factory | inventory: Map.put(inventory, :manpower, 1)}
   end
 
+  def inc_inventory(%Workplace{inventory: inventory} = workplace, goods) do
+    inventory =
+      Enum.reduce(goods, inventory, fn {material, amount}, inventory ->
+        {_, inventory} =
+          Map.get_and_update(inventory, material, fn current ->
+            {current, (current || 0) + amount}
+          end)
+
+        inventory
+      end)
+
+    %Workplace{workplace | inventory: inventory}
+  end
+
   def construct_site(construction_site) do
     inventory = consume_matrial(construction_site)
 
