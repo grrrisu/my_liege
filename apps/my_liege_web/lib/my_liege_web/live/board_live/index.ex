@@ -47,9 +47,10 @@ defmodule MyLiegeWeb.BoardLive.Index do
 
   def start_button(assigns) do
     label = if assigns.started, do: "stop", else: "start"
+    assigns = assign(assigns, label: label)
 
     ~H"""
-    <button phx-click="run-sim" phx-value-running={"#{@started}"} class="btn btn-lg"><%= label %></button>
+    <button phx-click="run-sim" phx-value-running={"#{@started}"} class="btn btn-lg"><%= @label %></button>
     """
   end
 
