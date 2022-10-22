@@ -28,12 +28,12 @@ defmodule MyLiege.Game.Board do
     %Board{}
   end
 
-  def update_in(data, path, func) do
-    struct(Board, Map.from_struct(data) |> Kernel.update_in(path, func))
+  def update_in(data, [board_key | path], func) do
+    Kernel.update_in(data, [Access.key(board_key) | path], func)
   end
 
-  def get_in(data, path) do
-    Map.from_struct(data) |> Kernel.get_in(path)
+  def get_in(data, [board_key | path]) do
+    Kernel.get_in(data, [Access.key(board_key) | path])
   end
 
   def has_poverty?(%Board{poverty: poverty}) do
