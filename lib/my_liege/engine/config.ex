@@ -20,5 +20,9 @@ defmodule MyLiege.Engine.Config do
             },
             starting_buildings: [:farm, :monastery, :watchtower, :market, :tavern],
             building_capacity: 3,
-            construction_weeks: 1
+            construction_weeks: 1,
+            mana_per_worker: %{
+              untrained: %{building_colour: 2, own_colour: 1},
+              trained: %{building_colour: 1, own_colour: 2}
+            }
 end
