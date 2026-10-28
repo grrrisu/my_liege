@@ -24,5 +24,6 @@ defmodule MyLiege.Engine.Config do
             mana_per_worker: %{
               untrained: %{building_colour: 2, own_colour: 1},
               trained: %{building_colour: 1, own_colour: 2}
-            }
+            },
+            manameter_points_per_week: 10
 end
