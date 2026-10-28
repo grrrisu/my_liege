@@ -41,7 +41,7 @@ When asking, quote the line of the plan in question and give the options you see
 - **Run `mix precommit` before every commit**; it must pass.
 - **Review before every commit:** stop, show a short summary and the diff, and wait for the designer's OK.
 - **The designer pushes, pulls and merges.** Never run `git push` or `git pull`.
-- **After the designer has pulled `main`**, delete local branches already merged into it with `git branch -d` without asking. Never use `git branch -D`.
+- **After the designer has pulled `main`**, delete local branches already merged into it without asking. Use `git branch -d`; PRs are rebased, so if it refuses, use `git branch -D` only when `git diff main <branch>` is empty.
 
 ## Domain terms
 
