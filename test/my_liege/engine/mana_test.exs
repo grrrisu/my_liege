@@ -1,12 +1,13 @@
 defmodule MyLiege.Engine.ManaTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Config, Mana, Worker}
+  alias MyLiege.Engine.{Building, Mana, Worker}
+  alias MyLiege.EngineFixtures
 
   describe "R3: mana per worker" do
     setup do
-      config = %Config{}
-      buildings = Building.starting(config)
+      config = EngineFixtures.config()
+      buildings = Building.starting()
       buildings_by_type = Map.new(buildings, &{&1.type, &1})
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type}
     end
@@ -36,22 +37,22 @@ defmodule MyLiege.Engine.ManaTest do
       workers = [
         worker(:green, false, buildings_by_type.farm.id),
         worker(:red, false, buildings_by_type.farm.id),
-        worker(:blue, true, buildings_by_type.market.id),
+        worker(:blue, true, buildings_by_type.watchtower.id),
         worker(:violet)
       ]
 
       assert Mana.week(workers, buildings, 0, config) ==
-               %{green: 5, blue: 2, red: 1, yellow: 1, violet: 0}
+               %{green: 5, blue: 2, red: 2, yellow: 0, violet: 0}
     end
 
     test "a worker can only be placed in a finished building with room", context do
       %{config: config, buildings: buildings, buildings_by_type: %{farm: farm}} = context
       buildings = Building.construct(buildings, :tavern, 5, config)
       new_tavern = List.last(buildings)
-      full_farm = for _ <- 1..3, do: worker(:green, false, farm.id)
+      full_farm = for _ <- 1..config.capacity.farm, do: worker(:green, false, farm.id)
 
-      refute Building.can_place?(new_tavern, [], 5, config)
-      assert Building.can_place?(new_tavern, [], 6, config)
+      refute Building.can_place?(new_tavern, [], 6, config)
+      assert Building.can_place?(new_tavern, [], 7, config)
       assert Building.can_place?(farm, [], 0, config)
       refute Building.can_place?(farm, full_farm, 0, config)
     end

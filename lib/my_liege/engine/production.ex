@@ -1,23 +1,24 @@
 defmodule MyLiege.Engine.Production do
   @moduledoc """
-  R2: production = base production × colour factor.
+  R2: production = base production × colour factor (in per mille).
 
-  Amounts are kept as decimals for now; the designer will decide how to handle fractions.
+  Amounts are in thousandths (see `Fixed`), so the result is exact.
   """
 
-  alias MyLiege.Engine.{Building, Config, Pentagon, Worker}
+  alias MyLiege.Engine.{Building, Config, Fixed, Pentagon, Worker}
 
   @doc "One worker's output per week in the given building."
   def worker_output(%Worker{} = worker, %Building{} = building, %Config{} = config) do
     training = if worker.trained, do: :trained, else: :untrained
     relation = Pentagon.relation(worker.colour, Building.colour(building))
-    factor = config.colour_factors[training][relation]
-    Map.fetch!(config.base_production, building.type) * factor
+    factor_per_mille = config.colour_factors[training][relation]
+    base = config.base_production |> Map.fetch!(building.type) |> Fixed.from()
+    div(base * factor_per_mille, 1000)
   end
 
   @doc "Total output per product in `week`, from placed workers in ready buildings."
   def week(workers, buildings, week, %Config{} = config) do
-    totals = Map.new(Building.products(), &{&1, 0.0})
+    totals = Map.new(Building.products(), &{&1, 0})
 
     workers
     |> Building.staffed(buildings, week)

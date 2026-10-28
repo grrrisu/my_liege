@@ -31,18 +31,6 @@ Only the **rules engine** is meant to be reused later. The interface is disposab
 
 When asking, quote the line of the plan in question and give the options you see, without picking one.
 
-## Git and review
-
-- **Never work or commit on `main`.** All code goes on a feature branch.
-- **One branch per rule**, created from `main` and named after the rule, e.g. `r3-mana-per-worker`. Rules are built top to bottom, starting with R1.
-- **A rule's open parts are decided by the designer before its branch is created.**
-- **Commits:** the rule's implementation is one commit. Each round of designer feedback and each refactor gets its own commit. Work that is not a rule (configuration, interface, export) goes in its own commits on the current branch.
-- **After all rules are implemented**, ask the designer for the names of new branches.
-- **Run `mix precommit` before every commit**; it must pass.
-- **Review before every commit:** stop, show a short summary and the diff, and wait for the designer's OK.
-- **The designer pushes, pulls and merges.** Never run `git push` or `git pull`.
-- **After the designer has pulled `main`**, delete local branches already merged into it without asking. Use `git branch -d`; PRs are rebased, so if it refuses, use `git branch -D` only when `git diff main <branch>` is empty.
-
 ## Domain terms
 
 - **Five paths and colours:** Growth (green), Wisdom (blue), Strength (red), Wealth (yellow), Culture (violet).
