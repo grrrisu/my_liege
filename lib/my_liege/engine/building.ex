@@ -47,4 +47,22 @@ defmodule MyLiege.Engine.Building do
     Enum.count(workers, fn %Worker{building: building} -> building == id end) <
       config.building_capacity
   end
+
+  @doc "A worker can only be placed in a finished building with room."
+  def can_place?(%__MODULE__{} = building, workers, week, %Config{} = config) do
+    ready?(building, week) and has_room?(building, workers, config)
+  end
+
+  @doc "Pairs each placed worker with its building, if that building is ready in `week`."
+  def staffed(workers, buildings, week) do
+    ready_buildings =
+      for building <- buildings, ready?(building, week), into: %{} do
+        {building.id, building}
+      end
+
+    for %Worker{building: building_id} = worker <- workers,
+        Map.has_key?(ready_buildings, building_id) do
+      {worker, Map.fetch!(ready_buildings, building_id)}
+    end
+  end
 end

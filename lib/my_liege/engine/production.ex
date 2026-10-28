@@ -17,25 +17,16 @@ defmodule MyLiege.Engine.Production do
 
   @doc "Total output per product in `week`, from placed workers in ready buildings."
   def week(workers, buildings, week, %Config{} = config) do
-    ready_buildings =
-      for building <- buildings, Building.ready?(building, week), into: %{} do
-        {building.id, building}
-      end
-
     totals = Map.new(Building.products(), &{&1, 0.0})
 
-    Enum.reduce(workers, totals, fn worker, totals ->
-      case Map.fetch(ready_buildings, worker.building) do
-        {:ok, building} ->
-          Map.update!(
-            totals,
-            Building.product(building),
-            &(&1 + worker_output(worker, building, config))
-          )
-
-        :error ->
-          totals
-      end
+    workers
+    |> Building.staffed(buildings, week)
+    |> Enum.reduce(totals, fn {worker, building}, totals ->
+      Map.update!(
+        totals,
+        Building.product(building),
+        &(&1 + worker_output(worker, building, config))
+      )
     end)
   end
 end
