@@ -4,14 +4,16 @@ defmodule MyLiege.Engine.RandomTest do
   alias MyLiege.Engine.Random
 
   test "the same seed gives the same random sequence" do
-    {42, a} = Random.new(42)
-    {42, b} = Random.new(42)
-    assert elem(:rand.uniform_s(a), 0) == elem(:rand.uniform_s(b), 0)
+    {42, first_rand} = Random.new(42)
+    {42, second_rand} = Random.new(42)
+    assert first_number(first_rand) == first_number(second_rand)
   end
 
   test "without a seed, the generated seed is returned and replays the run" do
-    {seed, a} = Random.new()
-    {^seed, b} = Random.new(seed)
-    assert elem(:rand.uniform_s(a), 0) == elem(:rand.uniform_s(b), 0)
+    {seed, first_rand} = Random.new()
+    {^seed, second_rand} = Random.new(seed)
+    assert first_number(first_rand) == first_number(second_rand)
   end
+
+  defp first_number(rand), do: rand |> :rand.uniform_s() |> elem(0)
 end
