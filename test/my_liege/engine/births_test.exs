@@ -3,7 +3,7 @@ defmodule MyLiege.Engine.BirthsTest do
 
   alias MyLiege.Engine.{Births, Config, Manameter, Random, Worker}
 
-  defp rand(seed), do: seed |> Random.new() |> elem(1)
+  defp seeded_rand(seed), do: seed |> Random.new() |> elem(1)
 
   describe "R1: birth of a new worker" do
     setup do
@@ -20,51 +20,56 @@ defmodule MyLiege.Engine.BirthsTest do
     end
 
     test "no birth in a week between attempts", %{config: config} do
-      assert {nil, _} = Births.attempt(1, 24, config.starting_manameter, config, rand(1))
+      assert {nil, _} = Births.attempt(1, 24, config.starting_manameter, config, seeded_rand(1))
     end
 
     test "a birth passes with 0 food left after eating", %{config: config} do
-      assert {%Worker{}, _} = Births.attempt(0, 0, config.starting_manameter, config, rand(1))
+      assert {%Worker{}, _} =
+               Births.attempt(0, 0, config.starting_manameter, config, seeded_rand(1))
     end
 
     test "a birth is lost when food left after eating is below 0", %{config: config} do
-      r = rand(1)
-      assert {nil, ^r} = Births.attempt(0, -1, config.starting_manameter, config, r)
+      rand = seeded_rand(1)
+      assert {nil, ^rand} = Births.attempt(0, -1, config.starting_manameter, config, rand)
     end
 
     test "a newborn is untrained and unplaced", %{config: config} do
-      {newborn, _} = Births.attempt(0, 24, config.starting_manameter, config, rand(1))
+      {newborn, _} = Births.attempt(0, 24, config.starting_manameter, config, seeded_rand(1))
       assert %Worker{trained: false, building: nil} = newborn
       assert newborn.colour in Manameter.colours()
     end
 
     test "colour chances equal the Manameter shares", %{config: config} do
-      draws = 20_000
-      counts = draw_many(config.starting_manameter, rand(42), draws)
+      draw_count = 20_000
+      colour_counts = count_colours(config.starting_manameter, seeded_rand(42), draw_count)
 
       for {colour, share} <- Map.from_struct(config.starting_manameter) do
-        observed = Map.get(counts, colour, 0) * 100 / draws
+        observed = Map.get(colour_counts, colour, 0) * 100 / draw_count
         assert abs(observed - share) < 1, "#{colour}: expected ~#{share}%, got #{observed}%"
       end
     end
 
     test "a colour with a 0% share is never born", %{config: config} do
-      counts = draw_many(config.starting_manameter, rand(7), 20_000)
-      refute Map.has_key?(counts, :violet)
+      colour_counts = count_colours(config.starting_manameter, seeded_rand(7), 20_000)
+      refute Map.has_key?(colour_counts, :violet)
     end
 
     test "the same seed gives the same colours", %{config: config} do
-      assert draw_list(config.starting_manameter, rand(3), 50) ==
-               draw_list(config.starting_manameter, rand(3), 50)
+      assert draw_colours(config.starting_manameter, seeded_rand(3), 50) ==
+               draw_colours(config.starting_manameter, seeded_rand(3), 50)
     end
   end
 
-  defp draw_list(manameter, rand, n) do
-    {colours, _} = Enum.map_reduce(1..n, rand, fn _, r -> Births.draw_colour(manameter, r) end)
+  defp draw_colours(manameter, rand, draw_count) do
+    {colours, _} =
+      Enum.map_reduce(1..draw_count, rand, fn _, current_rand ->
+        Births.draw_colour(manameter, current_rand)
+      end)
+
     colours
   end
 
-  defp draw_many(manameter, rand, n) do
-    manameter |> draw_list(rand, n) |> Enum.frequencies()
+  defp count_colours(manameter, rand, draw_count) do
+    manameter |> draw_colours(rand, draw_count) |> Enum.frequencies()
   end
 end
