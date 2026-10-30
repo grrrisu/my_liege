@@ -26,7 +26,9 @@ defmodule MyLiege.Engine.LoadConfig do
       colour_factors: colour_factors(inputs),
       construction_weeks: fetch!(inputs, "construction_weeks"),
       mana_per_worker: mana_per_worker(inputs),
-      manameter_points_per_week: fetch!(inputs, "manameter_points_per_week")
+      manameter_points_per_week: fetch!(inputs, "manameter_points_per_week"),
+      starting_food: fetch!(inputs, "starting_food"),
+      food_eaten_per_worker: fetch!(inputs, "wheat_eaten_per_worker")
     }
 
     Logger.info(

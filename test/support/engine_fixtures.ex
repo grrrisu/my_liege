@@ -22,7 +22,9 @@ defmodule MyLiege.EngineFixtures do
           untrained: %{building_colour: 2, own_colour: 1},
           trained: %{building_colour: 1, own_colour: 2}
         },
-        manameter_points_per_week: 3
+        manameter_points_per_week: 3,
+        starting_food: 24,
+        food_eaten_per_worker: 3
       },
       overrides
     )

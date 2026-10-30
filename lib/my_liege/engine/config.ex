@@ -20,7 +20,9 @@ defmodule MyLiege.Engine.Config do
     :colour_factors,
     :construction_weeks,
     :mana_per_worker,
-    :manameter_points_per_week
+    :manameter_points_per_week,
+    :starting_food,
+    :food_eaten_per_worker
   ]
   defstruct @enforce_keys
 
