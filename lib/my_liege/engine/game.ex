@@ -63,6 +63,7 @@ defmodule MyLiege.Engine.Game do
     stocks = Map.merge(game.stocks, production, fn _product, stock, made -> stock + made end)
     food_left = Food.eat(stocks.food, workers, config)
     {newborn, rand} = Births.attempt(week, food_left, manameter, config, game.rand)
+    newborn = newborn && %{newborn | id: Worker.next_id(workers)}
 
     report = %{
       week: week,
@@ -84,6 +85,58 @@ defmodule MyLiege.Engine.Game do
     }
 
     {report, game}
+  end
+
+  @doc """
+  Places or moves a worker, free and immediate: it works there from the next week run.
+  The building must be ready in that week and have room.
+  """
+  def place_worker(%__MODULE__{} = game, worker_id, building_id, %Config{} = config) do
+    with {:ok, worker} <- fetch_worker(game, worker_id),
+         {:ok, building} <- fetch_building(game, building_id) do
+      others = Enum.reject(game.workers, &(&1.id == worker_id))
+
+      cond do
+        worker.building == building_id -> {:ok, game}
+        not Building.ready?(building, game.week + 1) -> {:error, :not_ready}
+        not Building.has_room?(building, others, config) -> {:error, :full}
+        true -> {:ok, put_worker(game, %{worker | building: building_id})}
+      end
+    end
+  end
+
+  @doc "Takes a worker out of its building."
+  def unplace_worker(%__MODULE__{} = game, worker_id) do
+    with {:ok, worker} <- fetch_worker(game, worker_id) do
+      {:ok, put_worker(game, %{worker | building: nil})}
+    end
+  end
+
+  @doc "Orders a new building; see `Building.construct/4`. No limit on number or frequency."
+  def construct(%__MODULE__{} = game, type, %Config{} = config) do
+    if type in Building.types() do
+      {:ok, %{game | buildings: Building.construct(game.buildings, type, game.week, config)}}
+    else
+      {:error, :unknown_type}
+    end
+  end
+
+  defp fetch_worker(game, worker_id) do
+    case Enum.find(game.workers, &(&1.id == worker_id)) do
+      nil -> {:error, :unknown_worker}
+      worker -> {:ok, worker}
+    end
+  end
+
+  defp fetch_building(game, building_id) do
+    case Enum.find(game.buildings, &(&1.id == building_id)) do
+      nil -> {:error, :unknown_building}
+      building -> {:ok, building}
+    end
+  end
+
+  defp put_worker(game, worker) do
+    %{game | workers: Enum.map(game.workers, &if(&1.id == worker.id, do: worker, else: &1))}
   end
 
   # products without a starting key begin at 0

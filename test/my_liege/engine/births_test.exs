@@ -17,13 +17,13 @@ defmodule MyLiege.Engine.BirthsTest do
       [farm, tower] = Building.starting()
 
       assert Worker.starting([farm, tower], config) == [
-               %Worker{colour: :green, building: farm.id},
-               %Worker{colour: :green, building: farm.id},
-               %Worker{colour: :red, building: tower.id}
+               %Worker{id: 1, colour: :green, building: farm.id},
+               %Worker{id: 2, colour: :green, building: farm.id},
+               %Worker{id: 3, colour: :red, building: tower.id}
              ]
     end
 
-    test "a birth is attempted on weeks 0, 2, 4, ...", %{config: config} do
+    test "a birth is attempted on weeks 1, 3, 5, ...", %{config: config} do
       assert Enum.filter(1..10, &Births.birth_week?(&1, config)) == [1, 3, 5, 7, 9]
     end
 

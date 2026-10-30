@@ -1,5 +1,5 @@
 defmodule MyLiegeWeb.GameLive do
-  @moduledoc "Bare play screen: the current game state and a button to run the next week."
+  @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
@@ -15,13 +15,61 @@ defmodule MyLiegeWeb.GameLive do
   @impl true
   def mount(_params, _session, socket) do
     config = Config.from_csv()
-    {:ok, socket |> assign(:config, config) |> assign_game(Game.new(config))}
+
+    {:ok,
+     socket
+     |> assign(:config, config)
+     |> assign(:selected, nil)
+     |> assign_game(Game.new(config))}
   end
 
   @impl true
   def handle_event("next_week", _params, socket) do
     {_report, game} = Game.run_week(socket.assigns.game, socket.assigns.config)
-    {:noreply, assign_game(socket, game)}
+    {:noreply, socket |> assign(:selected, nil) |> assign_game(game)}
+  end
+
+  def handle_event("select_worker", %{"id" => id}, socket) do
+    id = parse_id(id)
+    {:noreply, assign(socket, :selected, if(socket.assigns.selected == id, do: nil, else: id))}
+  end
+
+  def handle_event("place", %{"building" => building_id}, socket) do
+    %{game: game, selected: worker_id, config: config} = socket.assigns
+    result = Game.place_worker(game, worker_id, parse_id(building_id), config)
+    {:noreply, apply_result(socket, result)}
+  end
+
+  def handle_event("unplace", _params, socket) do
+    result = Game.unplace_worker(socket.assigns.game, socket.assigns.selected)
+    {:noreply, apply_result(socket, result)}
+  end
+
+  def handle_event("build", %{"type" => type}, socket) do
+    type = Enum.find(Building.types(), &(Atom.to_string(&1) == type))
+    result = Game.construct(socket.assigns.game, type, socket.assigns.config)
+    {:noreply, apply_result(socket, result)}
+  end
+
+  defp apply_result(socket, {:ok, game}) do
+    socket |> clear_flash() |> assign(:selected, nil) |> assign_game(game)
+  end
+
+  defp apply_result(socket, {:error, reason}) do
+    put_flash(socket, :error, error_message(reason))
+  end
+
+  defp error_message(:full), do: "That building is full."
+  defp error_message(:not_ready), do: "That building is not finished yet."
+  defp error_message(:unknown_worker), do: "Select a worker first."
+  defp error_message(:unknown_building), do: "Unknown building."
+  defp error_message(:unknown_type), do: "Unknown building type."
+
+  defp parse_id(id) do
+    case Integer.parse(id) do
+      {id, ""} -> id
+      _ -> nil
+    end
   end
 
   defp assign_game(socket, game) do
@@ -73,6 +121,9 @@ defmodule MyLiegeWeb.GameLive do
 
         <section id="buildings">
           <h2 class="mb-2 font-semibold">Buildings and workers</h2>
+          <p class="mb-2 text-sm opacity-60">
+            Click a worker to select it, then place it in a building.
+          </p>
           <div class="space-y-2">
             <div
               :for={building <- @game.buildings}
@@ -87,14 +138,61 @@ defmodule MyLiegeWeb.GameLive do
                   building.type
                 )}
               </span>
-              <.worker :for={worker <- workers_in(@game.workers, building.id)} worker={worker} />
+              <.worker
+                :for={worker <- workers_in(@game.workers, building.id)}
+                worker={worker}
+                selected={@selected == worker.id}
+              />
+              <span
+                :if={!Building.ready?(building, @game.week + 1)}
+                class="text-sm opacity-60"
+              >
+                ready in week {building.ready_week}
+              </span>
+              <button
+                :if={@selected}
+                id={"place-#{building.id}"}
+                phx-click="place"
+                phx-value-building={building.id}
+                class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
+              >
+                Place here
+              </button>
             </div>
             <div id="unplaced" class="flex items-center gap-3">
               <div class="h-4 w-4"></div>
               <span class="w-28 text-sm">unplaced</span>
               <span class="w-12 text-sm tabular-nums">{length(workers_in(@game.workers, nil))}</span>
-              <.worker :for={worker <- workers_in(@game.workers, nil)} worker={worker} />
+              <.worker
+                :for={worker <- workers_in(@game.workers, nil)}
+                worker={worker}
+                selected={@selected == worker.id}
+              />
+              <button
+                :if={@selected}
+                id="unplace"
+                phx-click="unplace"
+                class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
+              >
+                Take out
+              </button>
             </div>
+          </div>
+        </section>
+
+        <section id="build">
+          <h2 class="mb-2 font-semibold">Build</h2>
+          <div class="flex gap-2">
+            <button
+              :for={type <- Building.types()}
+              id={"build-#{type}"}
+              phx-click="build"
+              phx-value-type={type}
+              class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100"
+            >
+              <span class={["inline-block h-3 w-3 rounded-sm", colour_class(type_colour(type))]}></span>
+              {type}
+            </button>
           </div>
         </section>
 
@@ -128,7 +226,11 @@ defmodule MyLiegeWeb.GameLive do
             <tr id="newborn">
               <td class="pr-4">newborn</td>
               <td>
-                <.worker :if={@report.newborn} worker={@report.newborn} />
+                <span
+                  :if={@report.newborn}
+                  class={["inline-block h-5 w-5 rounded-sm", colour_class(@report.newborn.colour)]}
+                  title={@report.newborn.colour}
+                ></span>
                 <span :if={!@report.newborn}>none</span>
               </td>
             </tr>
@@ -140,19 +242,26 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   attr :worker, :map, required: true
+  attr :selected, :boolean, default: false
 
   defp worker(assigns) do
     ~H"""
-    <span
+    <button
+      id={"worker-#{@worker.id}"}
+      phx-click="select_worker"
+      phx-value-id={@worker.id}
       class={[
-        "inline-block h-5 w-5 rounded-sm",
+        "inline-block h-5 w-5 rounded-sm transition hover:scale-110",
         colour_class(@worker.colour),
-        @worker.trained && "ring-2 ring-zinc-900"
+        @worker.trained && "ring-2 ring-zinc-900",
+        @selected && "outline-3 outline-offset-2 outline-zinc-900"
       ]}
       title={"#{@worker.colour}#{if @worker.trained, do: ", trained"}"}
-    ></span>
+    ></button>
     """
   end
+
+  defp type_colour(type), do: Building.colour(%Building{id: 0, type: type})
 
   defp workers_in(workers, building_id), do: Enum.filter(workers, &(&1.building == building_id))
 

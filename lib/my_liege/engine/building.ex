@@ -17,6 +17,9 @@ defmodule MyLiege.Engine.Building do
 
   def colour(%__MODULE__{type: type}), do: Map.fetch!(@colours, type)
 
+  @doc "The building types in pentagon order."
+  def types, do: [:farm, :monastery, :watchtower, :market, :tavern]
+
   def product(%__MODULE__{type: type}), do: Map.fetch!(@products, type)
 
   @doc "The products in pentagon order of their buildings."
