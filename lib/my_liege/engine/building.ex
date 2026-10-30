@@ -17,6 +17,9 @@ defmodule MyLiege.Engine.Building do
 
   def colour(%__MODULE__{type: type}), do: Map.fetch!(@colours, type)
 
+  @doc "The building type of a path colour, e.g. `:green` -> `:farm`."
+  def type_of_colour(colour), do: Enum.find(types(), &(Map.fetch!(@colours, &1) == colour))
+
   @doc "The building types in pentagon order."
   def types, do: [:farm, :monastery, :watchtower, :market, :tavern]
 
