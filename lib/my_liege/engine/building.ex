@@ -23,11 +23,9 @@ defmodule MyLiege.Engine.Building do
 
   def ready?(%__MODULE__{ready_week: ready_week}, week), do: week >= ready_week
 
-  @doc "The buildings standing at the start of the game."
-  def starting(%Config{} = config) do
-    config.starting_buildings
-    |> Enum.with_index(1)
-    |> Enum.map(fn {type, id} -> %__MODULE__{id: id, type: type} end)
+  @doc "The buildings standing at the start of the game: the farm and the tower (a watchtower)."
+  def starting do
+    [%__MODULE__{id: 1, type: :farm}, %__MODULE__{id: 2, type: :watchtower}]
   end
 
   @doc "Orders a new building in `week`; it is free and produces after `construction_weeks`."
@@ -43,9 +41,9 @@ defmodule MyLiege.Engine.Building do
     buildings ++ [building]
   end
 
-  def has_room?(%__MODULE__{id: id}, workers, %Config{} = config) do
+  def has_room?(%__MODULE__{id: id, type: type}, workers, %Config{} = config) do
     Enum.count(workers, fn %Worker{building: building} -> building == id end) <
-      config.building_capacity
+      Map.fetch!(config.capacity, type)
   end
 
   @doc "A worker can only be placed in a finished building with room."
