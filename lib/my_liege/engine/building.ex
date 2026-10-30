@@ -28,7 +28,10 @@ defmodule MyLiege.Engine.Building do
     [%__MODULE__{id: 1, type: :farm}, %__MODULE__{id: 2, type: :watchtower}]
   end
 
-  @doc "Orders a new building in `week`; it is free and produces after `construction_weeks`."
+  @doc """
+  Orders a new building when the game stands at `week` (the last week run). It is free and
+  produces from week `week + construction_weeks`.
+  """
   def construct(buildings, type, week, %Config{} = config) when is_map_key(@colours, type) do
     last_id = buildings |> Enum.map(& &1.id) |> Enum.max(fn -> 0 end)
 

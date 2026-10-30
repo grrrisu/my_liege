@@ -24,6 +24,7 @@ defmodule MyLiege.EngineFixtures do
         },
         manameter_points_per_week: 3,
         starting_food: 24,
+        starting_gold: 100,
         food_eaten_per_worker: 3
       },
       overrides

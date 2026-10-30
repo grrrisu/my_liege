@@ -8,8 +8,8 @@ defmodule MyLiege.Engine.Births do
 
   alias MyLiege.Engine.{Config, Fixed, Manameter, Worker}
 
-  @doc "Whether a birth is attempted in this week."
-  def birth_week?(week, %Config{} = config), do: rem(week, config.birth_interval_weeks) == 0
+  @doc "Whether a birth is attempted in this week: weeks 1, 1 + interval, 1 + 2 × interval, …"
+  def birth_week?(week, %Config{} = config), do: rem(week - 1, config.birth_interval_weeks) == 0
 
   @doc """
   Attempts a birth after the week's eating. `food_left` is in thousandths (see `Fixed`).

@@ -28,6 +28,7 @@ defmodule MyLiege.Engine.LoadConfig do
       mana_per_worker: mana_per_worker(inputs),
       manameter_points_per_week: fetch!(inputs, "manameter_points_per_week"),
       starting_food: fetch!(inputs, "starting_food"),
+      starting_gold: fetch!(inputs, "starting_gold"),
       food_eaten_per_worker: fetch!(inputs, "wheat_eaten_per_worker")
     }
 

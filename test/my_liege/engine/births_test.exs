@@ -24,35 +24,35 @@ defmodule MyLiege.Engine.BirthsTest do
     end
 
     test "a birth is attempted on weeks 0, 2, 4, ...", %{config: config} do
-      assert Enum.filter(0..9, &Births.birth_week?(&1, config)) == [0, 2, 4, 6, 8]
+      assert Enum.filter(1..10, &Births.birth_week?(&1, config)) == [1, 3, 5, 7, 9]
     end
 
     test "the birth interval comes from the configuration", %{config: config} do
       config = %{config | birth_interval_weeks: 3}
-      assert Enum.filter(0..9, &Births.birth_week?(&1, config)) == [0, 3, 6, 9]
+      assert Enum.filter(1..10, &Births.birth_week?(&1, config)) == [1, 4, 7, 10]
     end
 
     test "no birth in a week between attempts", %{config: config, manameter: manameter} do
       food_left = Fixed.from(24)
-      assert {nil, _} = Births.attempt(1, food_left, manameter, config, seeded_rand(1))
+      assert {nil, _} = Births.attempt(2, food_left, manameter, config, seeded_rand(1))
     end
 
     test "a birth passes with exactly birth_min_food_left left after eating", context do
       %{config: config, manameter: manameter} = context
       food_left = Fixed.from(config.birth_min_food_left)
-      assert {%Worker{}, _} = Births.attempt(0, food_left, manameter, config, seeded_rand(1))
+      assert {%Worker{}, _} = Births.attempt(1, food_left, manameter, config, seeded_rand(1))
     end
 
     test "a birth is lost when food left after eating is below birth_min_food_left", context do
       %{config: config, manameter: manameter} = context
       food_left = Fixed.from(config.birth_min_food_left) - 1
       rand = seeded_rand(1)
-      assert {nil, ^rand} = Births.attempt(0, food_left, manameter, config, rand)
+      assert {nil, ^rand} = Births.attempt(1, food_left, manameter, config, rand)
     end
 
     test "a newborn is untrained and unplaced", %{config: config, manameter: manameter} do
       food_left = Fixed.from(24)
-      {newborn, _} = Births.attempt(0, food_left, manameter, config, seeded_rand(1))
+      {newborn, _} = Births.attempt(1, food_left, manameter, config, seeded_rand(1))
       assert %Worker{trained: false, building: nil} = newborn
       assert newborn.colour in Manameter.colours()
     end
