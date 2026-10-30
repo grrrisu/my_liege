@@ -23,7 +23,8 @@ defmodule MyLiege.Engine.Config do
     :manameter_points_per_week,
     :starting_food,
     :starting_gold,
-    :food_eaten_per_worker
+    :food_eaten_per_worker,
+    :years_per_game
   ]
   defstruct @enforce_keys
 

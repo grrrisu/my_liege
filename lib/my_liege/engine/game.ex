@@ -63,7 +63,7 @@ defmodule MyLiege.Engine.Game do
     stocks = Map.merge(game.stocks, production, fn _product, stock, made -> stock + made end)
     food_left = Food.eat(stocks.food, workers, config)
     {newborn, rand} = Births.attempt(week, food_left, manameter, config, game.rand)
-    newborn = newborn && %{newborn | id: Worker.next_id(workers)}
+    newborn = newborn && %{newborn | id: Worker.next_id(workers), born_week: week}
 
     report = %{
       week: week,

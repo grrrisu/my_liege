@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.Worker do
   alias MyLiege.Engine.Config
 
   @enforce_keys [:colour]
-  defstruct id: nil, colour: nil, trained: false, building: nil
+  defstruct id: nil, colour: nil, trained: false, building: nil, born_week: nil
 
   @doc "The starting workers: `starting_farmers` green on the farm, `starting_soldiers` red in the tower."
   def starting(buildings, %Config{} = config) do

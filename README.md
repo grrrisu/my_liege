@@ -46,6 +46,21 @@ game = Game.new(config, 42)
 File.write!("run_42.csv", MyLiege.Reporting.to_csv([Game.report(game) | reports]))
 ```
 
+### Test A (auto-run)
+
+Plays a fixed pattern (`:stay` or `:pivot`) for a whole game with random births from a seed:
+
+```elixir
+alias MyLiege.AutoRun
+
+runs = for seed <- 1..20, do: elem(AutoRun.run(:pivot, config, seed), 0)
+
+AutoRun.leading(hd(runs), config)      # leading colour and share at weeks 48, 96, 144
+AutoRun.pivot_weeks(hd(runs))          # weeks red needs to gain 20 points, or nil
+AutoRun.spread(runs, 144)              # lowest and highest share per colour across runs
+File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
+```
+
 Units:
 
 - Stocks and production are in thousandths: `27_000` food is 27 wheat.
