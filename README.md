@@ -38,6 +38,14 @@ Each report holds `week`, `production`, `mana`, `manameter`, `food_left` and `ne
 [Game.report(Game.new(config, 42)) | reports]
 ```
 
+Export a run as CSV, one row per week (engine units: thousandths and per mille):
+
+```elixir
+game = Game.new(config, 42)
+{reports, _game} = Enum.map_reduce(1..144, game, fn _, g -> Game.run_week(g, config) end)
+File.write!("run_42.csv", MyLiege.Reporting.to_csv([Game.report(game) | reports]))
+```
+
 Units:
 
 - Stocks and production are in thousandths: `27_000` food is 27 wheat.

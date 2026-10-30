@@ -19,7 +19,8 @@ defmodule MyLiege.Engine.Building do
 
   def product(%__MODULE__{type: type}), do: Map.fetch!(@products, type)
 
-  def products, do: Map.values(@products)
+  @doc "The products in pentagon order of their buildings."
+  def products, do: [:food, :knowledge, :defence, :gold, :entertainment]
 
   def ready?(%__MODULE__{ready_week: ready_week}, week), do: week >= ready_week
 
