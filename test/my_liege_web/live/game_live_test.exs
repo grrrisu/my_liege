@@ -60,4 +60,29 @@ defmodule MyLiegeWeb.GameLiveTest do
     assert has_element?(view, "#flash-error")
     assert has_element?(view, "#building-1 #worker-1")
   end
+
+  test "the tax due is shown after the count; the due week waits for the decision", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    refute has_element?(view, "#tax-due")
+    for _ <- 1..20, do: view |> element("#next-week") |> render_click()
+
+    assert has_element?(view, "#tax-counted")
+    assert has_element?(view, "#tax-due", "due in week 24")
+    refute has_element?(view, "#tax-decision")
+
+    for _ <- 21..23, do: view |> element("#next-week") |> render_click()
+
+    assert has_element?(view, "#tax-decision")
+    assert has_element?(view, "#next-week[disabled]")
+
+    view |> element("#skip-tax") |> render_click()
+    refute has_element?(view, "#next-week[disabled]")
+    view |> element("#next-week") |> render_click()
+
+    assert has_element?(view, "#week", "Week 24")
+    assert has_element?(view, "#tax-outcome", "skipped")
+  end
 end

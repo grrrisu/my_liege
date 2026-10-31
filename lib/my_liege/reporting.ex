@@ -3,7 +3,8 @@ defmodule MyLiege.Reporting do
   Turns weekly reports (from `Game.report/1` and `Game.run_week/2`) into CSV, one row per week.
   Pass the week 0 report first to include the starting state.
 
-  Values are in engine units: production and food in thousandths, Manameter shares in per mille.
+  Values are in engine units: production, food and gold in thousandths, Manameter shares in
+  per mille. `tax_due` is filled in the count week, `tax` (paid, skipped, missed) in the due week.
   """
 
   alias MyLiege.Engine.{Building, Manameter}
@@ -18,7 +19,7 @@ defmodule MyLiege.Reporting do
       Enum.map(Building.products(), &"production_#{&1}") ++
       Enum.map(Manameter.colours(), &"mana_#{&1}") ++
       Enum.map(Manameter.colours(), &"manameter_#{&1}") ++
-      ["food_left", "newborn"]
+      ["food_left", "newborn", "gold", "tax_due", "tax", "game_over"]
   end
 
   defp row(report) do
@@ -26,7 +27,14 @@ defmodule MyLiege.Reporting do
       Enum.map(Building.products(), &Map.fetch!(report.production, &1)) ++
       Enum.map(Manameter.colours(), &Map.fetch!(report.mana, &1)) ++
       Enum.map(Manameter.colours(), &Map.fetch!(report.manameter, &1)) ++
-      [report.food_left, newborn(report.newborn)]
+      [
+        report.food_left,
+        newborn(report.newborn),
+        report.gold,
+        report.tax_due,
+        report.tax,
+        report.game_over
+      ]
   end
 
   defp newborn(nil), do: ""

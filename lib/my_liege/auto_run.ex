@@ -12,9 +12,14 @@ defmodule MyLiege.AutoRun do
     Workers already placed stay where they are.
   - `:feed` – as `:stay`, but a newborn goes to a farm, whatever their colour, when last
     week's food balance (food left now minus food left a week earlier) can't feed one more
-    worker (< `food_eaten_per_worker`), or when the food stock is below 0.
-  - `:feed_pivot` – a newborn goes to a farm when food is low as in `:feed`; otherwise it
-    is placed as in `:pivot`.
+    worker (< `food_eaten_per_worker`), or when the food stock is below 0. Otherwise, while
+    gold is below the next tax, it goes to a market.
+  - `:feed_pivot` – a newborn goes to a farm when food is low as in `:feed`; workers born
+    before `pivot_week` go to a market while gold is low as in `:feed`; otherwise it is
+    placed as in `:pivot`.
+
+  The next tax is the amount fixed at the count, or before the count `tax_per_worker` for
+  every current worker.
 
   ## Running the test cases
 
@@ -44,7 +49,7 @@ defmodule MyLiege.AutoRun do
       File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
+  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes}
 
   # fixed by the designer, not read from the CSV
   @weeks_per_year 48
@@ -53,7 +58,8 @@ defmodule MyLiege.AutoRun do
   @points 200
 
   @doc """
-  Runs one game. Returns `{reports, game}`; reports start with week 0.
+  Runs one game. Returns `{reports, game}`; reports start with week 0. The pattern always
+  tries to pay taxes; the run ends early at game over.
   Option `:pivot_week` defaults to #{@weeks_per_year}.
   """
   def run(pattern, %Config{} = config, seed, opts \\ [])
@@ -63,48 +69,73 @@ defmodule MyLiege.AutoRun do
 
     weeks = 1..(@weeks_per_year * config.years_per_game)
 
-    {reports, {game, _food_before}} =
-      Enum.map_reduce(weeks, {start, nil}, fn _, {g, food_before} ->
-        g = place_unplaced(g, target, food_before, config)
-        {report, next} = Game.run_week(g, config)
-        {report, {next, g.stocks.food}}
+    {reports, game, _food_before} =
+      Enum.reduce_while(weeks, {[], start, nil}, fn _, {reports, g, food_before} ->
+        g = g |> place_unplaced(target, food_before, config) |> always_pay(config)
+
+        case Game.run_week(g, config) do
+          {:ok, report, next} -> {:cont, {[report | reports], next, g.stocks.food}}
+          {:error, :game_over} -> {:halt, {reports, g, food_before}}
+        end
       end)
 
-    {[Game.report(start) | reports], game}
+    {[Game.report(start) | Enum.reverse(reports)], game}
   end
 
-  @doc "The leading colour and its share at the end of each year: `[{week, colour, share}]`."
+  @doc """
+  The leading colour and its share at the end of each year the run reached:
+  `[{week, colour, share}]`.
+  """
   def leading(reports, %Config{} = config) do
-    for year <- 1..config.years_per_game do
-      week = year * @weeks_per_year
-      manameter = Enum.find(reports, &(&1.week == week)).manameter
-      colour = Enum.max_by(Manameter.colours(), &Map.fetch!(manameter, &1))
-      {week, colour, Map.fetch!(manameter, colour)}
+    for year <- 1..config.years_per_game,
+        week = year * @weeks_per_year,
+        report = Enum.find(reports, &(&1.week == week)) do
+      colour = Enum.max_by(Manameter.colours(), &Map.fetch!(report.manameter, &1))
+      {week, colour, Map.fetch!(report.manameter, colour)}
     end
   end
 
   @doc """
   Weeks red needs to gain 20 points (200 per mille) from its share before `pivot_week`,
-  or `nil` if it never does.
+  or `nil` if it never does (or the run ended before the pivot).
   """
   def pivot_weeks(reports, opts \\ []) do
     pivot_week = Keyword.get(opts, :pivot_week, @weeks_per_year)
-    base = Enum.find(reports, &(&1.week == pivot_week - 1)).manameter.red
 
-    Enum.find_value(reports, fn report ->
-      if report.week >= pivot_week and report.manameter.red - base >= @points,
-        do: report.week - (pivot_week - 1)
-    end)
+    with %{manameter: %{red: base}} <- Enum.find(reports, &(&1.week == pivot_week - 1)) do
+      Enum.find_value(reports, &weeks_to_gain(&1, base, pivot_week))
+    end
   end
 
-  @doc "Lowest and highest share per colour across runs at `week`: `%{colour => {min, max}}`."
+  defp weeks_to_gain(report, base, pivot_week) do
+    if report.week >= pivot_week and report.manameter.red - base >= @points,
+      do: report.week - (pivot_week - 1)
+  end
+
+  @doc """
+  Lowest and highest share per colour at `week` across the runs that reached it:
+  `%{colour => {min, max}}`, or `nil` if none did.
+  """
   def spread(runs, week) do
     manameters =
-      Enum.map(runs, fn reports -> Enum.find(reports, &(&1.week == week)).manameter end)
+      for reports <- runs, report = Enum.find(reports, &(&1.week == week)) do
+        report.manameter
+      end
 
-    Map.new(Manameter.colours(), fn colour ->
-      {colour, manameters |> Enum.map(&Map.fetch!(&1, colour)) |> Enum.min_max()}
-    end)
+    if manameters != [] do
+      Map.new(Manameter.colours(), fn colour ->
+        {colour, manameters |> Enum.map(&Map.fetch!(&1, colour)) |> Enum.min_max()}
+      end)
+    end
+  end
+
+  defp always_pay(game, config) do
+    if Game.tax_decision_due?(game, config) do
+      {:ok, game} = Game.decide_tax(game, true, config)
+      game
+    else
+      game
+    end
   end
 
   defp target(:stay, _pivot_week, _config),
@@ -116,22 +147,36 @@ defmodule MyLiege.AutoRun do
 
   defp target(:feed, _pivot_week, config) do
     fn worker, game, food_before ->
-      if food_low?(game, food_before, config), do: :farm, else: own_type(worker)
+      cond do
+        food_low?(game, food_before, config) -> :farm
+        gold_low?(game, config) -> :market
+        true -> own_type(worker)
+      end
     end
   end
 
   defp target(:feed_pivot, pivot_week, config) do
     fn worker, game, food_before ->
-      if food_low?(game, food_before, config), do: :farm, else: pivot_type(worker, pivot_week)
+      cond do
+        food_low?(game, food_before, config) -> :farm
+        not pivoted?(worker, pivot_week) and gold_low?(game, config) -> :market
+        true -> pivot_type(worker, pivot_week)
+      end
     end
   end
 
   defp own_type(worker), do: Building.type_of_colour(worker.colour)
 
   defp pivot_type(worker, pivot_week) do
-    if worker.born_week && worker.born_week >= pivot_week,
-      do: :watchtower,
-      else: own_type(worker)
+    if pivoted?(worker, pivot_week), do: :watchtower, else: own_type(worker)
+  end
+
+  defp pivoted?(worker, pivot_week),
+    do: worker.born_week != nil and worker.born_week >= pivot_week
+
+  defp gold_low?(game, config) do
+    next_tax = game.tax_due || Taxes.assess(game.workers, config)
+    game.stocks.gold < next_tax
   end
 
   defp food_low?(game, food_before, config) do

@@ -11,9 +11,19 @@ defmodule MyLiege.AutoRunTest do
 
   describe "Test A: Stay" do
     test "reports every week from 0 to the last week of the game", %{config: config} do
+      config = %{config | starting_gold: 1_000_000}
       {reports, _game} = AutoRun.run(:stay, config, 1)
 
       assert Enum.map(reports, & &1.week) == Enum.to_list(0..144)
+    end
+
+    test "always tries to pay; the run ends at game over", %{config: config} do
+      config = %{config | starting_gold: 0}
+      {reports, game} = AutoRun.run(:stay, config, 1)
+
+      assert Enum.map(reports, & &1.tax) |> Enum.reject(&is_nil/1) == [:missed, :missed]
+      assert List.last(reports).week == 48
+      assert game.game_over
     end
 
     test "every placed worker is in a building of their own colour", %{config: config} do
@@ -98,13 +108,28 @@ defmodule MyLiege.AutoRunTest do
       assert game.stocks.food > 0
     end
 
-    test "with a large surplus it plays like Stay" do
+    test "with a large food surplus and enough gold it plays like Stay" do
       config =
         EngineFixtures.config(
+          starting_gold: 1_000_000,
           base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
       assert AutoRun.run(:feed, config, 2) == AutoRun.run(:stay, config, 2)
+    end
+
+    test "with enough food, newborns go to a market while gold is below the next tax" do
+      config =
+        EngineFixtures.config(
+          starting_gold: 0,
+          base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+        )
+
+      {_reports, game} = AutoRun.run(:feed, config, 1)
+      first_newborn = Enum.find(game.workers, &(&1.born_week == 1))
+      market_ids = for b <- game.buildings, b.type == :market, do: b.id
+
+      assert first_newborn.building in market_ids
     end
   end
 
@@ -119,13 +144,28 @@ defmodule MyLiege.AutoRunTest do
       assert AutoRun.run(:feed_pivot, config, 1) == AutoRun.run(:feed, config, 1)
     end
 
-    test "with a large surplus it plays like Pivot" do
+    test "with a large food surplus and enough gold it plays like Pivot" do
+      config =
+        EngineFixtures.config(
+          starting_gold: 1_000_000,
+          base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+        )
+
+      assert AutoRun.run(:feed_pivot, config, 2) == AutoRun.run(:pivot, config, 2)
+    end
+
+    test "after the pivot week, newborns go to a watchtower even while gold is low" do
       config =
         EngineFixtures.config(
           base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
-      assert AutoRun.run(:feed_pivot, config, 2) == AutoRun.run(:pivot, config, 2)
+      {_reports, game} = AutoRun.run(:feed_pivot, config, 1, pivot_week: 1)
+      buildings = Map.new(game.buildings, &{&1.id, &1})
+
+      for worker <- game.workers, worker.born_week, worker.building do
+        assert Map.fetch!(buildings, worker.building).type == :watchtower
+      end
     end
   end
 

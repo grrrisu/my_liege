@@ -30,7 +30,11 @@ defmodule MyLiege.Engine.LoadConfig do
       starting_food: fetch!(inputs, "starting_food"),
       starting_gold: fetch!(inputs, "starting_gold"),
       years_per_game: fetch!(inputs, "years_per_game"),
-      food_eaten_per_worker: fetch!(inputs, "wheat_eaten_per_worker")
+      food_eaten_per_worker: fetch!(inputs, "wheat_eaten_per_worker"),
+      tax_per_worker: fetch!(inputs, "tax_per_worker"),
+      tax_interval_weeks: fetch!(inputs, "tax_interval_weeks"),
+      tax_count_lead_weeks: fetch!(inputs, "tax_count_lead_weeks"),
+      tax_misses_forgiven: fetch!(inputs, "tax_misses_forgiven")
     }
 
     Logger.info(
