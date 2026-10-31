@@ -28,13 +28,17 @@ defmodule MyLiege.Engine.GameTest do
                mana: %{green: 0, blue: 0, red: 0, yellow: 0, violet: 0},
                manameter: config.starting_manameter,
                food_left: 24_000,
-               newborn: nil
+               newborn: nil,
+               gold: 100_000,
+               tax_due: nil,
+               tax: nil,
+               game_over: false
              }
     end
 
     test "after a week, its report is the one run_week returned" do
       config = EngineFixtures.config()
-      {report, game} = config |> Game.new(1) |> Game.run_week(config)
+      {:ok, report, game} = config |> Game.new(1) |> Game.run_week(config)
 
       assert Game.report(game) == report
     end
@@ -46,7 +50,7 @@ defmodule MyLiege.Engine.GameTest do
     end
 
     test "week 1 with the starting workers", %{config: config} do
-      {report, game} = config |> Game.new(1) |> Game.run_week(config)
+      {:ok, report, game} = config |> Game.new(1) |> Game.run_week(config)
 
       assert report.week == 1
       assert report.production.food == 9_000
@@ -70,7 +74,7 @@ defmodule MyLiege.Engine.GameTest do
 
     test "a newborn eats from the following week", %{config: config} do
       game = run_weeks(Game.new(config, 1), 1, config)
-      {report, _game} = Game.run_week(game, config)
+      {:ok, report, _game} = Game.run_week(game, config)
 
       # 27 + 9 produced - 3 workers × 3 eaten; no birth in week 2
       assert report.food_left == 27_000
@@ -86,7 +90,7 @@ defmodule MyLiege.Engine.GameTest do
           manameter_points_per_week: 1000
         )
 
-      {report, game} = config |> Game.new(1) |> Game.run_week(config)
+      {:ok, report, game} = config |> Game.new(1) |> Game.run_week(config)
 
       assert game.manameter == %Manameter{green: 0, blue: 0, red: 1000, yellow: 0, violet: 0}
       assert report.newborn.colour == :red
@@ -96,7 +100,7 @@ defmodule MyLiege.Engine.GameTest do
       config =
         EngineFixtures.config(birth_interval_weeks: 1, starting_farmers: 0, starting_food: 0)
 
-      {report, game} = config |> Game.new(1) |> Game.run_week(config)
+      {:ok, report, game} = config |> Game.new(1) |> Game.run_week(config)
 
       assert report.food_left < 0
       assert report.newborn == nil
@@ -110,7 +114,6 @@ defmodule MyLiege.Engine.GameTest do
   end
 
   defp run_weeks(game, count, config) do
-    {_reports, game} = Enum.map_reduce(1..count, game, fn _, g -> Game.run_week(g, config) end)
-    game
+    game |> EngineFixtures.run_weeks(count, config) |> elem(1)
   end
 end

@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.GameActionsTest do
   setup do
     config = EngineFixtures.config()
     # week 1 brings a newborn (id 3), unplaced
-    {_report, game} = config |> Game.new(1) |> Game.run_week(config)
+    {:ok, _report, game} = config |> Game.new(1) |> Game.run_week(config)
     %{config: config, game: game}
   end
 
@@ -20,7 +20,7 @@ defmodule MyLiege.Engine.GameActionsTest do
     test "an unplaced worker can be placed and works from the next week", context do
       %{config: config, game: game} = context
       {:ok, game} = Game.place_worker(game, 3, 1, config)
-      {report, _game} = Game.run_week(game, config)
+      {:ok, report, _game} = Game.run_week(game, config)
 
       assert %Worker{building: 1} = find_worker(game, 3)
       assert report.production.food > 9_000
@@ -86,9 +86,9 @@ defmodule MyLiege.Engine.GameActionsTest do
 
       assert Game.place_worker(game, 3, market.id, config) == {:error, :not_ready}
 
-      {_report, game} = Game.run_week(game, config)
+      {:ok, _report, game} = Game.run_week(game, config)
       {:ok, game} = Game.place_worker(game, 3, market.id, config)
-      {report, _game} = Game.run_week(game, config)
+      {:ok, report, _game} = Game.run_week(game, config)
 
       assert report.week == 3
       assert report.production.gold > 0

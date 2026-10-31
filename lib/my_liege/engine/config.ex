@@ -24,7 +24,11 @@ defmodule MyLiege.Engine.Config do
     :starting_food,
     :starting_gold,
     :food_eaten_per_worker,
-    :years_per_game
+    :years_per_game,
+    :tax_per_worker,
+    :tax_interval_weeks,
+    :tax_count_lead_weeks,
+    :tax_misses_forgiven
   ]
   defstruct @enforce_keys
 

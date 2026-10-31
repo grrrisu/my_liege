@@ -1,7 +1,7 @@
 defmodule MyLiege.EngineFixtures do
   @moduledoc "Explicit engine configuration for tests, independent of the designer's CSV."
 
-  alias MyLiege.Engine.{Config, Manameter}
+  alias MyLiege.Engine.{Config, Game, Manameter}
 
   def config(overrides \\ []) do
     struct!(
@@ -26,9 +26,27 @@ defmodule MyLiege.EngineFixtures do
         starting_food: 24,
         starting_gold: 100,
         years_per_game: 3,
-        food_eaten_per_worker: 3
+        food_eaten_per_worker: 3,
+        tax_per_worker: 10,
+        tax_interval_weeks: 24,
+        tax_count_lead_weeks: 4,
+        tax_misses_forgiven: 1
       },
       overrides
     )
+  end
+
+  @doc "Runs `count` weeks, paying every due tax. Returns `{reports, game}`."
+  def run_weeks(game, count, config) do
+    Enum.map_reduce(1..count//1, game, fn _, game ->
+      game = if Game.tax_decision_due?(game, config), do: decide!(game, config), else: game
+      {:ok, report, game} = Game.run_week(game, config)
+      {report, game}
+    end)
+  end
+
+  defp decide!(game, config) do
+    {:ok, game} = Game.decide_tax(game, true, config)
+    game
   end
 end

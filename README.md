@@ -16,39 +16,46 @@ alias MyLiege.Engine.{Config, Game}
 
 config = Config.from_csv()
 game = Game.new(config, 42)
-{report, game} = Game.run_week(game, config)
+{:ok, report, game} = Game.run_week(game, config)
 ```
 
 - `Config.from_csv/0` returns the values from `priv/balance_inputs.csv`, read when the app was compiled. Edit a copy to try other values, e.g. `%{config | manameter_points_per_week: 10}`.
 - `Game.new/2` takes the config and a seed. The same seed replays the same run; leave the seed out to get a random one, stored in `game.seed`.
-- `Game.run_week/2` runs the next week (production, Manameter update, eating, birth) and returns `{report, game}`. Week 0 is the starting state from the config; the first `run_week` runs week 1.
+- `Game.run_week/2` runs the next week (tax count, production, Manameter update, eating, birth, tax payment) and returns `{:ok, report, game}`. Week 0 is the starting state from the config; the first `run_week` runs week 1.
+- `run_week` is blocked with `{:error, :tax_undecided}` before a due week until the player decides with `Game.decide_tax(game, true_or_false, config)`, and with `{:error, :game_over}` once the game is over.
 
-Run several weeks and keep the reports:
+Run several weeks, paying every tax, and keep the reports:
 
 ```elixir
+run = fn game ->
+  game =
+    if Game.tax_decision_due?(game, config),
+      do: elem(Game.decide_tax(game, true, config), 1),
+      else: game
+
+  Game.run_week(game, config)
+end
+
 {reports, game} =
-  Enum.map_reduce(1..48, Game.new(config, 42), fn _, g -> Game.run_week(g, config) end)
+  Enum.map_reduce(1..48, Game.new(config, 42), fn _, g ->
+    {:ok, report, g} = run.(g)
+    {report, g}
+  end)
 
-Enum.map(reports, &{&1.week, &1.food_left, &1.manameter})
+Enum.map(reports, &{&1.week, &1.food_left, &1.gold, &1.tax})
 ```
 
-Each report holds `week`, `production`, `mana`, `manameter`, `food_left` and `newborn`. A week without enough food has `food_left < 0`. `Game.report(game)` returns the report of the last week run; for a new game it is week 0, the starting state:
-
-```elixir
-[Game.report(Game.new(config, 42)) | reports]
-```
+Each report holds `week`, `production`, `mana`, `manameter`, `food_left`, `newborn`, `gold`, `tax_due` (in the count week), `tax` (`:paid`, `:skipped` or `:missed` in the due week) and `game_over`. A week without enough food has `food_left < 0`. `Game.report(game)` returns the report of the last week run; for a new game it is week 0, the starting state.
 
 Export a run as CSV, one row per week (engine units: thousandths and per mille):
 
 ```elixir
-game = Game.new(config, 42)
-{reports, _game} = Enum.map_reduce(1..144, game, fn _, g -> Game.run_week(g, config) end)
-File.write!("run_42.csv", MyLiege.Reporting.to_csv([Game.report(game) | reports]))
+File.write!("run_42.csv", MyLiege.Reporting.to_csv([Game.report(Game.new(config, 42)) | reports]))
 ```
 
 ### Test A (auto-run)
 
-Plays a fixed pattern (`:stay` or `:pivot`) for a whole game with random births from a seed:
+Plays a fixed pattern (`:stay`, `:pivot`, `:feed` or `:feed_pivot`) with random births from a seed. The pattern always tries to pay taxes; a run ends early at game over:
 
 ```elixir
 alias MyLiege.AutoRun

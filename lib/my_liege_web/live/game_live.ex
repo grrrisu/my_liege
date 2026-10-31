@@ -2,7 +2,7 @@ defmodule MyLiegeWeb.GameLive do
   @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
+  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes}
 
   @colour_classes %{
     green: "bg-green-600",
@@ -25,8 +25,13 @@ defmodule MyLiegeWeb.GameLive do
 
   @impl true
   def handle_event("next_week", _params, socket) do
-    {_report, game} = Game.run_week(socket.assigns.game, socket.assigns.config)
-    {:noreply, socket |> assign(:selected, nil) |> assign_game(game)}
+    case Game.run_week(socket.assigns.game, socket.assigns.config) do
+      {:ok, _report, game} ->
+        {:noreply, socket |> clear_flash() |> assign(:selected, nil) |> assign_game(game)}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, error_message(reason))}
+    end
   end
 
   def handle_event("select_worker", %{"id" => id}, socket) do
@@ -51,6 +56,11 @@ defmodule MyLiegeWeb.GameLive do
     {:noreply, apply_result(socket, result)}
   end
 
+  def handle_event("decide_tax", %{"pay" => pay}, socket) do
+    result = Game.decide_tax(socket.assigns.game, pay == "true", socket.assigns.config)
+    {:noreply, apply_result(socket, result)}
+  end
+
   defp apply_result(socket, {:ok, game}) do
     socket |> clear_flash() |> assign(:selected, nil) |> assign_game(game)
   end
@@ -64,6 +74,9 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_worker), do: "Select a worker first."
   defp error_message(:unknown_building), do: "Unknown building."
   defp error_message(:unknown_type), do: "Unknown building type."
+  defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
+  defp error_message(:game_over), do: "The game is over."
+  defp error_message(:no_tax_due), do: "No tax payment is due next week."
 
   defp parse_id(id) do
     case Integer.parse(id) do
@@ -73,9 +86,14 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   defp assign_game(socket, game) do
+    config = socket.assigns.config
+    decision_due? = Game.tax_decision_due?(game, config)
+
     socket
     |> assign(:game, game)
     |> assign(:report, Game.report(game))
+    |> assign(:tax_decision_due?, decision_due?)
+    |> assign(:blocked?, game.game_over or (decision_due? and is_nil(game.pay_tax)))
   end
 
   @impl true
@@ -91,7 +109,8 @@ defmodule MyLiegeWeb.GameLive do
           <button
             id="next-week"
             phx-click="next_week"
-            class="rounded bg-zinc-900 px-4 py-2 text-white hover:bg-zinc-700"
+            disabled={@blocked?}
+            class="rounded bg-zinc-900 px-4 py-2 text-white hover:bg-zinc-700 disabled:opacity-40"
           >
             Next week
           </button>
@@ -117,6 +136,52 @@ defmodule MyLiegeWeb.GameLive do
               <td class="text-right">{units(Map.fetch!(@game.stocks, product))}</td>
             </tr>
           </table>
+        </section>
+
+        <section id="taxes">
+          <h2 class="mb-2 font-semibold">Taxes</h2>
+          <p :if={@game.game_over} id="game-over" class="mb-2 font-semibold text-red-600">
+            Game over: too many missed payments.
+          </p>
+          <div :if={@game.tax_due} id="tax-due" class="flex items-center gap-3 text-sm">
+            <span class="tabular-nums">
+              {units(@game.tax_due)} gold due in week {Taxes.next_due_week(@game.week, @config)}
+            </span>
+            <span :if={@tax_decision_due?} id="tax-decision" class="flex items-center gap-2">
+              <button
+                id="pay-tax"
+                phx-click="decide_tax"
+                phx-value-pay="true"
+                class={[
+                  "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
+                  @game.pay_tax == true && "bg-zinc-900 text-white hover:bg-zinc-700"
+                ]}
+              >
+                Pay
+              </button>
+              <button
+                id="skip-tax"
+                phx-click="decide_tax"
+                phx-value-pay="false"
+                class={[
+                  "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
+                  @game.pay_tax == false && "bg-zinc-900 text-white hover:bg-zinc-700"
+                ]}
+              >
+                Skip
+              </button>
+              <span :if={is_nil(@game.pay_tax)} class="font-semibold text-red-600">
+                decide before the next week
+              </span>
+            </span>
+          </div>
+          <p :if={!@game.tax_due} class="text-sm opacity-60">
+            Next count in week {Taxes.next_due_week(@game.week, @config) -
+              @config.tax_count_lead_weeks}
+          </p>
+          <p id="tax-misses" class="text-sm tabular-nums">
+            Missed payments: {@game.tax_misses} (forgiven: {@config.tax_misses_forgiven})
+          </p>
         </section>
 
         <section id="buildings">
@@ -233,6 +298,14 @@ defmodule MyLiegeWeb.GameLive do
                 ></span>
                 <span :if={!@report.newborn}>none</span>
               </td>
+            </tr>
+            <tr :if={@report.tax_due} id="tax-counted">
+              <td class="pr-4">tax counted</td>
+              <td>{units(@report.tax_due)} gold</td>
+            </tr>
+            <tr :if={@report.tax} id="tax-outcome">
+              <td class="pr-4">tax</td>
+              <td class={[@report.tax != :paid && "font-semibold text-red-600"]}>{@report.tax}</td>
             </tr>
           </table>
         </section>
