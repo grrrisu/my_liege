@@ -114,6 +114,35 @@ defmodule MyLiege.Engine.GameTest do
     end
   end
 
+  describe "end of the game" do
+    test "the last week is the end of year years_per_game" do
+      assert Game.last_week(EngineFixtures.config()) == 144
+      assert Game.last_week(EngineFixtures.config(years_per_game: 1)) == 48
+    end
+
+    test "reaching the last week without game over wins; no week runs after it" do
+      config = EngineFixtures.config(years_per_game: 1, starting_gold: 1000)
+      game = run_weeks(Game.new(config, 1), 48, config)
+
+      assert Game.won?(game, config)
+      assert Game.run_week(game, config) == {:error, :finished}
+    end
+
+    test "not won before the last week" do
+      config = EngineFixtures.config(years_per_game: 1, starting_gold: 1000)
+
+      refute Game.won?(run_weeks(Game.new(config, 1), 47, config), config)
+    end
+
+    test "game over in the last week is not a win" do
+      config = EngineFixtures.config(years_per_game: 1, starting_gold: 0)
+      game = run_weeks(Game.new(config, 1), 48, config)
+
+      assert game.game_over
+      refute Game.won?(game, config)
+    end
+  end
+
   defp run_weeks(game, count, config) do
     game |> EngineFixtures.run_weeks(count, config) |> elem(1)
   end

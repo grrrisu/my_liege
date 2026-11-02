@@ -120,7 +120,7 @@ The app is coded with GitHub Copilot, using this plan as the brief and `.github/
 | R2 | Production = base production × colour factor (same 100%, neighbour 80%, opposite 50%; trained 125%, 60%, 30%). Market workers produce money directly, a simplification for the first test (in the concept, money comes from trading). Every building has its own capacity and base production; construction takes time but costs nothing else | Defined |
 | R3 | Mana per worker per week: untrained 2 in the building's colour and 1 in their own; trained 1 and 2. Same colour gives 3 of that colour | Defined |
 | R4 | Manameter update, each week: remove a fixed number of points in proportion to the current shares; add the same number of points in proportion to the mana produced that week | Defined |
-| R5 | Training needs a guild and at least 30% of the worker's colour; colour never changes | Defined. Cost and duration open. The guildhouse's blue-trainer rule is a later idea, not part of the prototype |
+| R5 | Training needs a guildhouse and at least 30% of the worker's colour; colour never changes | Defined. Training costs nothing but time (4 weeks); the guildhouse trains one worker at a time, and more than one guildhouse can be built. A trainee eats and counts toward taxes, but produces no mana. Values in the balance model. The guildhouse's blue-trainer rule is a later idea, not part of the prototype |
 | R6 | Improved plough: needs at least 50% green, +10% farm production, kept if green later drops. Costs wisdom: about 4 months of a full monastery | Defined |
 | R7 | The king's demands: list, timing, deadlines, consequence of missing one. Taxes in money twice a year, per head, counted four weeks before each payment; paid in full or missed; the first miss is forgiven, the second ends the game | Taxes defined. Demands open |
 | R8 | Food: every worker eats wheat each week. No birth unless enough food is left. Leftover food carries over, stored in the tower, with no capacity limit in the prototype. A newborn eats from the following week; births cost no extra food. When there isn't enough food for everyone: for the first test, no effect except that no births happen, and every such week is logged (the real rule is T65, Later) | Defined for the first test |
@@ -347,6 +347,35 @@ Equal start (20% per colour), `manameter_points_per_week` = 60, 20 seeds.
 - **The Manameter speed** amplifies intent and luck equally, because both arrive as a change in the worker mix. 30 points per week is the current choice.
 - **Luck from births** stays: across all settings, the highest green share in Feed is 53% or more. Birth chance is self-reinforcing and no tuning tested so far removes it.
 - **What Test A can't answer:** whether the remaining food pressure still creates interesting decisions (H2). A yield of 15 makes food matter less, which helps the choice of character but may remove a dilemma. That is for Test B.
+
+### Test B, session 1 (2026-11-01)
+
+Played by the designer. Food and taxes in; no inventions, training, king's demands, bandits or culture.
+
+**Result:** mostly boring. Building enough farms and markets and surviving is easy; placing workers needs no bigger thought. **H2 fails in this setup.**
+
+**Reading:**
+
+- Food and taxes are floors: each has an obvious right answer (a farm when food runs short, a market before taxes), so they are chores, not choices.
+- There was nothing to want beyond survival. Pillar 1 says "you want it all, but can't have it all"; in this setup there was no "all".
+- The Manameter had no consequence: without training or inventions it unlocks nothing, so a newborn's colour only changed efficiency a little. The society's character, the core promise, wasn't in the test.
+- Making the floors harder would make the game stressful, not interesting.
+
+**For session 2:** add the systems built to create tension, not more floors: the king's demands (they test the player outside their path) and training (it gives colour and the Manameter a consequence). Record how many placements felt "torn".
+
+### Test B, session 2 (2026-11-02)
+
+Played by the designer. As session 1, plus training. No king's demands, bandits, culture or inventions.
+
+**Result:** still easy. Food was never a problem. One real moment: the village was strong in green and red but weak in yellow. To boost yellow, the designer wanted to train a yellow worker, but couldn't: yellow was at about 7%, below the 30% threshold. Taxes were paid in the end with red and yellow workers at the market.
+
+**Reading:**
+
+- First evidence that the core promise works: the society's character limited what the player could do, and the player had to adapt by placing off-colour workers at the market. That is exactly the intended flow.
+- The adaptation was affordable: off-colour workers at 50–80% still covered the taxes. With no pressure beyond the floors, the penalty for working outside your character is mild.
+- Food never mattered at 12 wheat per farmer. Test A chose 12 so a pivot always works; Test B suggests it also leaves food without tension. Don't lower it yet: add pressure that competes for workers first.
+
+**For session 3:** add the king's demands, which ask for things outside the player's path, and record how many placements felt "torn".
 
 ## Who plays
 

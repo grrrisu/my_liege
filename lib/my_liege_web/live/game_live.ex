@@ -76,6 +76,7 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_type), do: "Unknown building type."
   defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
   defp error_message(:game_over), do: "The game is over."
+  defp error_message(:finished), do: "The game has ended."
   defp error_message(:no_tax_due), do: "No tax payment is due next week."
   defp error_message(:already_trained), do: "That worker is already trained."
 
@@ -97,7 +98,12 @@ defmodule MyLiegeWeb.GameLive do
     |> assign(:game, game)
     |> assign(:report, Game.report(game))
     |> assign(:tax_decision_due?, decision_due?)
-    |> assign(:blocked?, game.game_over or (decision_due? and is_nil(game.pay_tax)))
+    |> assign(:won?, Game.won?(game, config))
+    |> assign(
+      :blocked?,
+      game.game_over or game.week >= Game.last_week(config) or
+        (decision_due? and is_nil(game.pay_tax))
+    )
   end
 
   @impl true
@@ -119,6 +125,14 @@ defmodule MyLiegeWeb.GameLive do
             Next week
           </button>
         </div>
+
+        <p
+          :if={@won?}
+          id="congratulations"
+          class="rounded bg-green-100 px-4 py-3 font-semibold text-green-900"
+        >
+          Congratulations, my liege! Your village has lasted {@config.years_per_game} years.
+        </p>
 
         <section id="manameter">
           <h2 class="mb-2 font-semibold">Manameter</h2>

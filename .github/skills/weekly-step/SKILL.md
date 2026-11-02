@@ -8,6 +8,9 @@ description: 'How one week of My Liege runs in the rules engine (Game.run_week):
 One call to `Game.run_week(game, config)` runs one week and returns `{:ok, report, game}`.
 It is blocked, without changing anything, with:
 - `{:error, :game_over}` once `game.game_over` is set;
+- `{:error, :finished}` after the last week, `Game.last_week/1` (48 × `years_per_game`;
+  48 weeks per year is fixed in `Game.weeks_per_year/0`, not in the CSV). Reaching it without
+  game over is a win: `Game.won?/2`;
 - `{:error, :tax_undecided}` when the next week is a due week (`Game.tax_decision_due?/2`)
   and the player hasn't decided with `Game.decide_tax/3` yet.
 
