@@ -2,7 +2,7 @@ defmodule MyLiegeWeb.GameLive do
   @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes}
+  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes, Training}
 
   @colour_classes %{
     green: "bg-green-600",
@@ -77,6 +77,10 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
   defp error_message(:game_over), do: "The game is over."
   defp error_message(:no_tax_due), do: "No tax payment is due next week."
+  defp error_message(:already_trained), do: "That worker is already trained."
+
+  defp error_message(:below_threshold),
+    do: "That worker's colour has too small a share of the Manameter to train."
 
   defp parse_id(id) do
     case Integer.parse(id) do
@@ -214,6 +218,14 @@ defmodule MyLiegeWeb.GameLive do
               >
                 ready in week {building.ready_week}
               </span>
+              <span
+                :for={worker <- workers_in(@game.workers, building.id)}
+                :if={worker.training_started}
+                id={"training-#{worker.id}"}
+                class="text-sm opacity-60"
+              >
+                trained after week {Training.last_week(worker.training_started, @config)}
+              </span>
               <button
                 :if={@selected}
                 id={"place-#{building.id}"}
@@ -338,6 +350,7 @@ defmodule MyLiegeWeb.GameLive do
 
   defp workers_in(workers, building_id), do: Enum.filter(workers, &(&1.building == building_id))
 
+  defp colour_class(nil), do: "bg-zinc-400"
   defp colour_class(colour), do: Map.fetch!(@colour_classes, colour)
 
   defp per_mille(share), do: "#{div(share, 10)}.#{rem(share, 10)}%"

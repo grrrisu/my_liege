@@ -20,6 +20,7 @@ defmodule MyLiege.Engine.Game do
     Production,
     Random,
     Taxes,
+    Training,
     Worker
   }
 
@@ -47,6 +48,7 @@ defmodule MyLiege.Engine.Game do
         manameter: config.starting_manameter,
         food_left: stocks.food,
         newborn: nil,
+        trained: [],
         gold: stocks.gold,
         tax_due: nil,
         tax: nil,
@@ -84,12 +86,14 @@ defmodule MyLiege.Engine.Game do
     food_left = Food.eat(stocks.food, workers, config)
     {newborn, rand} = Births.attempt(week, food_left, manameter, config, game.rand)
     newborn = newborn && %{newborn | id: Worker.next_id(workers), born_week: week}
+    workers = if(newborn, do: workers ++ [newborn], else: workers)
+    {workers, trained} = Training.finish(workers, buildings, week, config)
 
     game = %{
       game
       | rand: rand,
         week: week,
-        workers: if(newborn, do: workers ++ [newborn], else: workers),
+        workers: workers,
         manameter: manameter,
         stocks: %{stocks | food: food_left}
     }
@@ -103,6 +107,7 @@ defmodule MyLiege.Engine.Game do
       manameter: manameter,
       food_left: food_left,
       newborn: newborn,
+      trained: trained,
       gold: game.stocks.gold,
       tax_due: counted,
       tax: tax,
@@ -128,7 +133,8 @@ defmodule MyLiege.Engine.Game do
 
   @doc """
   Places or moves a worker, free and immediate: it works there from the next week run.
-  The building must be ready in that week and have room.
+  The building must be ready in that week and have room. In the guildhouse the worker starts
+  training (see `Training.check/3`); moving a trainee out loses its progress.
   """
   def place_worker(%__MODULE__{} = game, worker_id, building_id, %Config{} = config) do
     with {:ok, worker} <- fetch_worker(game, worker_id),
@@ -139,15 +145,23 @@ defmodule MyLiege.Engine.Game do
         worker.building == building_id -> {:ok, game}
         not Building.ready?(building, game.week + 1) -> {:error, :not_ready}
         not Building.has_room?(building, others, config) -> {:error, :full}
-        true -> {:ok, put_worker(game, %{worker | building: building_id})}
+        building.type == :guildhouse -> start_training(game, worker, building_id, config)
+        true -> {:ok, put_worker(game, %{worker | building: building_id, training_started: nil})}
       end
     end
   end
 
-  @doc "Takes a worker out of its building."
+  defp start_training(game, worker, building_id, config) do
+    with :ok <- Training.check(worker, game.manameter, config) do
+      trainee = %{worker | building: building_id, training_started: game.week + 1}
+      {:ok, put_worker(game, trainee)}
+    end
+  end
+
+  @doc "Takes a worker out of its building; a trainee loses its progress."
   def unplace_worker(%__MODULE__{} = game, worker_id) do
     with {:ok, worker} <- fetch_worker(game, worker_id) do
-      {:ok, put_worker(game, %{worker | building: nil})}
+      {:ok, put_worker(game, %{worker | building: nil, training_started: nil})}
     end
   end
 

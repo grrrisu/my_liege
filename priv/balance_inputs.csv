@@ -44,3 +44,5 @@ capacity_tavern,4
 construction_weeks,2
 plough_research_weeks,16
 plough_cost_wisdom,192
+training_weeks,4
+capacity_guildhouse,1
