@@ -27,6 +27,18 @@ defmodule MyLiege.Engine.Game do
   @enforce_keys [:seed, :rand, :week, :workers, :buildings, :manameter, :stocks, :report]
   defstruct @enforce_keys ++ [tax_due: nil, pay_tax: nil, tax_misses: 0, game_over: false]
 
+  # fixed by the designer, not read from the CSV
+  @weeks_per_year 48
+
+  def weeks_per_year, do: @weeks_per_year
+
+  @doc "The last week of the game: the end of year `years_per_game`."
+  def last_week(%Config{} = config), do: @weeks_per_year * config.years_per_game
+
+  @doc "Whether the player reached the end of the last year without the game being over."
+  def won?(%__MODULE__{} = game, %Config{} = config),
+    do: game.week >= last_week(config) and not game.game_over
+
   @doc "Starts a run. Without a seed one is generated; it is kept in `seed` for replay."
   def new(%Config{} = config, seed \\ nil) do
     {seed, rand} = Random.new(seed)
@@ -62,12 +74,14 @@ defmodule MyLiege.Engine.Game do
 
   @doc """
   Runs the next week. Returns `{:ok, report, game}`; a short week has `food_left < 0`.
-  Blocked with `{:error, :game_over}` once the game is over, and with
-  `{:error, :tax_undecided}` before a due week until `decide_tax/3` was called.
+  Blocked with `{:error, :game_over}` once the game is over, with `{:error, :finished}` after
+  the last week, and with `{:error, :tax_undecided}` before a due week until `decide_tax/3`
+  was called.
   """
   def run_week(%__MODULE__{} = game, %Config{} = config) do
     cond do
       game.game_over -> {:error, :game_over}
+      game.week >= last_week(config) -> {:error, :finished}
       tax_decision_due?(game, config) and is_nil(game.pay_tax) -> {:error, :tax_undecided}
       true -> do_run_week(game, config)
     end

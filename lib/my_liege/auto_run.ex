@@ -51,8 +51,7 @@ defmodule MyLiege.AutoRun do
 
   alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes}
 
-  # fixed by the designer, not read from the CSV
-  @weeks_per_year 48
+  @weeks_per_year Game.weeks_per_year()
 
   # the plan's pivot measure: "how many weeks red needs to gain 20 points"
   @points 200
@@ -67,7 +66,7 @@ defmodule MyLiege.AutoRun do
     target = target(pattern, Keyword.get(opts, :pivot_week, @weeks_per_year), config)
     start = Game.new(config, seed)
 
-    weeks = 1..(@weeks_per_year * config.years_per_game)
+    weeks = 1..Game.last_week(config)
 
     {reports, game, _food_before} =
       Enum.reduce_while(weeks, {[], start, nil}, fn _, {reports, g, food_before} ->
