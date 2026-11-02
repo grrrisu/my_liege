@@ -1,5 +1,8 @@
 defmodule MyLiege.Engine.Building do
-  @moduledoc "A path building. Workers refer to it by `id`; it produces from `ready_week` on."
+  @moduledoc """
+  A building. Workers refer to it by `id`; it produces from `ready_week` on.
+  Path buildings have a colour and a product; the guildhouse is neutral and has neither.
+  """
 
   alias MyLiege.Engine.{Config, Worker}
 
@@ -14,14 +17,19 @@ defmodule MyLiege.Engine.Building do
     market: :gold,
     tavern: :entertainment
   }
+  @path_types [:farm, :monastery, :watchtower, :market, :tavern]
+  @types @path_types ++ [:guildhouse]
 
-  def colour(%__MODULE__{type: type}), do: Map.fetch!(@colours, type)
+  @doc "The building's path colour, or `nil` for the neutral guildhouse."
+  def colour(%__MODULE__{type: type}), do: Map.get(@colours, type)
 
   @doc "The building type of a path colour, e.g. `:green` -> `:farm`."
-  def type_of_colour(colour), do: Enum.find(types(), &(Map.fetch!(@colours, &1) == colour))
+  def type_of_colour(colour), do: Enum.find(@path_types, &(Map.fetch!(@colours, &1) == colour))
 
-  @doc "The building types in pentagon order."
-  def types, do: [:farm, :monastery, :watchtower, :market, :tavern]
+  @doc "All building types: the path buildings in pentagon order, then the guildhouse."
+  def types, do: @types
+
+  def neutral?(%__MODULE__{type: type}), do: not Map.has_key?(@colours, type)
 
   def product(%__MODULE__{type: type}), do: Map.fetch!(@products, type)
 
@@ -39,7 +47,7 @@ defmodule MyLiege.Engine.Building do
   Orders a new building when the game stands at `week` (the last week run). It is free and
   produces from week `week + construction_weeks`.
   """
-  def construct(buildings, type, week, %Config{} = config) when is_map_key(@colours, type) do
+  def construct(buildings, type, week, %Config{} = config) when type in @types do
     last_id = buildings |> Enum.map(& &1.id) |> Enum.max(fn -> 0 end)
 
     building = %__MODULE__{
@@ -61,10 +69,13 @@ defmodule MyLiege.Engine.Building do
     ready?(building, week) and has_room?(building, workers, config)
   end
 
-  @doc "Pairs each placed worker with its building, if that building is ready in `week`."
+  @doc """
+  Pairs each placed worker with its path building, if that building is ready in `week`.
+  Workers in the neutral guildhouse produce nothing and are left out.
+  """
   def staffed(workers, buildings, week) do
     ready_buildings =
-      for building <- buildings, ready?(building, week), into: %{} do
+      for building <- buildings, ready?(building, week), not neutral?(building), into: %{} do
         {building.id, building}
       end
 

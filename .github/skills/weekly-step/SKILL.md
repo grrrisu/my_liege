@@ -33,7 +33,8 @@ Code: [game.ex](../../../lib/my_liege/engine/game.ex).
 | 3 | Manameter update (R4) | `ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
 | 4 | Eating (R8) | `Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
 | 5 | Birth (R1) | `Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
-| 6 | Tax payment (R7), due weeks only | `Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `tax_misses`, `game_over`, `report.tax` |
+| 6 | Training ends (R5) | `Training.finish/4` | trainees in the guildhouse, week | `trained`, `building: nil`, `report.trained` |
+| 7 | Tax payment (R7), due weeks only | `Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `tax_misses`, `game_over`, `report.tax` |
 
 Consequences of the order:
 - A newborn is drawn from the Manameter updated in step 3 of the same week.
@@ -44,6 +45,11 @@ Consequences of the order:
 
 - **Readiness:** a building ordered at state N has `ready_week = N + construction_weeks`
   and produces from that week. Placement needs `ready?(building, game.week + 1)` and room.
+- **Training:** the guildhouse is neutral (no colour, product or mana; `Building.staffed/3`
+  leaves it out). Placing an untrained worker there needs its colour's share ≥
+  `training_threshold`, checked once; `training_started = game.week + 1`. At the end of week
+  `training_started + training_weeks - 1` the worker is trained and unplaced. Moving it out
+  earlier loses the progress. Trainees still eat and count for taxes; no other cost.
 - **Births:** attempted in weeks 1, 1 + interval, … (`rem(week - 1, birth_interval_weeks) == 0`),
   only if `food_left >= Fixed.from(birth_min_food_left)`. `Births.attempt/5` is the
   single place that decides a birth.
@@ -72,7 +78,8 @@ Consequences of the order:
 
 ## Report
 
-`%{week, production, mana, manameter, food_left, newborn, gold, tax_due, tax, game_over}`;
+`%{week, production, mana, manameter, food_left, newborn, trained, gold, tax_due, tax,
+game_over}`;
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`
 writes one row per report.
 

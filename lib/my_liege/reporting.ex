@@ -5,6 +5,7 @@ defmodule MyLiege.Reporting do
 
   Values are in engine units: production, food and gold in thousandths, Manameter shares in
   per mille. `tax_due` is filled in the count week, `tax` (paid, skipped, missed) in the due week.
+  `trained` lists the colours of the workers who finished training that week, space-separated.
   """
 
   alias MyLiege.Engine.{Building, Manameter}
@@ -19,7 +20,7 @@ defmodule MyLiege.Reporting do
       Enum.map(Building.products(), &"production_#{&1}") ++
       Enum.map(Manameter.colours(), &"mana_#{&1}") ++
       Enum.map(Manameter.colours(), &"manameter_#{&1}") ++
-      ["food_left", "newborn", "gold", "tax_due", "tax", "game_over"]
+      ["food_left", "newborn", "trained", "gold", "tax_due", "tax", "game_over"]
   end
 
   defp row(report) do
@@ -30,6 +31,7 @@ defmodule MyLiege.Reporting do
       [
         report.food_left,
         newborn(report.newborn),
+        Enum.map_join(report.trained, " ", & &1.colour),
         report.gold,
         report.tax_due,
         report.tax,

@@ -34,7 +34,9 @@ defmodule MyLiege.Engine.LoadConfig do
       tax_per_worker: fetch!(inputs, "tax_per_worker"),
       tax_interval_weeks: fetch!(inputs, "tax_interval_weeks"),
       tax_count_lead_weeks: fetch!(inputs, "tax_count_lead_weeks"),
-      tax_misses_forgiven: fetch!(inputs, "tax_misses_forgiven")
+      tax_misses_forgiven: fetch!(inputs, "tax_misses_forgiven"),
+      training_threshold: fetch!(inputs, "training_threshold"),
+      training_weeks: fetch!(inputs, "training_weeks")
     }
 
     Logger.info(
@@ -111,7 +113,7 @@ defmodule MyLiege.Engine.LoadConfig do
   end
 
   defp capacity(inputs) do
-    Map.new([:farm, :monastery, :watchtower, :market, :tavern], fn type ->
+    Map.new([:farm, :monastery, :watchtower, :market, :tavern, :guildhouse], fn type ->
       {type, fetch!(inputs, "capacity_#{type}")}
     end)
   end

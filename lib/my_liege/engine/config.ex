@@ -28,7 +28,9 @@ defmodule MyLiege.Engine.Config do
     :tax_per_worker,
     :tax_interval_weeks,
     :tax_count_lead_weeks,
-    :tax_misses_forgiven
+    :tax_misses_forgiven,
+    :training_threshold,
+    :training_weeks
   ]
   defstruct @enforce_keys
 

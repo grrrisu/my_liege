@@ -12,7 +12,7 @@ defmodule MyLiege.EngineFixtures do
         starting_farmers: 1,
         starting_soldiers: 1,
         base_production: %{farm: 9, monastery: 3, watchtower: 3, market: 3, tavern: 3},
-        capacity: %{farm: 4, monastery: 4, watchtower: 4, market: 4, tavern: 4},
+        capacity: %{farm: 4, monastery: 4, watchtower: 4, market: 4, tavern: 4, guildhouse: 1},
         colour_factors: %{
           untrained: %{same: 1000, neighbour: 800, opposite: 500},
           trained: %{same: 1250, neighbour: 600, opposite: 300}
@@ -30,7 +30,9 @@ defmodule MyLiege.EngineFixtures do
         tax_per_worker: 10,
         tax_interval_weeks: 24,
         tax_count_lead_weeks: 4,
-        tax_misses_forgiven: 1
+        tax_misses_forgiven: 1,
+        training_threshold: 300,
+        training_weeks: 4
       },
       overrides
     )

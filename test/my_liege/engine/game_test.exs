@@ -29,6 +29,7 @@ defmodule MyLiege.Engine.GameTest do
                manameter: config.starting_manameter,
                food_left: 24_000,
                newborn: nil,
+               trained: [],
                gold: 100_000,
                tax_due: nil,
                tax: nil,

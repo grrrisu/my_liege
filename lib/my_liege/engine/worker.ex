@@ -1,10 +1,18 @@
 defmodule MyLiege.Engine.Worker do
-  @moduledoc "A worker: colour fixed from birth, untrained or trained, placed in a building or not."
+  @moduledoc """
+  A worker: colour fixed from birth, untrained or trained, placed in a building or not.
+  `training_started` is the first training week while it is in the guildhouse.
+  """
 
   alias MyLiege.Engine.Config
 
   @enforce_keys [:colour]
-  defstruct id: nil, colour: nil, trained: false, building: nil, born_week: nil
+  defstruct id: nil,
+            colour: nil,
+            trained: false,
+            building: nil,
+            born_week: nil,
+            training_started: nil
 
   @doc "The starting workers: `starting_farmers` green on the farm, `starting_soldiers` red in the tower."
   def starting(buildings, %Config{} = config) do
