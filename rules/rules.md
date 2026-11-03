@@ -5,6 +5,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-03: R2, building costs (T43): every ordered building costs `build_cost_gold`; export shows gold spent on buildings.
 - 2026-11-03: R7, missed demands decided: they count in the same tally as tax misses (as already implemented).
 - 2026-11-03: file created from the Prototype Plan (R1–R9) and the weekly-step skill.
 
@@ -40,9 +41,10 @@ The player acts between weeks; changes take effect the following week. Code-leve
 - Per worker per week: base production × colour factor.
 - Base: `wheat_per_farm_worker`, `gold_per_market_worker`, `base_production_<building>`.
 - Factors: `factor_<same|neighbour|opposite>_<untrained|trained>`.
-- Capacity per building: `capacity_<building>`. Building takes `construction_weeks`, no other cost (see T43, under discussion).
+- Capacity per building: `capacity_<building>`. Building takes `construction_weeks`.
+- Every building the player orders costs `build_cost_gold` gold, the same for every type, guildhouse included. Paid from the gold stock when ordering (between weeks, before the next week's production). Not possible with less gold than the price; the UI shows the price and disables ordering. The starting farm and tower are free.
 - Market workers produce gold directly (prototype simplification).
-- Moving a worker: free and immediate (see T43, under discussion).
+- Moving a worker: free and immediate.
 
 ## R3 Mana
 - Per worker per week: untrained `mana_building_untrained` in the building's colour and `mana_own_untrained` in their own colour; trained `mana_building_trained` and `mana_own_trained`. Same colour: the two add up.
@@ -82,5 +84,5 @@ The player acts between weeks; changes take effect the following week. Code-leve
 
 ## Export
 - Weekly CSV, one row per week. Header states units (values ×1000). Keep the column names already in use; the list below describes content, not exact names.
-- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, demand_progress, game_over.
+- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, demand_progress, gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold), game_over.
 - Separate decision log, one row per decision: week, worker colour, trained or not, from building, to building, on- or off-colour, rating (easy / some thought / torn).

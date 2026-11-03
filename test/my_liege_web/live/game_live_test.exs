@@ -3,6 +3,8 @@ defmodule MyLiegeWeb.GameLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias MyLiege.Engine.Config
+
   test "shows the starting state as week 0", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
@@ -48,6 +50,24 @@ defmodule MyLiegeWeb.GameLiveTest do
 
     assert has_element?(view, "#building-3", "market")
     assert has_element?(view, "#building-3", "ready in week 2")
+  end
+
+  test "the build price is shown; the buttons are disabled once gold is short", %{conn: conn} do
+    config = Config.from_csv()
+    {:ok, view, _html} = live(conn, ~p"/game")
+    affordable = div(config.starting_gold, config.build_cost_gold)
+
+    assert has_element?(view, "#build-cost", "#{config.build_cost_gold} gold")
+
+    for _ <- 1..affordable do
+      refute has_element?(view, "#build-farm[disabled]")
+      view |> element("#build-farm") |> render_click()
+    end
+
+    gold = config.starting_gold - affordable * config.build_cost_gold
+    assert has_element?(view, "#stock-gold", "#{gold}")
+    assert has_element?(view, "#build-farm[disabled]")
+    assert has_element?(view, "#build-guildhouse[disabled]")
   end
 
   test "placing in an unfinished building shows an error", %{conn: conn} do

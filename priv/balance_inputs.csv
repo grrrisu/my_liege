@@ -54,3 +54,4 @@ spoilage_rate_knowledge,200
 demand_deadline_weeks,8
 demand_population_share,100
 demand_production_weeks,8
+build_cost_gold,30

@@ -19,12 +19,31 @@ defmodule MyLiege.AutoRunTest do
     end
 
     test "always tries to pay; the run ends at game over", %{config: config} do
-      config = %{config | starting_gold: 0}
+      # free buildings, so the missing gold only affects taxes
+      config = %{config | starting_gold: 0, build_cost_gold: 0}
       {reports, game} = AutoRun.run(:stay, config, 1)
 
       assert Enum.map(reports, & &1.tax) |> Enum.reject(&is_nil/1) == [:missed, :missed]
       assert List.last(reports).week == 48
       assert game.game_over
+    end
+
+    test "without gold for a building, workers wait unplaced", %{config: config} do
+      config = %{config | starting_gold: 0, demand_population_share: 0}
+      {reports, game} = AutoRun.run(:stay, config, 1)
+
+      assert Enum.map(game.buildings, & &1.type) == [:farm, :watchtower]
+      assert Enum.all?(reports, &(&1.gold_spent_buildings == 0))
+      assert Enum.any?(game.workers, &is_nil(&1.building))
+    end
+
+    test "reports the gold spent on buildings in the week they were ordered", %{config: config} do
+      config = %{config | starting_gold: 1_000_000, demand_population_share: 0}
+      {reports, game} = AutoRun.run(:stay, config, 1)
+      ordered = length(game.buildings) - 2
+
+      assert ordered > 0
+      assert Enum.sum_by(reports, & &1.gold_spent_buildings) == ordered * 30_000
     end
 
     test "every placed worker is in a building of their own colour", %{config: config} do
@@ -123,6 +142,8 @@ defmodule MyLiege.AutoRunTest do
       config =
         EngineFixtures.config(
           starting_gold: 0,
+          # free buildings, so a market can be built without gold
+          build_cost_gold: 0,
           base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
@@ -158,6 +179,8 @@ defmodule MyLiege.AutoRunTest do
     test "after the pivot week, newborns go to a watchtower even while gold is low" do
       config =
         EngineFixtures.config(
+          # free buildings, so new watchtowers can be built while gold is low
+          build_cost_gold: 0,
           base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 

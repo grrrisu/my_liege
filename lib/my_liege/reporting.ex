@@ -9,6 +9,8 @@ defmodule MyLiege.Reporting do
   `demand_product` and `demand_amount` are filled in the week the king makes a demand,
   `demand_outcome` (delivered, refused, missed) in its deadline week. `spoiled_*` is what each
   stock lost at the end of the week; `food_left` and `gold` are after spoilage.
+  `gold_spent_buildings` is the gold paid for buildings ordered while the game stood at that
+  week (after it ran, before the next one), so it is not yet taken from that row's `gold`.
   """
 
   alias MyLiege.Engine.{Building, Manameter}
@@ -26,7 +28,7 @@ defmodule MyLiege.Reporting do
       ["food_left", "newborn", "trained", "gold", "tax_due", "tax"] ++
       ["demand_product", "demand_amount", "demand_outcome"] ++
       Enum.map(Building.products(), &"spoiled_#{&1}") ++
-      ["game_over"]
+      ["gold_spent_buildings", "game_over"]
   end
 
   defp row(report) do
@@ -46,7 +48,7 @@ defmodule MyLiege.Reporting do
         report.demand_outcome
       ] ++
       Enum.map(Building.products(), &Map.fetch!(report.spoiled, &1)) ++
-      [report.game_over]
+      [report.gold_spent_buildings, report.game_over]
   end
 
   defp newborn(nil), do: ""

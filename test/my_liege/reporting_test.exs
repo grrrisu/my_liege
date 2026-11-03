@@ -22,18 +22,18 @@ defmodule MyLiege.ReportingTest do
                "food_left,newborn,trained,gold,tax_due,tax," <>
                "demand_product,demand_amount,demand_outcome," <>
                "spoiled_food,spoiled_knowledge,spoiled_defence,spoiled_gold,spoiled_entertainment," <>
-               "game_over"
+               "gold_spent_buildings,game_over"
 
     assert week_0 ==
-             "0,0,0,0,0,0,0,0,0,0,0,800,50,100,50,0,24000,,,100000,,,,,,0,0,0,0,0,false"
+             "0,0,0,0,0,0,0,0,0,0,0,800,50,100,50,0,24000,,,100000,,,,,,0,0,0,0,0,0,false"
 
     # seed 1 draws a green newborn in week 1
     assert week_1 ==
-             "1,9000,0,3000,0,0,3,0,3,0,0,799,50,101,50,0,27000,green,,100000,,,,,,0,0,0,0,0,false"
+             "1,9000,0,3000,0,0,3,0,3,0,0,799,50,101,50,0,27000,green,,100000,,,,,,0,0,0,0,0,0,false"
 
     # the unplaced newborn makes no mana but eats: 27 + 9 - 3 × 3
     assert week_2 ==
-             "2,9000,0,3000,0,0,3,0,3,0,0,798,50,102,50,0,27000,,,100000,,,,,,0,0,0,0,0,false"
+             "2,9000,0,3000,0,0,3,0,3,0,0,798,50,102,50,0,27000,,,100000,,,,,,0,0,0,0,0,0,false"
   end
 
   test "the spoiled columns show what each stock lost; food_left and gold are after spoilage" do
@@ -83,6 +83,23 @@ defmodule MyLiege.ReportingTest do
     trained = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(18)))
 
     assert trained == ["", "", "", "green"]
+  end
+
+  test "gold_spent_buildings shows the gold paid for orders made while the game stood at that week" do
+    config = EngineFixtures.config()
+    game = Game.new(config, 1)
+    {:ok, game} = Game.construct(game, :market, config)
+    {:ok, game} = Game.construct(game, :guildhouse, config)
+    week_0 = Game.report(game)
+    {[week_1], _game} = EngineFixtures.run_weeks(game, 1, config)
+
+    rows = [week_0, week_1] |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
+    [spent_0, spent_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(30)))
+    [gold_0, gold_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(19)))
+
+    assert {spent_0, spent_1} == {"60000", "0"}
+    # the row's gold is from before the orders; the next week starts with 100 - 60
+    assert {gold_0, gold_1} == {"100000", "40000"}
   end
 
   test "no reports gives only the header" do

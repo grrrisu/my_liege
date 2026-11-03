@@ -89,6 +89,7 @@ defmodule MyLiege.Engine.Game do
         demand: nil,
         demand_outcome: nil,
         spoiled: Map.new(Building.products(), &{&1, 0}),
+        gold_spent_buildings: 0,
         game_over: false
       }
     }
@@ -160,6 +161,7 @@ defmodule MyLiege.Engine.Game do
       demand: demand,
       demand_outcome: demand_outcome,
       spoiled: spoiled,
+      gold_spent_buildings: 0,
       game_over: game.game_over
     }
 
@@ -228,14 +230,41 @@ defmodule MyLiege.Engine.Game do
     end
   end
 
-  @doc "Orders a new building; see `Building.construct/4`. No limit on number or frequency."
+  @doc """
+  Orders a new building; see `Building.construct/4`. Every type costs `build_cost_gold`, paid
+  from the gold stock now; refused with `{:error, :not_enough_gold}` if the stock is smaller.
+  The gold spent is added to `gold_spent_buildings` of the current week's report.
+  No limit on number or frequency.
+  """
   def construct(%__MODULE__{} = game, type, %Config{} = config) do
-    if type in Building.types() do
-      {:ok, %{game | buildings: Building.construct(game.buildings, type, game.week, config)}}
-    else
-      {:error, :unknown_type}
+    cost = build_cost(config)
+
+    cond do
+      type not in Building.types() ->
+        {:error, :unknown_type}
+
+      not can_afford_building?(game, config) ->
+        {:error, :not_enough_gold}
+
+      true ->
+        report = Map.update!(game.report, :gold_spent_buildings, &(&1 + cost))
+
+        {:ok,
+         %{
+           game
+           | buildings: Building.construct(game.buildings, type, game.week, config),
+             stocks: %{game.stocks | gold: game.stocks.gold - cost},
+             report: report
+         }}
     end
   end
+
+  @doc "The price of any building, in thousandths of gold."
+  def build_cost(%Config{} = config), do: Fixed.from(config.build_cost_gold)
+
+  @doc "Whether the gold stock covers the price of a building."
+  def can_afford_building?(%__MODULE__{} = game, %Config{} = config),
+    do: game.stocks.gold >= build_cost(config)
 
   defp settle_taxes(%{tax_due: due} = game, config) when is_integer(due) do
     if Taxes.due_week?(game.week, config) do

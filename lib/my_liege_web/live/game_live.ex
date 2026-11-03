@@ -85,8 +85,13 @@ defmodule MyLiegeWeb.GameLive do
     {:noreply, apply_result(socket, result)}
   end
 
+  # ordering a building changes the current week's report (gold spent on buildings)
   defp apply_result(socket, {:ok, game}) do
-    socket |> clear_flash() |> assign(:selected, nil) |> assign_game(game)
+    socket
+    |> clear_flash()
+    |> assign(:selected, nil)
+    |> update(:reports, fn [_current | earlier] -> [Game.report(game) | earlier] end)
+    |> assign_game(game)
   end
 
   defp apply_result(socket, {:error, reason}) do
@@ -119,6 +124,7 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_worker), do: "Select a worker first."
   defp error_message(:unknown_building), do: "Unknown building."
   defp error_message(:unknown_type), do: "Unknown building type."
+  defp error_message(:not_enough_gold), do: "Not enough gold to build."
   defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
   defp error_message(:game_over), do: "The game is over."
   defp error_message(:finished), do: "The game has ended."
@@ -177,7 +183,7 @@ defmodule MyLiegeWeb.GameLive do
         <div class="grid gap-10 lg:grid-cols-2">
           <div id="column-village" class="space-y-8">
             <.village game={@game} config={@config} selected={@selected} blocked?={@blocked?} />
-            <.build_buttons />
+            <.build_buttons game={@game} config={@config} />
           </div>
 
           <div id="column-state" class="space-y-8">
@@ -462,17 +468,27 @@ defmodule MyLiegeWeb.GameLive do
     """
   end
 
+  attr :game, Game, required: true
+  attr :config, Config, required: true
+
   defp build_buttons(assigns) do
+    assigns =
+      assign(assigns, :affordable?, Game.can_afford_building?(assigns.game, assigns.config))
+
     ~H"""
     <section id="build">
       <h2 class="mb-2 font-semibold">Build</h2>
+      <p id="build-cost" class="mb-2 text-sm opacity-60">
+        Every building costs {units(Game.build_cost(@config))} gold.
+      </p>
       <div class="flex flex-wrap gap-2">
         <button
           :for={type <- Building.types()}
           id={"build-#{type}"}
           phx-click="build"
           phx-value-type={type}
-          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100"
+          disabled={!@affordable?}
+          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <span class={["inline-block h-3 w-3 rounded-sm", colour_class(type_colour(type))]}></span>
           {type}
