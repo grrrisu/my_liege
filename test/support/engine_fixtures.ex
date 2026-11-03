@@ -32,19 +32,32 @@ defmodule MyLiege.EngineFixtures do
         tax_count_lead_weeks: 4,
         tax_misses_forgiven: 1,
         training_threshold: 300,
-        training_weeks: 4
+        training_weeks: 4,
+        demand_deadline_weeks: 8,
+        demand_population_share: 100,
+        demand_production_weeks: 8,
+        spoilage_rates: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0}
       },
       overrides
     )
   end
 
-  @doc "Runs `count` weeks, paying every due tax. Returns `{reports, game}`."
+  @doc "A new game without king's demands, for tests about other rules."
+  def game_without_demands(config, seed), do: %{Game.new(config, seed) | demand_weeks: []}
+
+  @doc "Runs `count` weeks, paying every due tax and delivering every demand. Returns `{reports, game}`."
   def run_weeks(game, count, config) do
     Enum.map_reduce(1..count//1, game, fn _, game ->
       game = if Game.tax_decision_due?(game, config), do: decide!(game, config), else: game
+      game = if Game.demand_decision_due?(game), do: deliver!(game), else: game
       {:ok, report, game} = Game.run_week(game, config)
       {report, game}
     end)
+  end
+
+  defp deliver!(game) do
+    {:ok, game} = Game.decide_demand(game, true)
+    game
   end
 
   defp decide!(game, config) do

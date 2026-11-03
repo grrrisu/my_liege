@@ -34,7 +34,7 @@ The prototype can't run on illustrative values. Values already in the concept ar
 | Production by colour, untrained | Same 100%, neighbour 80%, opposite 50% |
 | Production by colour, trained | Same 125%, neighbour 60%, opposite 30% |
 | Mana per worker | Untrained: 2 in the building's colour, 1 in their own. Trained: the other way round |
-| Training | Needs a guild and at least 30% of the worker's colour |
+| Training | Needs a guildhouse and at least 20% of the worker's colour (30% until session 5) |
 | Birth colour | Chance equals the colour's share in the Manameter |
 | Starting Manameter | 20% per colour (decided after Test A) |
 | Test invention | Improved plough: needs 50% green, +10% farm production |
@@ -120,14 +120,16 @@ The app is coded with GitHub Copilot, using this plan as the brief and `.github/
 | R2 | Production = base production × colour factor (same 100%, neighbour 80%, opposite 50%; trained 125%, 60%, 30%). Market workers produce money directly, a simplification for the first test (in the concept, money comes from trading). Every building has its own capacity and base production; construction takes time but costs nothing else | Defined |
 | R3 | Mana per worker per week: untrained 2 in the building's colour and 1 in their own; trained 1 and 2. Same colour gives 3 of that colour | Defined |
 | R4 | Manameter update, each week: remove a fixed number of points in proportion to the current shares; add the same number of points in proportion to the mana produced that week | Defined |
-| R5 | Training needs a guildhouse and at least 30% of the worker's colour; colour never changes | Defined. Training costs nothing but time (4 weeks); the guildhouse trains one worker at a time, and more than one guildhouse can be built. A trainee eats and counts toward taxes, but produces no mana. Values in the balance model. The guildhouse's blue-trainer rule is a later idea, not part of the prototype |
+| R5 | Training needs a guildhouse and at least 20% of the worker's colour; colour never changes | Defined. Training costs nothing but time (4 weeks); the guildhouse trains one worker at a time, and more than one guildhouse can be built. A trainee eats and counts toward taxes, but produces no mana. Values in the balance model. The guildhouse's blue-trainer rule is a later idea, not part of the prototype |
 | R6 | Improved plough: needs at least 50% green, +10% farm production, kept if green later drops. Costs wisdom: about 4 months of a full monastery | Defined |
-| R7 | The king's demands: list, timing, deadlines, consequence of missing one. Taxes in money twice a year, per head, counted four weeks before each payment; paid in full or missed; the first miss is forgiven, the second ends the game | Taxes defined. Demands open |
-| R8 | Food: every worker eats wheat each week. No birth unless enough food is left. Leftover food carries over, stored in the tower, with no capacity limit in the prototype. A newborn eats from the following week; births cost no extra food. When there isn't enough food for everyone: for the first test, no effect except that no births happen, and every such week is logged (the real rule is T65, Later) | Defined for the first test |
+| R7 | The king's demands: one per half year in a random week, 8 weeks to deliver; colour by Manameter rank (year 1 biggest, year 2 third, year 3 smallest). Amount: share of population × base production of the demanded colour × weeks of production (first guess: 10% of the village, 8 weeks), so the king asks for the output of a fixed share of the village as full workers. Consequence of missing one still open. Taxes in money twice a year, per head, counted four weeks before each payment; paid in full or missed; the first miss is forgiven, the second ends the game | Taxes defined. Demands partly defined |
+| R8 | Food: every worker eats wheat each week. No birth unless enough food is left. The food stock can go below 0, which shows the village is out of food. Leftover food carries over, stored in the tower, with no capacity limit in the prototype. A newborn eats from the following week; births cost no extra food. When there isn't enough food for everyone: for the first test, no effect except that no births happen, and every such week is logged (the real rule is T65, Later) | Defined for the first test |
+
+**R9, spoilage (new, 2026-11-03):** each week, every stored good loses a share of its stock, at a rate per colour. In the prototype, defence, culture and wisdom are stored too, so that the king's demands for them can be tested; spoilage makes them feel volatile. First-guess rates are in the balance model: food 5%, gold 1%, defence, culture and wisdom 20% a week (25% until session 5). Books are left out for now. Spoilage runs at the end of each week, after taxes and demands: every stock above 0 loses its rate (per mille) of itself, rounded down. Stocks at or below 0 don't spoil. Births, tax payments and demand deliveries use the stocks as they are before spoilage. The export shows how much of each product spoiled (five columns before game\_over); food\_left and gold show the stock after spoilage.
 
 All values for these rules are in the balance model, not here.
 
-**Weekly order.** Each week runs in this order: production, then eating, then birth, then taxes when due. A birth only happens if food is left over; a hungry society stops growing.
+**Weekly order.** Each week runs in this order: production, then eating, then birth, then taxes and demands when due, then spoilage. A birth only happens if food is left over; a hungry society stops growing.
 
 **How to build it:**
 
@@ -377,6 +379,125 @@ Played by the designer. As session 1, plus training. No king's demands, bandits,
 
 **For session 3:** add the king's demands, which ask for things outside the player's path, and record how many placements felt "torn".
 
+### Test B, session 3: king's demands (2026-11-03)
+
+Played by the designer, seed 2094339531, 144 weeks. Food, taxes, training and the king's demands; no bandits, culture effects or inventions.
+
+| Week | Event | Outcome |
+| --- | --- | --- |
+| 10 | Demand: 16.8 defence | Delivered by week 18 |
+| 24 | Tax: 120 gold (100 in stock, no market yet) | Missed (the forgiven miss) |
+| 36 | Demand: 48 defence | Delivered by week 44 |
+| 48 | Tax: 240 gold | Paid |
+| 55 | Demand: 69.6 gold | Delivered by week 63 |
+| 72 | Tax: 360 gold | Paid |
+| 79 | Demand: 98.4 gold | Delivered by week 87 |
+| 96 | Tax: 480 gold | Paid |
+| 107 | Demand: 132 culture | Delivered by week 115 |
+| 120 | Tax: 600 gold | Paid |
+| 130 | Demand: 160.8 culture | Delivered by week 138 |
+| 144 | Tax: 720 gold | Paid |
+
+| Week | Food stock (wheat) | Gold | Manameter green / blue / red / yellow / violet |
+| --- | --- | --- | --- |
+| 24 | 300 | 100 | 32 / 10 / 35 / 10 / 13% |
+| 48 | 882 | 81 | 34 / 10 / 32 / 12 / 12% |
+| 96 | 2,697 | 273 | 34 / 12 / 29 / 18 / 8% |
+| 144 | 3,534 | 655 (1,334 just before the last tax) | 30 / 16 / 30 / 17 / 8% |
+
+72 births (28 red, 23 green, 11 blue, 6 yellow, 4 violet), 74 workers at the end, 6 workers trained.
+
+**Findings:**
+
+- The colour rule for demands worked as designed: year 1 asked for red (the biggest share), year 2 for yellow (third), year 3 for violet (smallest). All six were delivered.
+- The only real squeeze was the first tax: 120 gold against 100 in stock, exactly as the balance model predicted. After that nothing was tight.
+- **The problem is accumulation, not production.** Food production ran only about 12% above consumption at the end (249 against about 222 wheat a week), but the small surplus piled up for 140 weeks into 3,534 wheat, about 16 weeks of food. Gold piled up the same way, to 1,334 before the last tax. Once a stock exists, food, taxes and stock-based demands stop being decisions.
+- The society ended as a real mix (green and red 30%, yellow 17%, blue 16%, violet 8%), which fits pillar 1.
+- Training was used only six times in 144 weeks.
+- Wisdom and culture were produced, but apart from the culture demands they had no use: monastery and tavern placements only changed the Manameter.
+
+**For the report:** add population, workers per building and colour, off-colour placements, and the "torn" rating per decision (H2). Log when a demand was ready, not only the deadline.
+
+### Test B, session 4: spoilage and worker-week demands (2026-11-03)
+
+Played by the designer, seed 3072933269. Game over in week 71.
+
+| Week | Event | Outcome |
+| --- | --- | --- |
+| 1 | Demand: 19.2 food | Delivered by week 9 |
+| 24 | Tax: 120 gold | Paid |
+| 35 | Demand: 182.4 food | Delivered by week 43 |
+| 48 | Tax: 240 gold, 218 in stock | Missed (the forgiven miss) |
+| 63 | Demand: 79.2 defence | Missed: game over in week 71 |
+
+| Week | Food stock (wheat) | Food spoiled that week | Gold | Manameter green / blue / red / yellow / violet |
+| --- | --- | --- | --- | --- |
+| 24 | 182 | 9.6 | 11 | 32 / 10 / 23 / 15 / 21% |
+| 48 | 413 | 21.7 | 218 | 36 / 5 / 22 / 15 / 22% |
+| 71 | 627 | 33.0 | 554 | 35 / 7 / 19 / 16 / 23% |
+
+36 births, 38 workers at the end, 1 worker trained.
+
+**Findings:**
+
+- **The game can now be lost, which is good.** Failure came from a demand the player didn't notice in the interface.
+- **Spoilage works as designed.** By week 71, food stock levelled off: about 33 wheat spoiled per week, roughly the weekly surplus. Defence and culture stocks held about four weeks of production. Food ended at 627 wheat after 71 weeks, against 882 after 48 weeks in session 3.
+- **Gold spoilage cost the second tax.** The player was 21.7 gold short; spoilage had taken 23.5 gold since the previous payment. The cost of saving is real, but the player likely didn't see it coming.
+- **The fatal demand needed new workers, as intended.** 79.2 defence = 10% of 33 workers × 3 defence × 8 weeks. With 25% spoilage, the defence stock can't exceed about 54 (four weeks of 13.5), so the demand could only be met by raising defence production by about half for the window. That is the worker-weeks rule working.
+- **The prototype ended the game on a missed demand,** after one forgiven tax miss: it seems to count tax and demand misses together. The concept hasn't decided the consequence of a missed demand yet.
+- The society stayed a real mix (green 35%, violet 23%, red 19%, yellow 16%, blue 7%). Training was used once.
+
+**For the interface:** demands, their deadline and progress must be impossible to miss; so must what spoilage will cost before the next tax. Both are risks the player can't avoid, so by pillar 3 they have to be visible.
+
+### Test B, session 5: improved interface (2026-11-03)
+
+Played by the designer, seed 2691580861, with demands now clearly shown. Game over in week 113.
+
+| Week | Event | Outcome |
+| --- | --- | --- |
+| 14 | Demand: 21.6 defence | Delivered by week 22 |
+| 24 | Tax | Paid |
+| 27–32 | Food stock below 0 | No births for six weeks |
+| 36 | Demand: 40.8 defence | Delivered by week 44 |
+| 48 | Tax | Paid |
+| 55 | Demand: 249.6 food (year 2, third-biggest colour) | Missed (the forgiven miss) |
+| 72, 96 | Taxes | Paid |
+| 86 | Demand: 100.8 defence | Delivered by week 94 |
+| 105 | Demand: 122.4 knowledge (year 3, smallest colour) | Missed: game over in week 113 |
+
+54 births, 56 workers at the end, no worker trained. Manameter at the end: green 28%, blue 6%, red 23%, yellow 28%, violet 15%. Gold at the end: 1,205.
+
+**Findings:**
+
+- **No failure came from the interface this time.** Both misses were real shortfalls in a weak colour, which is the intended source of difficulty.
+- **Food bites now.** Six weeks without births (27–32), and at the food demand in week 55 the village already ate more than it grew (about 81 against 74 wheat a week).
+- **Spoilage and demand length together double demands for volatile goods.** The knowledge demand asked for 8 weeks of output from 5.1 workers (10% of the village). But with 25% spoilage a stock can't hold more than about 4 weeks of production, so delivering 122.4 needed about 30.6 knowledge a week, the output of about 10 full workers: twice the share the rule intends. Knowledge production was 8.4 a week at the demand and 17.7 at the deadline. The defence demand in session 4 had the same effect. Food (5%) and gold (1%) keep longer than 8 weeks, so their demands aren't affected: volatile colours are twice as hard to deliver as storable ones.
+- **Gold still piles up** in a gold-led society: 1,205 at the end, and taxes were easy. At 1% a week, spoilage only caps gold after about 100 weeks of surplus, so within one game it barely brakes.
+- Training was not used at all.
+
+### Test B, session 6: first win (2026-11-03)
+
+Played by the designer, seed 674261167, with volatile spoilage at 20% and training at 20%. Survived all 144 weeks in 14 minutes 30 seconds of real time, about 6 seconds per week.
+
+| Week | Demand | Outcome |
+| --- | --- | --- |
+| 13 | 76.8 food | Delivered by week 21 |
+| 26 | 144 food | Delivered by week 34 |
+| 58 | 74.4 gold | Delivered by week 66 |
+| 85 | 105.6 defence | Delivered by week 93 |
+| 100 | 124.8 knowledge | Delivered by week 108 |
+| 123 | 151.2 culture | Delivered by week 131 |
+
+All six taxes paid. 69 births, 71 workers at the end, 6 workers trained (3 green, 1 red, 2 yellow). Manameter at the end: green 29%, blue 15%, red 19%, yellow 21%, violet 16%.
+
+**Findings:**
+
+- **The demands forced real trade-offs.** For the knowledge demand, knowledge production rose from 20 to 35 a week, farm output fell, and the food stock went from 27 to below zero by the deadline. For the culture demand, culture rose from 23 to 38 a week, and the village went hungry for six weeks afterwards (weeks 136–141). Meeting the king cost food and growth: the first clear sign of the dilemmas H2 looks for.
+- **Training is used again** with the 20% threshold: six workers, against none in session 5.
+- **The society stayed a broad mix,** the most even so far.
+- **Gold still piles up:** 1,200 before the last tax. Spoilage at 1% doesn't brake gold within one game.
+- **The game took about 6 seconds per week.** At the planned 30 seconds per week, about four-fifths of the real time would be waiting, which is a strong signal for H3 (decision density) and Test C.
+
 ## Who plays
 
 | Test | Player | Why |
@@ -404,3 +525,19 @@ One report per session, compared against the criteria set before testing.
 | Player's impressions, in their own words | B, C |
 | Result per hypothesis: holds / fails / unclear | All |
 | What changes in the concept as a result | All |
+
+**Weekly CSV export (Test B), from session 4 on.** The export already has one row per week. Add these columns, so each session can be judged without guessing:
+
+| Column | Why |
+| --- | --- |
+| `population`, `food_eaten` | Surplus = production − eaten; shows whether food is tight |
+| `stock_defence`, `stock_culture`, `stock_wisdom` | Only food and gold stocks are reported now |
+| `spoiled_food`, `spoiled_gold`, `spoiled_defence`, `spoiled_culture`, `spoiled_wisdom` | How much spoilage takes each week; tests R9 |
+| `workers_<building>_<colour>` (or one column per building with a count per colour) | Who works where; shows off-colour placements |
+| `off_colour_workers` | Number of workers not in their own colour's building |
+| `trainees`, `trained_total` | Training use over time |
+| `demand_progress` | Stock of the demanded good during the 8-week window; shows how hard a demand was, not only that it was met at the deadline |
+
+Keep the per-decision log separate: week, worker colour, trained or not, from and to building, on- or off-colour, and the easy / some thought / torn rating. That log is what H2 needs.
+
+Also state units in the file header: values are currently in thousandths (24000 = 24 wheat). Names: the code and CSV use knowledge (wisdom) and entertainment (culture); the Copilot instructions record the mapping.

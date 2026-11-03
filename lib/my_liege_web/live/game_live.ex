@@ -3,6 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes, Training}
+  alias MyLiege.Reporting
 
   @colour_classes %{
     green: "bg-green-600",
@@ -15,23 +16,41 @@ defmodule MyLiegeWeb.GameLive do
   @impl true
   def mount(_params, _session, socket) do
     config = Config.from_csv()
+    game = Game.new(config)
 
     {:ok,
      socket
      |> assign(:config, config)
      |> assign(:selected, nil)
-     |> assign_game(Game.new(config))}
+     |> assign(:reports, [Game.report(game)])
+     |> assign_game(game)}
   end
 
   @impl true
   def handle_event("next_week", _params, socket) do
     case Game.run_week(socket.assigns.game, socket.assigns.config) do
-      {:ok, _report, game} ->
-        {:noreply, socket |> clear_flash() |> assign(:selected, nil) |> assign_game(game)}
+      {:ok, report, game} ->
+        {:noreply,
+         socket
+         |> clear_flash()
+         |> put_week_info(socket.assigns.game, report)
+         |> assign(:selected, nil)
+         |> update(:reports, &[report | &1])
+         |> assign_game(game)}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, error_message(reason))}
     end
+  end
+
+  def handle_event("download_csv", _params, socket) do
+    %{game: game, reports: reports} = socket.assigns
+
+    {:noreply,
+     push_event(socket, "download_csv", %{
+       filename: "my_liege_seed_#{game.seed}_week_#{game.week}.csv",
+       content: reports |> Enum.reverse() |> Reporting.to_csv()
+     })}
   end
 
   def handle_event("select_worker", %{"id" => id}, socket) do
@@ -61,12 +80,38 @@ defmodule MyLiegeWeb.GameLive do
     {:noreply, apply_result(socket, result)}
   end
 
+  def handle_event("decide_demand", %{"deliver" => deliver}, socket) do
+    result = Game.decide_demand(socket.assigns.game, deliver == "true")
+    {:noreply, apply_result(socket, result)}
+  end
+
   defp apply_result(socket, {:ok, game}) do
     socket |> clear_flash() |> assign(:selected, nil) |> assign_game(game)
   end
 
   defp apply_result(socket, {:error, reason}) do
     put_flash(socket, :error, error_message(reason))
+  end
+
+  # `before` is the game before the week ran: it still holds the amounts that were due
+  defp put_week_info(socket, before, report) do
+    messages =
+      [
+        report.tax == :missed &&
+          "The tax of #{units(before.tax_due)} gold couldn't be paid: not enough gold.",
+        report.demand_outcome == :missed &&
+          "The king's demand for #{units(before.demand.amount)} #{before.demand.product} " <>
+            "couldn't be delivered: not enough #{before.demand.product}.",
+        report.tax_due &&
+          "The village was counted: #{units(report.tax_due)} gold tax due in week " <>
+            "#{Taxes.next_due_week(report.week, socket.assigns.config)}.",
+        report.demand &&
+          "The king demands #{units(report.demand.amount)} #{report.demand.product} " <>
+            "by week #{report.demand.due_week}."
+      ]
+      |> Enum.filter(& &1)
+
+    if messages == [], do: socket, else: put_flash(socket, :info, Enum.join(messages, " "))
   end
 
   defp error_message(:full), do: "That building is full."
@@ -78,6 +123,8 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:game_over), do: "The game is over."
   defp error_message(:finished), do: "The game has ended."
   defp error_message(:no_tax_due), do: "No tax payment is due next week."
+  defp error_message(:demand_undecided), do: "Decide whether to deliver the king's demand first."
+  defp error_message(:no_demand_due), do: "No demand is due next week."
   defp error_message(:already_trained), do: "That worker is already trained."
 
   defp error_message(:below_threshold),
@@ -93,16 +140,19 @@ defmodule MyLiegeWeb.GameLive do
   defp assign_game(socket, game) do
     config = socket.assigns.config
     decision_due? = Game.tax_decision_due?(game, config)
+    demand_due? = Game.demand_decision_due?(game)
 
     socket
     |> assign(:game, game)
     |> assign(:report, Game.report(game))
     |> assign(:tax_decision_due?, decision_due?)
+    |> assign(:demand_decision_due?, demand_due?)
     |> assign(:won?, Game.won?(game, config))
     |> assign(
       :blocked?,
       game.game_over or game.week >= Game.last_week(config) or
-        (decision_due? and is_nil(game.pay_tax))
+        (decision_due? and is_nil(game.pay_tax)) or
+        (demand_due? and is_nil(game.deliver_demand))
     )
   end
 
@@ -111,19 +161,9 @@ defmodule MyLiegeWeb.GameLive do
     ~H"""
     <Layouts.app flash={@flash}>
       <div class="space-y-8">
-        <div class="flex items-center justify-between">
-          <div>
-            <h1 id="week" class="text-2xl font-semibold">Week {@game.week}</h1>
-            <p id="seed" class="text-sm opacity-60">Seed {@game.seed}</p>
-          </div>
-          <button
-            id="next-week"
-            phx-click="next_week"
-            disabled={@blocked?}
-            class="rounded bg-zinc-900 px-4 py-2 text-white hover:bg-zinc-700 disabled:opacity-40"
-          >
-            Next week
-          </button>
+        <div>
+          <h1 id="week" class="text-2xl font-semibold">Week {@game.week}</h1>
+          <p id="seed" class="text-sm opacity-60">Seed {@game.seed}</p>
         </div>
 
         <p
@@ -134,209 +174,311 @@ defmodule MyLiegeWeb.GameLive do
           Congratulations, my liege! Your village has lasted {@config.years_per_game} years.
         </p>
 
-        <section id="manameter">
-          <h2 class="mb-2 font-semibold">Manameter</h2>
-          <div class="flex gap-4">
-            <div :for={colour <- Manameter.colours()} id={"share-#{colour}"} class="text-center">
-              <div class={["mx-auto h-8 w-8 rounded", colour_class(colour)]}></div>
-              <div class="mt-1 text-sm tabular-nums">
-                {per_mille(Map.fetch!(@game.manameter, colour))}
+        <div class="grid gap-10 lg:grid-cols-2">
+          <div id="column-village" class="space-y-8">
+            <.village game={@game} config={@config} selected={@selected} blocked?={@blocked?} />
+            <.build_buttons />
+          </div>
+
+          <div id="column-state" class="space-y-8">
+            <section id="manameter">
+              <h2 class="mb-2 font-semibold">Manameter</h2>
+              <div class="flex gap-4">
+                <div :for={colour <- Manameter.colours()} id={"share-#{colour}"} class="text-center">
+                  <div class={["mx-auto h-8 w-8 rounded", colour_class(colour)]}></div>
+                  <div class="mt-1 text-sm tabular-nums">
+                    {per_mille(Map.fetch!(@game.manameter, colour))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        <section id="stocks">
-          <h2 class="mb-2 font-semibold">Stocks</h2>
-          <table class="text-sm tabular-nums">
-            <tr :for={product <- Building.products()} id={"stock-#{product}"}>
-              <td class="pr-4">{product}</td>
-              <td class="text-right">{units(Map.fetch!(@game.stocks, product))}</td>
-            </tr>
-          </table>
-        </section>
+            <section id="stocks">
+              <h2 class="mb-2 font-semibold">Stocks</h2>
+              <table class="text-sm tabular-nums">
+                <tr :for={product <- Building.products()} id={"stock-#{product}"}>
+                  <td class="pr-4">{product}</td>
+                  <td class="text-right">{units(Map.fetch!(@game.stocks, product))}</td>
+                </tr>
+              </table>
+            </section>
 
-        <section id="taxes">
-          <h2 class="mb-2 font-semibold">Taxes</h2>
-          <p :if={@game.game_over} id="game-over" class="mb-2 font-semibold text-red-600">
-            Game over: too many missed payments.
-          </p>
-          <div :if={@game.tax_due} id="tax-due" class="flex items-center gap-3 text-sm">
-            <span class="tabular-nums">
-              {units(@game.tax_due)} gold due in week {Taxes.next_due_week(@game.week, @config)}
-            </span>
-            <span :if={@tax_decision_due?} id="tax-decision" class="flex items-center gap-2">
-              <button
-                id="pay-tax"
-                phx-click="decide_tax"
-                phx-value-pay="true"
-                class={[
-                  "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
-                  @game.pay_tax == true && "bg-zinc-900 text-white hover:bg-zinc-700"
-                ]}
-              >
-                Pay
-              </button>
-              <button
-                id="skip-tax"
-                phx-click="decide_tax"
-                phx-value-pay="false"
-                class={[
-                  "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
-                  @game.pay_tax == false && "bg-zinc-900 text-white hover:bg-zinc-700"
-                ]}
-              >
-                Skip
-              </button>
-              <span :if={is_nil(@game.pay_tax)} class="font-semibold text-red-600">
-                decide before the next week
-              </span>
-            </span>
-          </div>
-          <p :if={!@game.tax_due} class="text-sm opacity-60">
-            Next count in week {Taxes.next_due_week(@game.week, @config) -
-              @config.tax_count_lead_weeks}
-          </p>
-          <p id="tax-misses" class="text-sm tabular-nums">
-            Missed payments: {@game.tax_misses} (forgiven: {@config.tax_misses_forgiven})
-          </p>
-        </section>
+            <section id="taxes">
+              <h2 class="mb-2 font-semibold">Taxes</h2>
+              <p :if={@game.game_over} id="game-over" class="mb-2 font-semibold text-red-600">
+                Game over: too many missed payments and demands.
+              </p>
+              <div :if={@game.tax_due} id="tax-due" class="flex items-center gap-3 text-sm">
+                <span class="tabular-nums">
+                  {units(@game.tax_due)} gold due in week {Taxes.next_due_week(@game.week, @config)}
+                </span>
+                <span :if={@tax_decision_due?} id="tax-decision" class="flex items-center gap-2">
+                  <button
+                    id="pay-tax"
+                    phx-click="decide_tax"
+                    phx-value-pay="true"
+                    class={[
+                      "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
+                      @game.pay_tax == true && "bg-zinc-900 text-white hover:bg-zinc-700"
+                    ]}
+                  >
+                    Pay
+                  </button>
+                  <button
+                    id="skip-tax"
+                    phx-click="decide_tax"
+                    phx-value-pay="false"
+                    class={[
+                      "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
+                      @game.pay_tax == false && "bg-zinc-900 text-white hover:bg-zinc-700"
+                    ]}
+                  >
+                    Skip
+                  </button>
+                  <span :if={is_nil(@game.pay_tax)} class="font-semibold text-red-600">
+                    decide before the next week
+                  </span>
+                </span>
+              </div>
+              <p :if={!@game.tax_due} class="text-sm opacity-60">
+                Next count in week {Taxes.next_due_week(@game.week, @config) -
+                  @config.tax_count_lead_weeks}
+              </p>
+              <p id="tax-misses" class="text-sm tabular-nums">
+                Missed payments and demands: {@game.misses} (forgiven: {@config.tax_misses_forgiven})
+              </p>
+            </section>
 
-        <section id="buildings">
-          <h2 class="mb-2 font-semibold">Buildings and workers</h2>
-          <p class="mb-2 text-sm opacity-60">
-            Click a worker to select it, then place it in a building.
-          </p>
-          <div class="space-y-2">
-            <div
-              :for={building <- @game.buildings}
-              id={"building-#{building.id}"}
-              class="flex items-center gap-3"
-            >
-              <div class={["h-4 w-4 rounded-sm", colour_class(Building.colour(building))]}></div>
-              <span class="w-28 text-sm">{building.type}</span>
-              <span class="w-12 text-sm tabular-nums">
-                {length(workers_in(@game.workers, building.id))}/{Map.fetch!(
-                  @config.capacity,
-                  building.type
-                )}
-              </span>
-              <.worker
-                :for={worker <- workers_in(@game.workers, building.id)}
-                worker={worker}
-                selected={@selected == worker.id}
-              />
-              <span
-                :if={!Building.ready?(building, @game.week + 1)}
-                class="text-sm opacity-60"
-              >
-                ready in week {building.ready_week}
-              </span>
-              <span
-                :for={worker <- workers_in(@game.workers, building.id)}
-                :if={worker.training_started}
-                id={"training-#{worker.id}"}
-                class="text-sm opacity-60"
-              >
-                trained after week {Training.last_week(worker.training_started, @config)}
-              </span>
-              <button
-                :if={@selected}
-                id={"place-#{building.id}"}
-                phx-click="place"
-                phx-value-building={building.id}
-                class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
-              >
-                Place here
-              </button>
-            </div>
-            <div id="unplaced" class="flex items-center gap-3">
-              <div class="h-4 w-4"></div>
-              <span class="w-28 text-sm">unplaced</span>
-              <span class="w-12 text-sm tabular-nums">{length(workers_in(@game.workers, nil))}</span>
-              <.worker
-                :for={worker <- workers_in(@game.workers, nil)}
-                worker={worker}
-                selected={@selected == worker.id}
-              />
-              <button
-                :if={@selected}
-                id="unplace"
-                phx-click="unplace"
-                class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
-              >
-                Take out
-              </button>
-            </div>
-          </div>
-        </section>
+            <section id="demands">
+              <h2 class="mb-2 font-semibold">The king's demands</h2>
+              <div :if={@game.demand} id="demand" class="flex items-center gap-3 text-sm">
+                <span class="tabular-nums">
+                  {units(@game.demand.amount)} {@game.demand.product} due in week {@game.demand.due_week}
+                </span>
+                <span :if={@demand_decision_due?} id="demand-decision" class="flex items-center gap-2">
+                  <button
+                    id="deliver-demand"
+                    phx-click="decide_demand"
+                    phx-value-deliver="true"
+                    class={[
+                      "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
+                      @game.deliver_demand == true && "bg-zinc-900 text-white hover:bg-zinc-700"
+                    ]}
+                  >
+                    Deliver
+                  </button>
+                  <button
+                    id="refuse-demand"
+                    phx-click="decide_demand"
+                    phx-value-deliver="false"
+                    class={[
+                      "rounded border px-2 py-0.5 text-sm hover:bg-zinc-100",
+                      @game.deliver_demand == false && "bg-zinc-900 text-white hover:bg-zinc-700"
+                    ]}
+                  >
+                    Refuse
+                  </button>
+                  <span :if={is_nil(@game.deliver_demand)} class="font-semibold text-red-600">
+                    decide before the next week
+                  </span>
+                </span>
+              </div>
+              <p :if={!@game.demand} class="text-sm opacity-60">No open demand.</p>
+            </section>
 
-        <section id="build">
-          <h2 class="mb-2 font-semibold">Build</h2>
-          <div class="flex gap-2">
+            <section id="last-week">
+              <h2 class="mb-2 font-semibold">Week {@report.week}</h2>
+              <table class="text-sm tabular-nums">
+                <tr>
+                  <td class="pr-4">production</td>
+                  <td>
+                    <span :for={product <- Building.products()} class="mr-3">
+                      {product} {units(Map.fetch!(@report.production, product))}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="pr-4">mana</td>
+                  <td>
+                    <span
+                      :for={colour <- Manameter.colours()}
+                      class="mr-3 inline-flex items-center gap-1"
+                    >
+                      <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>
+                      {Map.fetch!(@report.mana, colour)}
+                    </span>
+                  </td>
+                </tr>
+                <tr id="food-left">
+                  <td class="pr-4">food left</td>
+                  <td>
+                    {units(@report.food_left)}
+                    <span :if={@report.food_left < 0} class="ml-2 font-semibold text-red-600">short</span>
+                  </td>
+                </tr>
+                <tr id="newborn">
+                  <td class="pr-4">newborn</td>
+                  <td>
+                    <span
+                      :if={@report.newborn}
+                      class={["inline-block h-5 w-5 rounded-sm", colour_class(@report.newborn.colour)]}
+                      title={@report.newborn.colour}
+                    ></span>
+                    <span :if={!@report.newborn}>none</span>
+                  </td>
+                </tr>
+                <tr :if={@report.tax_due} id="tax-counted">
+                  <td class="pr-4">tax counted</td>
+                  <td>{units(@report.tax_due)} gold</td>
+                </tr>
+                <tr :if={@report.tax} id="tax-outcome">
+                  <td class="pr-4">tax</td>
+                  <td class={[@report.tax != :paid && "font-semibold text-red-600"]}>
+                    {@report.tax}
+                  </td>
+                </tr>
+                <tr :if={@report.demand} id="demand-made">
+                  <td class="pr-4">king demands</td>
+                  <td>{units(@report.demand.amount)} {@report.demand.product}</td>
+                </tr>
+                <tr :if={@report.demand_outcome} id="demand-outcome">
+                  <td class="pr-4">demand</td>
+                  <td class={[@report.demand_outcome != :delivered && "font-semibold text-red-600"]}>
+                    {@report.demand_outcome}
+                  </td>
+                </tr>
+              </table>
+            </section>
+
             <button
-              :for={type <- Building.types()}
-              id={"build-#{type}"}
-              phx-click="build"
-              phx-value-type={type}
-              class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100"
+              id="download-csv"
+              phx-click="download_csv"
+              phx-hook=".DownloadCsv"
+              class="rounded border px-4 py-2 text-sm hover:bg-zinc-100"
             >
-              <span class={["inline-block h-3 w-3 rounded-sm", colour_class(type_colour(type))]}></span>
-              {type}
+              Download CSV report
             </button>
           </div>
-        </section>
-
-        <section id="last-week">
-          <h2 class="mb-2 font-semibold">Week {@report.week}</h2>
-          <table class="text-sm tabular-nums">
-            <tr>
-              <td class="pr-4">production</td>
-              <td>
-                <span :for={product <- Building.products()} class="mr-3">
-                  {product} {units(Map.fetch!(@report.production, product))}
-                </span>
-              </td>
-            </tr>
-            <tr>
-              <td class="pr-4">mana</td>
-              <td>
-                <span :for={colour <- Manameter.colours()} class="mr-3 inline-flex items-center gap-1">
-                  <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>
-                  {Map.fetch!(@report.mana, colour)}
-                </span>
-              </td>
-            </tr>
-            <tr id="food-left">
-              <td class="pr-4">food left</td>
-              <td>
-                {units(@report.food_left)}
-                <span :if={@report.food_left < 0} class="ml-2 font-semibold text-red-600">short</span>
-              </td>
-            </tr>
-            <tr id="newborn">
-              <td class="pr-4">newborn</td>
-              <td>
-                <span
-                  :if={@report.newborn}
-                  class={["inline-block h-5 w-5 rounded-sm", colour_class(@report.newborn.colour)]}
-                  title={@report.newborn.colour}
-                ></span>
-                <span :if={!@report.newborn}>none</span>
-              </td>
-            </tr>
-            <tr :if={@report.tax_due} id="tax-counted">
-              <td class="pr-4">tax counted</td>
-              <td>{units(@report.tax_due)} gold</td>
-            </tr>
-            <tr :if={@report.tax} id="tax-outcome">
-              <td class="pr-4">tax</td>
-              <td class={[@report.tax != :paid && "font-semibold text-red-600"]}>{@report.tax}</td>
-            </tr>
-          </table>
-        </section>
+        </div>
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".DownloadCsv">
+          export default {
+            mounted() {
+              this.handleEvent("download_csv", ({filename, content}) => {
+                const url = URL.createObjectURL(new Blob([content], {type: "text/csv"}))
+                const link = document.createElement("a")
+                link.href = url
+                link.download = filename
+                link.click()
+                URL.revokeObjectURL(url)
+              })
+            }
+          }
+        </script>
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :game, Game, required: true
+  attr :config, Config, required: true
+  attr :selected, :integer, default: nil
+  attr :blocked?, :boolean, required: true
+
+  defp village(assigns) do
+    ~H"""
+    <section id="buildings">
+      <h2 class="mb-2 font-semibold">Buildings and workers</h2>
+      <p class="mb-2 text-sm opacity-60">
+        Click a worker to select it, then place it in a building.
+      </p>
+      <div class="space-y-2">
+        <div
+          :for={building <- @game.buildings}
+          id={"building-#{building.id}"}
+          class="flex flex-wrap items-center gap-3"
+        >
+          <div class={["h-4 w-4 rounded-sm", colour_class(Building.colour(building))]}></div>
+          <span class="w-24 text-sm">{building.type}</span>
+          <span class="w-10 text-sm tabular-nums">
+            {length(workers_in(@game.workers, building.id))}/{Map.fetch!(
+              @config.capacity,
+              building.type
+            )}
+          </span>
+          <.worker
+            :for={worker <- workers_in(@game.workers, building.id)}
+            worker={worker}
+            selected={@selected == worker.id}
+          />
+          <span :if={!Building.ready?(building, @game.week + 1)} class="text-sm opacity-60">
+            ready in week {building.ready_week}
+          </span>
+          <span
+            :for={worker <- workers_in(@game.workers, building.id)}
+            :if={worker.training_started}
+            id={"training-#{worker.id}"}
+            class="text-sm opacity-60"
+          >
+            trained after week {Training.last_week(worker.training_started, @config)}
+          </span>
+          <button
+            :if={@selected}
+            id={"place-#{building.id}"}
+            phx-click="place"
+            phx-value-building={building.id}
+            class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
+          >
+            Place here
+          </button>
+        </div>
+        <div id="unplaced" class="flex flex-wrap items-center gap-3">
+          <div class="h-4 w-4"></div>
+          <span class="w-24 text-sm">unplaced</span>
+          <span class="w-10 text-sm tabular-nums">{length(workers_in(@game.workers, nil))}</span>
+          <.worker
+            :for={worker <- workers_in(@game.workers, nil)}
+            worker={worker}
+            selected={@selected == worker.id}
+          />
+          <button
+            :if={@selected}
+            id="unplace"
+            phx-click="unplace"
+            class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
+          >
+            Take out
+          </button>
+        </div>
+      </div>
+      <button
+        id="next-week"
+        phx-click="next_week"
+        disabled={@blocked?}
+        class="mt-4 rounded bg-zinc-900 px-4 py-2 text-white hover:bg-zinc-700 disabled:opacity-40"
+      >
+        Next week
+      </button>
+    </section>
+    """
+  end
+
+  defp build_buttons(assigns) do
+    ~H"""
+    <section id="build">
+      <h2 class="mb-2 font-semibold">Build</h2>
+      <div class="flex flex-wrap gap-2">
+        <button
+          :for={type <- Building.types()}
+          id={"build-#{type}"}
+          phx-click="build"
+          phx-value-type={type}
+          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100"
+        >
+          <span class={["inline-block h-3 w-3 rounded-sm", colour_class(type_colour(type))]}></span>
+          {type}
+        </button>
+      </div>
+    </section>
     """
   end
 

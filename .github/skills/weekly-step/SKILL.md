@@ -12,7 +12,9 @@ It is blocked, without changing anything, with:
   48 weeks per year is fixed in `Game.weeks_per_year/0`, not in the CSV). Reaching it without
   game over is a win: `Game.won?/2`;
 - `{:error, :tax_undecided}` when the next week is a due week (`Game.tax_decision_due?/2`)
-  and the player hasn't decided with `Game.decide_tax/3` yet.
+  and the player hasn't decided with `Game.decide_tax/3` yet;
+- `{:error, :demand_undecided}` when the next week is a demand's deadline
+  (`Game.demand_decision_due?/1`) and the player hasn't decided with `Game.decide_demand/2`.
 
 Code: [game.ex](../../../lib/my_liege/engine/game.ex).
 
@@ -23,8 +25,8 @@ Code: [game.ex](../../../lib/my_liege/engine/game.ex).
 - `run_week` runs `game.week + 1`. Every rule in it sees that same week number.
 - A full game is weeks 1 to 48 × `years_per_game`.
 - Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N:
-  `place_worker/4`, `unplace_worker/2`, `construct/3`, `decide_tax/3`. Changes take effect in
-  week N + 1.
+  `place_worker/4`, `unplace_worker/2`, `construct/3`, `decide_tax/3`, `decide_demand/2`.
+  Changes take effect in week N + 1.
 
 ## Order inside a week
 
@@ -37,12 +39,17 @@ Code: [game.ex](../../../lib/my_liege/engine/game.ex).
 | 4 | Eating (R8) | `Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
 | 5 | Birth (R1) | `Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
 | 6 | Training ends (R5) | `Training.finish/4` | trainees in the guildhouse, week | `trained`, `building: nil`, `report.trained` |
-| 7 | Tax payment (R7), due weeks only | `Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `tax_misses`, `game_over`, `report.tax` |
+| 7 | Tax payment (R7), due weeks only | `Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax` |
+| 8 | Demand delivery (R7), deadline weeks only | `Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks, `misses`, `game_over`, `report.demand_outcome` |
+| 9 | Demand made (R7), demand weeks only | `Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand` |
+| 10 | Spoilage | `Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
 
 Consequences of the order:
 - A newborn is drawn from the Manameter updated in step 3 of the same week.
 - A newborn is added after eating, so it eats from the following week; it is unplaced.
 - Production and mana use the workers as placed before the week started.
+- Births, taxes and demands see the stocks before spoilage; spoilage rounds down and leaves
+  stocks at or below 0 (a short week's -1) alone.
 
 ## Rules each step relies on
 
@@ -70,8 +77,19 @@ Consequences of the order:
   The player must decide with `decide_tax/3` while the game stands at the week before a due
   week (`pay_tax` is `nil` until then and resets to `nil` after payment). Outcomes:
   `:paid` (full amount), `:skipped` (on purpose), `:missed` (not enough gold); no partial
-  payments. More than `tax_misses_forgiven` misses (skipped or missed) set `game_over`, which
-  blocks further weeks. `AutoRun` always tries to pay and its runs end at game over.
+  payments. More than `tax_misses_forgiven` misses set `game_over`, which blocks further
+  weeks. The count `misses` is shared with the king's demands. `AutoRun` always tries to pay
+  and deliver; its runs end at game over.
+- **King's demands:** one per half year (`Game.weeks_per_year/0` ÷ 2), in a week drawn at
+  `Game.new/2` from the seed (`game.demand_weeks`) so the deadline, `demand_deadline_weeks`
+  later, stays in the same half year. The product belongs to the colour ranked 1st (year 1),
+  3rd (year 2) or 5th (year 3 on) in the Manameter when the demand is made; ties in pentagon
+  order. Amount: workers at the start of the demand week (before its birth) ×
+  `demand_population_share` (per mille) × base production of that colour's building ×
+  `demand_production_weeks`; 0 means no demand. Tests about other rules use
+  `EngineFixtures.game_without_demands/2`.
+  Outcomes: `:delivered`, `:refused`, `:missed` (stock short); refused and missed count as
+  misses.
 
 ## Units
 
@@ -82,7 +100,7 @@ Consequences of the order:
 ## Report
 
 `%{week, production, mana, manameter, food_left, newborn, trained, gold, tax_due, tax,
-game_over}`;
+demand, demand_outcome, spoiled, game_over}`;
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`
 writes one row per report.
 
