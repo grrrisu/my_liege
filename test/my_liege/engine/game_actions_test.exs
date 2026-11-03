@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.GameActionsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Worker}
+  alias MyLiege.Engine.{Building, Game, Worker}
   alias MyLiege.EngineFixtures
 
   setup do
@@ -28,9 +28,10 @@ defmodule MyLiege.Engine.GameActionsTest do
 
     test "a placed worker can be moved, free and immediate", context do
       %{config: config, game: game} = context
-      {:ok, game} = Game.place_worker(game, 1, 2, config)
+      {:ok, moved} = Game.place_worker(game, 1, 2, config)
 
-      assert %Worker{building: 2} = find_worker(game, 1)
+      assert %Worker{building: 2} = find_worker(moved, 1)
+      assert moved.stocks.gold == game.stocks.gold
     end
 
     test "a worker can be taken out of its building", %{game: game} do
@@ -63,6 +64,64 @@ defmodule MyLiege.Engine.GameActionsTest do
       assert Game.place_worker(game, 99, 1, config) == {:error, :unknown_worker}
       assert Game.place_worker(game, 3, 99, config) == {:error, :unknown_building}
       assert Game.unplace_worker(game, 99) == {:error, :unknown_worker}
+    end
+  end
+
+  describe "R2 building costs" do
+    test "the starting farm and tower are free", %{config: config} do
+      game = Game.new(config, 1)
+
+      assert game.stocks.gold == 100_000
+      assert game.report.gold_spent_buildings == 0
+    end
+
+    test "ordering pays build_cost_gold from the gold stock at once", context do
+      %{config: config, game: game} = context
+      {:ok, game} = Game.construct(game, :market, config)
+
+      assert game.stocks.gold == 70_000
+    end
+
+    test "every type costs the same, the guildhouse included", context do
+      %{config: config, game: game} = context
+
+      for type <- Building.types() do
+        {:ok, built} = Game.construct(game, type, config)
+        assert built.stocks.gold == game.stocks.gold - 30_000
+      end
+    end
+
+    test "ordering with exactly the price is possible", %{config: config, game: game} do
+      game = %{game | stocks: %{game.stocks | gold: 30_000}}
+
+      assert {:ok, %{stocks: %{gold: 0}}} = Game.construct(game, :farm, config)
+    end
+
+    test "ordering with less gold than the price is refused and changes nothing", context do
+      %{config: config, game: game} = context
+      game = %{game | stocks: %{game.stocks | gold: 29_999}}
+
+      refute Game.can_afford_building?(game, config)
+      assert Game.construct(game, :farm, config) == {:error, :not_enough_gold}
+    end
+
+    test "the gold spent is added to the current week's report", context do
+      %{config: config, game: game} = context
+      {:ok, game} = Game.construct(game, :market, config)
+      {:ok, game} = Game.construct(game, :tavern, config)
+
+      assert Game.report(game).week == 1
+      assert Game.report(game).gold_spent_buildings == 60_000
+      assert Game.report(game).gold == 100_000
+    end
+
+    test "the gold is gone before the next week's production", context do
+      %{config: config, game: game} = context
+      {:ok, game} = Game.construct(game, :market, config)
+      {:ok, report, _game} = Game.run_week(game, config)
+
+      assert report.gold == 70_000 + report.production.gold
+      assert report.gold_spent_buildings == 0
     end
   end
 

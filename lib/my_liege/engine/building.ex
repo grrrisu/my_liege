@@ -44,8 +44,8 @@ defmodule MyLiege.Engine.Building do
   end
 
   @doc """
-  Orders a new building when the game stands at `week` (the last week run). It is free and
-  produces from week `week + construction_weeks`.
+  Orders a new building when the game stands at `week` (the last week run). It produces from
+  week `week + construction_weeks`. The price is paid in `Game.construct/3`.
   """
   def construct(buildings, type, week, %Config{} = config) when type in @types do
     last_id = buildings |> Enum.map(& &1.id) |> Enum.max(fn -> 0 end)

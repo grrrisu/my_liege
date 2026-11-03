@@ -18,6 +18,7 @@ defmodule MyLiege.EngineFixtures do
           trained: %{same: 1250, neighbour: 600, opposite: 300}
         },
         construction_weeks: 2,
+        build_cost_gold: 30,
         mana_per_worker: %{
           untrained: %{building_colour: 2, own_colour: 1},
           trained: %{building_colour: 1, own_colour: 2}

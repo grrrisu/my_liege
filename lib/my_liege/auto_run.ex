@@ -4,7 +4,9 @@ defmodule MyLiege.AutoRun do
 
   Before each week every unplaced worker is sent to its pattern's building type. If no
   building of that type is ready with room, the worker waits unplaced; a new building is
-  ordered only when the ones already under construction can't take all waiting workers.
+  ordered only when the ones already under construction can't take all waiting workers, and
+  only if the gold stock covers `build_cost_gold`; otherwise the worker waits and the pattern
+  tries again before the next week.
 
   Patterns:
   - `:stay` – every worker goes to a building of their own colour.
@@ -68,17 +70,20 @@ defmodule MyLiege.AutoRun do
 
     weeks = 1..Game.last_week(config)
 
+    # a week's report is kept after the pattern has acted on it, so it includes the gold spent
+    # on buildings ordered then
     {reports, game, _food_before} =
       Enum.reduce_while(weeks, {[], start, nil}, fn _, {reports, g, food_before} ->
-        g = g |> place_unplaced(target, food_before, config) |> always_pay(config)
-
-        case Game.run_week(g, config) do
-          {:ok, report, next} -> {:cont, {[report | reports], next, g.stocks.food}}
-          {:error, :game_over} -> {:halt, {reports, g, food_before}}
+        if g.game_over do
+          {:halt, {reports, g, food_before}}
+        else
+          g = g |> place_unplaced(target, food_before, config) |> always_pay(config)
+          {:ok, _report, next} = Game.run_week(g, config)
+          {:cont, {[Game.report(g) | reports], next, g.stocks.food}}
         end
       end)
 
-    {[Game.report(start) | Enum.reverse(reports)], game}
+    {Enum.reverse([Game.report(game) | reports]), game}
   end
 
   @doc """
@@ -225,11 +230,11 @@ defmodule MyLiege.AutoRun do
       |> Enum.map(&Map.fetch!(config.capacity, &1.type))
       |> Enum.sum()
 
-    if waiting_count > room_under_construction do
-      {:ok, game} = Game.construct(game, type, config)
+    with true <- waiting_count > room_under_construction,
+         {:ok, game} <- Game.construct(game, type, config) do
       game
     else
-      game
+      _ -> game
     end
   end
 end

@@ -19,6 +19,7 @@ defmodule MyLiege.Engine.Config do
     :capacity,
     :colour_factors,
     :construction_weeks,
+    :build_cost_gold,
     :mana_per_worker,
     :manameter_points_per_week,
     :starting_food,

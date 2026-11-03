@@ -36,6 +36,7 @@ defmodule MyLiege.Engine.GameTest do
                demand: nil,
                demand_outcome: nil,
                spoiled: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
+               gold_spent_buildings: 0,
                game_over: false
              }
     end

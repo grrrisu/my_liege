@@ -26,7 +26,9 @@ Code: [game.ex](../../../lib/my_liege/engine/game.ex).
 - A full game is weeks 1 to 48 × `years_per_game`.
 - Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N:
   `place_worker/4`, `unplace_worker/2`, `construct/3`, `decide_tax/3`, `decide_demand/2`.
-  Changes take effect in week N + 1.
+  Changes take effect in week N + 1. `construct/3` pays `build_cost_gold` from the gold stock
+  at once and adds it to `gold_spent_buildings` of week N's report (`{:error, :not_enough_gold}`
+  if the stock is short).
 
 ## Order inside a week
 
@@ -53,7 +55,7 @@ Consequences of the order:
 
 ## Rules each step relies on
 
-- **Readiness:** a building ordered at state N has `ready_week = N + construction_weeks`
+- **Readiness:** a building ordered at state N (paid then, `build_cost_gold`) has `ready_week = N + construction_weeks`
   and produces from that week. Placement needs `ready?(building, game.week + 1)` and room.
 - **Training:** the guildhouse is neutral (no colour, product or mana; `Building.staffed/3`
   leaves it out). Placing an untrained worker there needs its colour's share ≥
@@ -100,7 +102,7 @@ Consequences of the order:
 ## Report
 
 `%{week, production, mana, manameter, food_left, newborn, trained, gold, tax_due, tax,
-demand, demand_outcome, spoiled, game_over}`;
+demand, demand_outcome, spoiled, gold_spent_buildings, game_over}`;
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`
 writes one row per report.
 
