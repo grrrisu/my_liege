@@ -106,13 +106,14 @@ writes one row per report.
 
 ## Adding or changing a step
 
-1. Check the Prototype Plan and `.github/copilot-instructions.md`: the rule must be defined,
+1. Check `rules/rules.md` and `.github/copilot-instructions.md`: the rule must be defined,
    every value must come from a CSV key, and open points must be asked, not guessed.
 2. Decide where the step sits in the order above and what it reads and writes; ask the
-   designer if the plan doesn't say.
+   designer if `rules/rules.md` doesn't say.
 3. Keep the rule in its own engine module of pure functions; call it from `run_week/2`.
 4. Add what the step produces to the report, then to `Reporting` if it belongs in the export.
 5. Tests: one describe block per rule with `EngineFixtures.config/1`, plus a case in
    `game_test.exs` that checks its place in the order. To run many weeks in a test, use
-   `EngineFixtures.run_weeks/3` (pays every tax). Update this skill.
+   `EngineFixtures.run_weeks/3` (pays every tax). Update this skill, and update
+   `rules/rules.md` (the rule, its order and a changelog line) so the designer can sync it.
 6. Run `mix precommit`.

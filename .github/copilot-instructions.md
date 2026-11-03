@@ -1,57 +1,39 @@
-# My Liege — prototype: instructions for Copilot
+# My Liege prototype: instructions
 
-## What this project is
-
-A throwaway test prototype for *My Liege*, a single-player real-time strategy game in development. The prototype exists to answer four design questions (H1–H4 in the Prototype Plan), not to become the game. Read the Prototype Plan before writing code; it is the brief.
-
-Only the **rules engine** is meant to be reused later. The interface is disposable.
+Throwaway test prototype for a single-player strategy game. Only the rules engine may be reused; the UI is disposable.
+The rules to implement are in `rules/rules.md`. Read it only when a task touches game rules.
 
 ## Stack
+- Elixir, Phoenix LiveView. Engine: pure functions, no LiveView/process/DB code inside. ExUnit, one describe block per rule (R1, R2, …).
+- Random numbers always seeded; store the seed with every run.
 
-- Elixir, Phoenix LiveView.
-- Rules engine: a plain Elixir module (or small set of modules) of pure functions. No LiveView, Phoenix, process or database code inside the engine.
-- Tests: ExUnit, one test (or describe block) per rule R1–R8 in the plan.
-- Random numbers: always seeded. Store the seed with every run so it can be replayed exactly.
-
-## Where the numbers come from
-
-- All game values live in `priv/balance_inputs.csv`, two columns: `key,value`. It is exported by the designer from the balance model spreadsheet; never edit it by hand and never read the spreadsheet itself.
-- The configuration module reads this file by **key** only, never by row position. Load it at compile time and declare it with `@external_resource`, so a changed CSV triggers a recompile.
-- Fail loudly at compile time if a key the engine needs is missing, or a value isn't a number. No fallback defaults in code.
-- All calculations use whole numbers. Shares and factors are in **per mille**: `800` means 80%, `1250` means 125%. This applies to every key starting with `factor_`, `manameter_start_` or `spoilage_rate_`, and to `manameter_points_per_week`, `training_threshold`, `plough_threshold_green` and `plough_bonus`.
-- One agreed exception to "no hard-coded values": weeks per year is fixed at 48 in code and is not in the CSV. Fail at compile time if any value in the CSV is not a whole number; never round.
-- Key changes in the current CSV: `workers_per_farm` is now `capacity_farm`; `starting_workers` is replaced by `starting_farmers` (green, on the farm) and `starting_soldiers` (red, in the tower, which counts as a watchtower).
-- If the engine needs a value with no key in the CSV, stop and ask the designer for a key and value. Don't add it yourself.
-- Tests may build their own configuration with explicit values, so they don't break when the designer retunes the CSV.
+## Numbers
+- All game values come from `priv/balance_inputs.csv` (`key,value`), read by key at compile time with `@external_resource`. The designer exports it; never edit it.
+- Fail at compile time on a missing key or a value that isn't a whole number. No defaults, no rounding.
+- Per mille (800 = 80%): keys starting with `factor_`, `manameter_start_`, `spoilage_rate_`, and `manameter_points_per_week`, `demand_population_share`, `training_threshold`, `plough_threshold_green`, `plough_bonus`.
+- Only exception: 48 weeks per year, hardcoded.
+- Tests may build their own configuration with explicit values.
 
 ## Hard rules
+1. Never invent a rule or a number. If a rule is missing, open or ambiguous, or a value has no key, stop and ask the designer. Give options; don't pick one. No placeholder values.
+2. No game value outside the configuration module.
+3. Only what `rules/rules.md` lists. No map, trade, raids, combat, culture effects, scoring or graphics.
+4. Bare UI: coloured squares, buttons, numbers.
+5. Ask before adding a dependency or changing the export or decision-log format.
 
-1. **Never invent numbers or rules.** Every number comes from the single configuration module. Don't put placeholder values in code while waiting for an answer; leave the rule unimplemented and ask. If a value or rule is marked "open" in the plan (R4, R7, R8 and the open parts of R1, R2, R5, R6), stop and ask the designer. Do not choose a default silently.
-2. **Never hard-code a game value** outside the configuration module.
-3. **Stay inside the scope** listed in the plan. No map, trade, raids, combat, culture, scoring or graphics, even if they seem easy to add.
-4. **Engine first.** Build and test the rules engine before any interface. Wait for the designer to confirm the tests match the concept before starting the interface.
-5. **Keep the interface bare:** coloured squares, buttons, numbers.
+## When a feature is agreed
+At the end of every task that changes or adds a rule, a key or the export:
+1. Update `rules/rules.md`: the rule in its section, named by its CSV keys (no values), and one changelog line.
+2. List any new CSV keys with the values the designer gave, so the designer can add them to the balance model.
+Keep `rules/rules.md` short: current rules only, no history or reasoning.
 
-## Ask before you
-
-- implement any rule marked open, or interpret a rule that can be read more than one way;
-- change a formula or table from the plan, even to fix what looks like an error;
-- add a dependency;
-- add a feature, mode or screen not listed in the plan;
-- change the format of the decision log or the run export.
-
-When asking, quote the line of the plan in question and give the options you see, without picking one.
-
-## Domain terms
-
-- **Five paths and colours:** Growth (green), Wisdom (blue), Strength (red), Wealth (yellow), Culture (violet).
-- **Pentagon order:** Growth – Wisdom – Strength – Wealth – Culture – back to Growth. Neighbours are allies; non-neighbours are opponents.
-- **Manameter:** the society's mana shares per colour, always summing to 100%.
-- **Worker:** has a fixed colour from birth and is either untrained or trained.
-- **Week:** one simulation step. Clock mode (later) runs one week per 30 seconds.
-
-## Outputs the tests depend on
-
-- Play mode logs every placement: week, worker colour, trained or not, building, on- or off-colour, and the player's rating (easy, some thought, torn).
-- Auto-run mode records Manameter shares per week for each placement pattern and seed.
-- Both export as CSV matching the report fields in the plan.
+## Git and review
+- **Never work or commit on `main`.** All code goes on a feature branch.
+- **One branch per feature or rule change**, created from `main` and named after it, e.g. `t43-building-costs`.
+- **Agree the rule in the chat first;** create the branch only when nothing is open.
+- **Commits:** the feature's implementation is one commit. Each round of designer feedback and each refactor gets its own commit. Work that is not a rule (configuration, interface, export) goes in its own commits on the current branch.
+- **`rules/rules.md` is updated in the same commit as the rule it describes.**
+- **Run `mix precommit` before every commit**; it must pass.
+- **Review before every commit:** stop, show a short summary of what changed and why, and wait for the designer's OK. Don't print the diff; the designer reviews it in the editor.
+- **The designer pushes, pulls and merges.** Never run `git push` or `git pull`.
+- **After the designer has pulled `main`**, delete local branches already merged into it with `git branch -d` without asking. Never use `git branch -D`.
