@@ -13,9 +13,20 @@ Only the **rules engine** is meant to be reused later. The interface is disposab
 - Tests: ExUnit, one test (or describe block) per rule R1–R8 in the plan.
 - Random numbers: always seeded. Store the seed with every run so it can be replayed exactly.
 
+## Where the numbers come from
+
+- All game values live in `priv/balance_inputs.csv`, two columns: `key,value`. It is exported by the designer from the balance model spreadsheet; never edit it by hand and never read the spreadsheet itself.
+- The configuration module reads this file by **key** only, never by row position. Load it at compile time and declare it with `@external_resource`, so a changed CSV triggers a recompile.
+- Fail loudly at compile time if a key the engine needs is missing, or a value isn't a number. No fallback defaults in code.
+- All calculations use whole numbers. Shares and factors are in **per mille**: `800` means 80%, `1250` means 125%. This applies to every key starting with `factor_`, `manameter_start_` or `spoilage_rate_`, and to `manameter_points_per_week`, `training_threshold`, `plough_threshold_green` and `plough_bonus`.
+- One agreed exception to "no hard-coded values": weeks per year is fixed at 48 in code and is not in the CSV. Fail at compile time if any value in the CSV is not a whole number; never round.
+- Key changes in the current CSV: `workers_per_farm` is now `capacity_farm`; `starting_workers` is replaced by `starting_farmers` (green, on the farm) and `starting_soldiers` (red, in the tower, which counts as a watchtower).
+- If the engine needs a value with no key in the CSV, stop and ask the designer for a key and value. Don't add it yourself.
+- Tests may build their own configuration with explicit values, so they don't break when the designer retunes the CSV.
+
 ## Hard rules
 
-1. **Never invent numbers or rules.** Every number comes from the single configuration module. If a value or rule is marked "open" in the plan (R4, R7, R8 and the open parts of R1, R2, R5, R6), stop and ask the designer. Do not choose a default silently.
+1. **Never invent numbers or rules.** Every number comes from the single configuration module. Don't put placeholder values in code while waiting for an answer; leave the rule unimplemented and ask. If a value or rule is marked "open" in the plan (R4, R7, R8 and the open parts of R1, R2, R5, R6), stop and ask the designer. Do not choose a default silently.
 2. **Never hard-code a game value** outside the configuration module.
 3. **Stay inside the scope** listed in the plan. No map, trade, raids, combat, culture, scoring or graphics, even if they seem easy to add.
 4. **Engine first.** Build and test the rules engine before any interface. Wait for the designer to confirm the tests match the concept before starting the interface.

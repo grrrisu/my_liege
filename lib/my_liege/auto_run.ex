@@ -58,7 +58,7 @@ defmodule MyLiege.AutoRun do
 
   @doc """
   Runs one game. Returns `{reports, game}`; reports start with week 0. The pattern always
-  tries to pay taxes; the run ends early at game over.
+  tries to pay taxes and deliver the king's demands; the run ends early at game over.
   Option `:pivot_week` defaults to #{@weeks_per_year}.
   """
   def run(pattern, %Config{} = config, seed, opts \\ [])
@@ -129,12 +129,14 @@ defmodule MyLiege.AutoRun do
   end
 
   defp always_pay(game, config) do
-    if Game.tax_decision_due?(game, config) do
-      {:ok, game} = Game.decide_tax(game, true, config)
-      game
-    else
-      game
-    end
+    game =
+      if Game.tax_decision_due?(game, config),
+        do: elem(Game.decide_tax(game, true, config), 1),
+        else: game
+
+    if Game.demand_decision_due?(game),
+      do: elem(Game.decide_demand(game, true), 1),
+      else: game
   end
 
   defp target(:stay, _pivot_week, _config),

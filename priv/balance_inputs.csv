@@ -26,7 +26,7 @@ mana_building_untrained,2
 mana_own_untrained,1
 mana_building_trained,1
 mana_own_trained,2
-training_threshold,300
+training_threshold,200
 plough_threshold_green,500
 plough_bonus,100
 starting_farmers,1
@@ -46,3 +46,11 @@ plough_research_weeks,16
 plough_cost_wisdom,192
 training_weeks,4
 capacity_guildhouse,1
+spoilage_rate_food,50
+spoilage_rate_gold,10
+spoilage_rate_defence,200
+spoilage_rate_entertainment,200
+spoilage_rate_knowledge,200
+demand_deadline_weeks,8
+demand_population_share,100
+demand_production_weeks,8

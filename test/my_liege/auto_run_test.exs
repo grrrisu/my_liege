@@ -11,7 +11,8 @@ defmodule MyLiege.AutoRunTest do
 
   describe "Test A: Stay" do
     test "reports every week from 0 to the last week of the game", %{config: config} do
-      config = %{config | starting_gold: 1_000_000}
+      # enough gold and no king's demands, so nothing ends the run early
+      config = %{config | starting_gold: 1_000_000, demand_population_share: 0}
       {reports, _game} = AutoRun.run(:stay, config, 1)
 
       assert Enum.map(reports, & &1.week) == Enum.to_list(0..144)

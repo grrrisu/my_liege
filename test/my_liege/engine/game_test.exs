@@ -33,6 +33,9 @@ defmodule MyLiege.Engine.GameTest do
                gold: 100_000,
                tax_due: nil,
                tax: nil,
+               demand: nil,
+               demand_outcome: nil,
+               spoiled: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
                game_over: false
              }
     end
@@ -122,7 +125,7 @@ defmodule MyLiege.Engine.GameTest do
 
     test "reaching the last week without game over wins; no week runs after it" do
       config = EngineFixtures.config(years_per_game: 1, starting_gold: 1000)
-      game = run_weeks(Game.new(config, 1), 48, config)
+      game = run_weeks(EngineFixtures.game_without_demands(config, 1), 48, config)
 
       assert Game.won?(game, config)
       assert Game.run_week(game, config) == {:error, :finished}
@@ -130,13 +133,14 @@ defmodule MyLiege.Engine.GameTest do
 
     test "not won before the last week" do
       config = EngineFixtures.config(years_per_game: 1, starting_gold: 1000)
+      game = run_weeks(EngineFixtures.game_without_demands(config, 1), 47, config)
 
-      refute Game.won?(run_weeks(Game.new(config, 1), 47, config), config)
+      refute Game.won?(game, config)
     end
 
     test "game over in the last week is not a win" do
       config = EngineFixtures.config(years_per_game: 1, starting_gold: 0)
-      game = run_weeks(Game.new(config, 1), 48, config)
+      game = run_weeks(EngineFixtures.game_without_demands(config, 1), 48, config)
 
       assert game.game_over
       refute Game.won?(game, config)

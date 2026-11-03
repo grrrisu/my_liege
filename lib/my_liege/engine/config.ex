@@ -30,7 +30,11 @@ defmodule MyLiege.Engine.Config do
     :tax_count_lead_weeks,
     :tax_misses_forgiven,
     :training_threshold,
-    :training_weeks
+    :training_weeks,
+    :demand_deadline_weeks,
+    :demand_population_share,
+    :demand_production_weeks,
+    :spoilage_rates
   ]
   defstruct @enforce_keys
 

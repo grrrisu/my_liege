@@ -36,7 +36,11 @@ defmodule MyLiege.Engine.LoadConfig do
       tax_count_lead_weeks: fetch!(inputs, "tax_count_lead_weeks"),
       tax_misses_forgiven: fetch!(inputs, "tax_misses_forgiven"),
       training_threshold: fetch!(inputs, "training_threshold"),
-      training_weeks: fetch!(inputs, "training_weeks")
+      training_weeks: fetch!(inputs, "training_weeks"),
+      demand_deadline_weeks: fetch!(inputs, "demand_deadline_weeks"),
+      demand_population_share: fetch!(inputs, "demand_population_share"),
+      demand_production_weeks: fetch!(inputs, "demand_production_weeks"),
+      spoilage_rates: spoilage_rates(inputs)
     }
 
     Logger.info(
@@ -115,6 +119,13 @@ defmodule MyLiege.Engine.LoadConfig do
   defp capacity(inputs) do
     Map.new([:farm, :monastery, :watchtower, :market, :tavern, :guildhouse], fn type ->
       {type, fetch!(inputs, "capacity_#{type}")}
+    end)
+  end
+
+  # listed here, not taken from Building, which depends on Config at compile time
+  defp spoilage_rates(inputs) do
+    Map.new([:food, :knowledge, :defence, :gold, :entertainment], fn product ->
+      {product, fetch!(inputs, "spoilage_rate_#{product}")}
     end)
   end
 

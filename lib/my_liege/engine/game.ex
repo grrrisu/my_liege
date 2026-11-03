@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.Game do
   state from the config, and the first week that changes anything is week 1.
 
   Each week runs in this order: production (and its mana), Manameter update, eating, birth,
-  taxes. The village is counted for taxes at the start of a count week, before its birth.
+  training, taxes, demands, spoilage. The village is counted for taxes at the start of a count week, before its birth.
   Stocks are in thousandths (see `Fixed`).
   """
 
@@ -12,6 +12,7 @@ defmodule MyLiege.Engine.Game do
     Births,
     Building,
     Config,
+    Demands,
     Fixed,
     Food,
     Mana,
@@ -19,13 +20,32 @@ defmodule MyLiege.Engine.Game do
     ManameterUpdate,
     Production,
     Random,
+    Spoilage,
     Taxes,
     Training,
     Worker
   }
 
-  @enforce_keys [:seed, :rand, :week, :workers, :buildings, :manameter, :stocks, :report]
-  defstruct @enforce_keys ++ [tax_due: nil, pay_tax: nil, tax_misses: 0, game_over: false]
+  @enforce_keys [
+    :seed,
+    :rand,
+    :week,
+    :workers,
+    :buildings,
+    :manameter,
+    :stocks,
+    :report,
+    :demand_weeks
+  ]
+  defstruct @enforce_keys ++
+              [
+                tax_due: nil,
+                pay_tax: nil,
+                demand: nil,
+                deliver_demand: nil,
+                misses: 0,
+                game_over: false
+              ]
 
   # fixed by the designer, not read from the CSV
   @weeks_per_year 48
@@ -42,6 +62,7 @@ defmodule MyLiege.Engine.Game do
   @doc "Starts a run. Without a seed one is generated; it is kept in `seed` for replay."
   def new(%Config{} = config, seed \\ nil) do
     {seed, rand} = Random.new(seed)
+    {demand_weeks, rand} = Demands.schedule(@weeks_per_year, config, rand)
     buildings = Building.starting()
     stocks = starting_stocks(config)
 
@@ -49,6 +70,7 @@ defmodule MyLiege.Engine.Game do
       seed: seed,
       rand: rand,
       week: 0,
+      demand_weeks: demand_weeks,
       workers: Worker.starting(buildings, config),
       buildings: buildings,
       manameter: config.starting_manameter,
@@ -64,6 +86,9 @@ defmodule MyLiege.Engine.Game do
         gold: stocks.gold,
         tax_due: nil,
         tax: nil,
+        demand: nil,
+        demand_outcome: nil,
+        spoiled: Map.new(Building.products(), &{&1, 0}),
         game_over: false
       }
     }
@@ -75,20 +100,23 @@ defmodule MyLiege.Engine.Game do
   @doc """
   Runs the next week. Returns `{:ok, report, game}`; a short week has `food_left < 0`.
   Blocked with `{:error, :game_over}` once the game is over, with `{:error, :finished}` after
-  the last week, and with `{:error, :tax_undecided}` before a due week until `decide_tax/3`
-  was called.
+  the last week, with `{:error, :tax_undecided}` before a due week until `decide_tax/3` was
+  called, and with `{:error, :demand_undecided}` before a demand's deadline week until
+  `decide_demand/2` was called.
   """
   def run_week(%__MODULE__{} = game, %Config{} = config) do
     cond do
       game.game_over -> {:error, :game_over}
       game.week >= last_week(config) -> {:error, :finished}
       tax_decision_due?(game, config) and is_nil(game.pay_tax) -> {:error, :tax_undecided}
+      demand_decision_due?(game) and is_nil(game.deliver_demand) -> {:error, :demand_undecided}
       true -> do_run_week(game, config)
     end
   end
 
   defp do_run_week(game, config) do
     %{workers: workers, buildings: buildings} = game
+    population = length(workers)
     week = game.week + 1
     counted = if Taxes.count_week?(week, config), do: Taxes.assess(workers, config)
     game = if counted, do: %{game | tax_due: counted}, else: game
@@ -113,18 +141,25 @@ defmodule MyLiege.Engine.Game do
     }
 
     {tax, game} = settle_taxes(game, config)
+    {demand_outcome, game} = settle_demand(game, config)
+    {demand, game} = make_demand(game, population, config)
+    {stocks, spoiled} = Spoilage.spoil(game.stocks, config)
+    game = %{game | stocks: stocks}
 
     report = %{
       week: week,
       production: production,
       mana: mana,
       manameter: manameter,
-      food_left: food_left,
+      food_left: stocks.food,
       newborn: newborn,
       trained: trained,
       gold: game.stocks.gold,
       tax_due: counted,
       tax: tax,
+      demand: demand,
+      demand_outcome: demand_outcome,
+      spoiled: spoiled,
       game_over: game.game_over
     }
 
@@ -143,6 +178,20 @@ defmodule MyLiege.Engine.Game do
     if tax_decision_due?(game, config),
       do: {:ok, %{game | pay_tax: pay?}},
       else: {:error, :no_tax_due}
+  end
+
+  @doc "Whether the next week is a demand's deadline, so the player must decide first."
+  def demand_decision_due?(%__MODULE__{demand: demand} = game),
+    do: demand != nil and demand.due_week == game.week + 1
+
+  @doc """
+  The player's decision for the demand due next week: `true` delivers, `false` refuses.
+  Only possible when `demand_decision_due?/1`.
+  """
+  def decide_demand(%__MODULE__{} = game, deliver?) when is_boolean(deliver?) do
+    if demand_decision_due?(game),
+      do: {:ok, %{game | deliver_demand: deliver?}},
+      else: {:error, :no_demand_due}
   end
 
   @doc """
@@ -191,23 +240,39 @@ defmodule MyLiege.Engine.Game do
   defp settle_taxes(%{tax_due: due} = game, config) when is_integer(due) do
     if Taxes.due_week?(game.week, config) do
       {outcome, gold} = Taxes.settle(game.stocks.gold, due, game.pay_tax)
-      misses = if outcome == :paid, do: game.tax_misses, else: game.tax_misses + 1
-
-      {outcome,
-       %{
-         game
-         | stocks: %{game.stocks | gold: gold},
-           tax_due: nil,
-           pay_tax: nil,
-           tax_misses: misses,
-           game_over: game.game_over or Taxes.game_over?(misses, config)
-       }}
+      game = %{game | stocks: %{game.stocks | gold: gold}, tax_due: nil, pay_tax: nil}
+      {outcome, count_miss(game, outcome != :paid, config)}
     else
       {nil, game}
     end
   end
 
   defp settle_taxes(game, _config), do: {nil, game}
+
+  defp settle_demand(%{demand: %{due_week: week} = demand, week: week} = game, config) do
+    {outcome, stocks} = Demands.settle(demand, game.stocks, game.deliver_demand)
+    game = %{game | stocks: stocks, demand: nil, deliver_demand: nil}
+    {outcome, count_miss(game, outcome != :delivered, config)}
+  end
+
+  defp settle_demand(game, _config), do: {nil, game}
+
+  defp make_demand(game, population, config) do
+    if game.week in game.demand_weeks do
+      demand = Demands.make(game.week, @weeks_per_year, game.manameter, population, config)
+      {demand, %{game | demand: demand}}
+    else
+      {nil, game}
+    end
+  end
+
+  # missed taxes, refused and missed demands share one count
+  defp count_miss(game, false, _config), do: game
+
+  defp count_miss(game, true, config) do
+    misses = game.misses + 1
+    %{game | misses: misses, game_over: game.game_over or Taxes.game_over?(misses, config)}
+  end
 
   defp fetch_worker(game, worker_id) do
     case Enum.find(game.workers, &(&1.id == worker_id)) do
