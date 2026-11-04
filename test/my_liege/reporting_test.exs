@@ -19,21 +19,21 @@ defmodule MyLiege.ReportingTest do
                "production_gold,production_entertainment," <>
                "mana_green,mana_blue,mana_red,mana_yellow,mana_violet," <>
                "manameter_green,manameter_blue,manameter_red,manameter_yellow,manameter_violet," <>
-               "food_left,newborn,trained,gold,tax_due,tax," <>
+               "food_left,newborn,trained,builders,travelling,gold,tax_due,tax," <>
                "demand_product,demand_amount,demand_outcome," <>
                "spoiled_food,spoiled_knowledge,spoiled_defence,spoiled_gold,spoiled_entertainment," <>
                "gold_spent_buildings,game_over"
 
     assert week_0 ==
-             "0,0,0,0,0,0,0,0,0,0,0,800,50,100,50,0,24000,,,100000,,,,,,0,0,0,0,0,0,false"
+             "0,0,0,0,0,0,0,0,0,0,0,800,50,100,50,0,24000,,,0,0,100000,,,,,,0,0,0,0,0,0,false"
 
     # seed 1 draws a green newborn in week 1
     assert week_1 ==
-             "1,9000,0,3000,0,0,3,0,3,0,0,799,50,101,50,0,27000,green,,100000,,,,,,0,0,0,0,0,0,false"
+             "1,9000,0,3000,0,0,3,0,3,0,0,799,50,101,50,0,27000,green,,0,0,100000,,,,,,0,0,0,0,0,0,false"
 
     # the unplaced newborn makes no mana but eats: 27 + 9 - 3 × 3
     assert week_2 ==
-             "2,9000,0,3000,0,0,3,0,3,0,0,798,50,102,50,0,27000,,,100000,,,,,,0,0,0,0,0,0,false"
+             "2,9000,0,3000,0,0,3,0,3,0,0,798,50,102,50,0,27000,,,0,0,100000,,,,,,0,0,0,0,0,0,false"
   end
 
   test "the spoiled columns show what each stock lost; food_left and gold are after spoilage" do
@@ -47,8 +47,8 @@ defmodule MyLiege.ReportingTest do
 
     # food 27 - 1.35 spoiled, gold 100 - 1 spoiled
     assert Enum.at(columns, 16) == "25650"
-    assert Enum.at(columns, 19) == "99000"
-    assert Enum.slice(columns, 25..29) == ["1350", "0", "0", "1000", "0"]
+    assert Enum.at(columns, 21) == "99000"
+    assert Enum.slice(columns, 27..31) == ["1350", "0", "0", "1000", "0"]
   end
 
   defp no_spoilage, do: EngineFixtures.config().spoilage_rates
@@ -67,8 +67,8 @@ defmodule MyLiege.ReportingTest do
       |> tl()
       |> Map.new(&{&1 |> String.split(",") |> hd() |> String.to_integer(), String.split(&1, ",")})
 
-    assert Enum.slice(rows[first], 22..24) == ["food", "#{made.demand.amount}", ""]
-    assert Enum.slice(rows[first + 8], 22..24) == ["", "", "delivered"]
+    assert Enum.slice(rows[first], 24..26) == ["food", "#{made.demand.amount}", ""]
+    assert Enum.slice(rows[first + 8], 24..26) == ["", "", "delivered"]
   end
 
   test "the trained column lists the colours of workers who finished training" do
@@ -94,12 +94,34 @@ defmodule MyLiege.ReportingTest do
     {[week_1], _game} = EngineFixtures.run_weeks(game, 1, config)
 
     rows = [week_0, week_1] |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
-    [spent_0, spent_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(30)))
-    [gold_0, gold_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(19)))
+    [spent_0, spent_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(32)))
+    [gold_0, gold_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(21)))
 
     assert {spent_0, spent_1} == {"60000", "0"}
     # the row's gold is from before the orders; the next week starts with 100 - 60
     assert {gold_0, gold_1} == {"100000", "40000"}
+  end
+
+  test "the builders and travelling columns count arrived builders and travelling workers" do
+    config = EngineFixtures.config(builders_per_building: 2, travel_weeks: 1)
+    {:ok, game} = config |> Game.new(1) |> Game.construct(:market, config)
+    site = List.last(game.buildings)
+    {:ok, game} = Game.place_worker(game, 1, site.id, config)
+    {:ok, game} = Game.place_worker(game, 2, site.id, config)
+    {reports, _game} = EngineFixtures.run_weeks(game, 4, config)
+
+    rows =
+      [Game.report(game) | reports]
+      |> Reporting.to_csv()
+      |> String.split("
+",
+        trim: true
+      )
+
+    counts = rows |> tl() |> Enum.map(&(&1 |> String.split(",") |> Enum.slice(19..20)))
+
+    # placed at week 0: on the way in week 1, building in weeks 2 and 3, back on the way after
+    assert counts == [["0", "0"], ["2", "0"], ["2", "0"], ["0", "2"], ["0", "0"]]
   end
 
   test "no reports gives only the header" do

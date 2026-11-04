@@ -19,6 +19,9 @@ defmodule MyLiege.EngineFixtures do
         },
         construction_weeks: 2,
         build_cost_gold: 30,
+        # no builders and no travel, so tests about other rules stay independent of R2 sites
+        builders_per_building: 0,
+        travel_weeks: 0,
         mana_per_worker: %{
           untrained: %{building_colour: 2, own_colour: 1},
           trained: %{building_colour: 1, own_colour: 2}

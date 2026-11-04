@@ -6,6 +6,8 @@ defmodule MyLiege.Reporting do
   Values are in engine units: production, food and gold in thousandths, Manameter shares in
   per mille. `tax_due` is filled in the count week, `tax` (paid, skipped, missed) in the due week.
   `trained` lists the colours of the workers who finished training that week, space-separated.
+  `builders` counts the builders on sites who have arrived, `travelling` the workers still
+  travelling, both at the end of the week.
   `demand_product` and `demand_amount` are filled in the week the king makes a demand,
   `demand_outcome` (delivered, refused, missed) in its deadline week. `spoiled_*` is what each
   stock lost at the end of the week; `food_left` and `gold` are after spoilage.
@@ -25,7 +27,7 @@ defmodule MyLiege.Reporting do
       Enum.map(Building.products(), &"production_#{&1}") ++
       Enum.map(Manameter.colours(), &"mana_#{&1}") ++
       Enum.map(Manameter.colours(), &"manameter_#{&1}") ++
-      ["food_left", "newborn", "trained", "gold", "tax_due", "tax"] ++
+      ["food_left", "newborn", "trained", "builders", "travelling", "gold", "tax_due", "tax"] ++
       ["demand_product", "demand_amount", "demand_outcome"] ++
       Enum.map(Building.products(), &"spoiled_#{&1}") ++
       ["gold_spent_buildings", "game_over"]
@@ -40,6 +42,8 @@ defmodule MyLiege.Reporting do
         report.food_left,
         newborn(report.newborn),
         Enum.map_join(report.trained, " ", & &1.colour),
+        report.builders,
+        report.travelling,
         report.gold,
         report.tax_due,
         report.tax,

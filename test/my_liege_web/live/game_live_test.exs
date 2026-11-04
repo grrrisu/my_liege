@@ -44,12 +44,14 @@ defmodule MyLiegeWeb.GameLiveTest do
   end
 
   test "order a new building", %{conn: conn} do
+    config = Config.from_csv()
     {:ok, view, _html} = live(conn, ~p"/game")
 
     view |> element("#build-market") |> render_click()
 
-    assert has_element?(view, "#building-3", "market")
-    assert has_element?(view, "#building-3", "ready in week 2")
+    assert has_element?(view, "#building-3", "market site")
+    assert has_element?(view, "#site-3", "builders arrived 0/#{config.builders_per_building}")
+    assert has_element?(view, "#site-3", "progress 0/#{config.construction_weeks} weeks")
   end
 
   test "the build price is shown; the buttons are disabled once gold is short", %{conn: conn} do
@@ -70,15 +72,36 @@ defmodule MyLiegeWeb.GameLiveTest do
     assert has_element?(view, "#build-guildhouse[disabled]")
   end
 
-  test "placing in an unfinished building shows an error", %{conn: conn} do
+  test "a worker placed on a site is a builder and travels first", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
     view |> element("#build-market") |> render_click()
     view |> element("#worker-1") |> render_click()
     view |> element("#place-3") |> render_click()
 
+    config = Config.from_csv()
+    needed = config.builders_per_building
+
+    assert has_element?(view, "#building-3 #worker-1")
+    assert has_element?(view, "#travel-1", "#{config.travel_weeks}")
+    assert has_element?(view, "#site-3", "builders arrived 0/#{needed}")
+
+    for _ <- 1..config.travel_weeks, do: view |> element("#next-week") |> render_click()
+
+    refute has_element?(view, "#travel-1")
+    assert has_element?(view, "#site-3", "builders arrived 1/#{needed}")
+  end
+
+  test "a travelling unplaced worker can't be placed", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    view |> element("#worker-1") |> render_click()
+    view |> element("#unplace") |> render_click()
+    view |> element("#worker-1") |> render_click()
+    view |> element("#place-2") |> render_click()
+
     assert has_element?(view, "#flash-error")
-    assert has_element?(view, "#building-1 #worker-1")
+    assert has_element?(view, "#unplaced #worker-1")
   end
 
   test "the tax due is shown after the count; the due week waits for the decision", %{

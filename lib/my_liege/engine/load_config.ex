@@ -26,6 +26,8 @@ defmodule MyLiege.Engine.LoadConfig do
       colour_factors: colour_factors(inputs),
       construction_weeks: fetch!(inputs, "construction_weeks"),
       build_cost_gold: fetch!(inputs, "build_cost_gold"),
+      builders_per_building: fetch!(inputs, "builders_per_building"),
+      travel_weeks: fetch!(inputs, "travel_weeks"),
       mana_per_worker: mana_per_worker(inputs),
       manameter_points_per_week: fetch!(inputs, "manameter_points_per_week"),
       starting_food: fetch!(inputs, "starting_food"),

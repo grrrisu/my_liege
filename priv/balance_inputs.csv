@@ -6,7 +6,7 @@ capacity_farm,4
 wheat_per_farm_worker,12
 wheat_eaten_per_worker,3
 gold_per_market_worker,3
-starting_gold,100
+starting_gold,150
 tax_per_worker,10
 tax_interval_weeks,24
 tax_count_lead_weeks,4
@@ -55,3 +55,5 @@ demand_deadline_weeks,8
 demand_population_share,100
 demand_production_weeks,8
 build_cost_gold,30
+builders_per_building,2
+travel_weeks,1

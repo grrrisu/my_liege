@@ -2,6 +2,8 @@ defmodule MyLiege.Engine.Worker do
   @moduledoc """
   A worker: colour fixed from birth, untrained or trained, placed in a building or not.
   `training_started` is the first training week while it is in the guildhouse.
+  `travel` is the weeks it still needs to reach where it is (R2): above 0 it is already counted
+  there but does nothing, and an unplaced worker can't be placed yet.
   """
 
   alias MyLiege.Engine.Config
@@ -12,7 +14,8 @@ defmodule MyLiege.Engine.Worker do
             trained: false,
             building: nil,
             born_week: nil,
-            training_started: nil
+            training_started: nil,
+            travel: 0
 
   @doc "The starting workers: `starting_farmers` green on the farm, `starting_soldiers` red in the tower."
   def starting(buildings, %Config{} = config) do
