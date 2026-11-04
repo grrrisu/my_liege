@@ -30,6 +30,8 @@ defmodule MyLiege.Engine.GameTest do
                food_left: 24_000,
                newborn: nil,
                trained: [],
+               builders: 0,
+               travelling: 0,
                gold: 100_000,
                tax_due: nil,
                tax: nil,

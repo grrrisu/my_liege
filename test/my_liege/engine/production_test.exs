@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.ProductionTest do
   describe "R2: production by colour" do
     setup do
       config = EngineFixtures.config()
-      buildings = all_building_types(config)
+      buildings = all_building_types()
       buildings_by_type = Map.new(buildings, &{&1.type, &1})
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type}
     end
@@ -79,20 +79,30 @@ defmodule MyLiege.Engine.ProductionTest do
       assert Enum.all?(buildings, &Building.ready?(&1, 0))
     end
 
-    test "a new building ordered in week N produces from week N + construction_weeks", context do
+    test "a building produces from its ready_week; a site produces nothing", context do
       %{config: config, buildings: buildings} = context
-      buildings = Building.construct(buildings, :farm, 5, config)
-      new_farm = List.last(buildings)
-      workers = [worker(:green, false, new_farm.id)]
+      buildings = Building.construct(buildings, :farm)
+      site = List.last(buildings)
+      workers = [worker(:green, false, site.id)]
 
+      assert Production.week(workers, buildings, 99, config).food == 0
+
+      buildings = List.replace_at(buildings, -1, %{site | ready_week: 7})
       assert Production.week(workers, buildings, 6, config).food == 0
       assert Production.week(workers, buildings, 7, config).food == 9_000
     end
 
-    test "buildings can be built without limit", %{config: config, buildings: buildings} do
+    test "a worker still travelling produces nothing", context do
+      %{config: config, buildings: buildings, buildings_by_type: %{farm: farm}} = context
+      workers = [%{worker(:green, false, farm.id) | travel: 1}]
+
+      assert Production.week(workers, buildings, 0, config).food == 0
+    end
+
+    test "buildings can be built without limit", %{buildings: buildings} do
       buildings =
         Enum.reduce(1..10, buildings, fn _, current_buildings ->
-          Building.construct(current_buildings, :market, 0, config)
+          Building.construct(current_buildings, :market)
         end)
 
       building_ids = Enum.map(buildings, & &1.id)
@@ -118,10 +128,10 @@ defmodule MyLiege.Engine.ProductionTest do
     end
   end
 
-  defp all_building_types(config) do
-    Enum.reduce([:farm, :monastery, :watchtower, :market, :tavern], [], fn type, buildings ->
-      Building.construct(buildings, type, -config.construction_weeks, config)
-    end)
+  defp all_building_types do
+    [:farm, :monastery, :watchtower, :market, :tavern]
+    |> Enum.with_index(1)
+    |> Enum.map(fn {type, id} -> %Building{id: id, type: type} end)
   end
 
   defp worker(colour, trained \\ false, building_id \\ nil),

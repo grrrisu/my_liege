@@ -2,7 +2,7 @@ defmodule MyLiegeWeb.GameLive do
   @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes, Training}
+  alias MyLiege.Engine.{Building, Config, Construction, Fixed, Game, Manameter, Taxes, Training}
   alias MyLiege.Reporting
 
   @colour_classes %{
@@ -65,7 +65,8 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   def handle_event("unplace", _params, socket) do
-    result = Game.unplace_worker(socket.assigns.game, socket.assigns.selected)
+    %{game: game, selected: worker_id, config: config} = socket.assigns
+    result = Game.unplace_worker(game, worker_id, config)
     {:noreply, apply_result(socket, result)}
   end
 
@@ -132,6 +133,7 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:demand_undecided), do: "Decide whether to deliver the king's demand first."
   defp error_message(:no_demand_due), do: "No demand is due next week."
   defp error_message(:already_trained), do: "That worker is already trained."
+  defp error_message(:travelling), do: "That worker is still travelling."
 
   defp error_message(:below_threshold),
     do: "That worker's colour has too small a share of the Manameter to train."
@@ -404,20 +406,24 @@ defmodule MyLiegeWeb.GameLive do
           class="flex flex-wrap items-center gap-3"
         >
           <div class={["h-4 w-4 rounded-sm", colour_class(Building.colour(building))]}></div>
-          <span class="w-24 text-sm">{building.type}</span>
+          <span class="w-24 text-sm">
+            {building.type}<span :if={Building.site?(building)} class="opacity-60"> site</span>
+          </span>
           <span class="w-10 text-sm tabular-nums">
-            {length(workers_in(@game.workers, building.id))}/{Map.fetch!(
-              @config.capacity,
-              building.type
-            )}
+            {length(workers_in(@game.workers, building.id))}/{Building.capacity(building, @config)}
           </span>
           <.worker
             :for={worker <- workers_in(@game.workers, building.id)}
             worker={worker}
             selected={@selected == worker.id}
           />
-          <span :if={!Building.ready?(building, @game.week + 1)} class="text-sm opacity-60">
-            ready in week {building.ready_week}
+          <span
+            :if={Building.site?(building)}
+            id={"site-#{building.id}"}
+            class="text-sm tabular-nums opacity-60"
+          >
+            builders arrived {length(Construction.arrived(@game.workers, building.id))}/{@config.builders_per_building},
+            progress {building.progress}/{@config.construction_weeks} weeks
           </span>
           <span
             :for={worker <- workers_in(@game.workers, building.id)}
@@ -503,19 +509,40 @@ defmodule MyLiegeWeb.GameLive do
 
   defp worker(assigns) do
     ~H"""
-    <button
-      id={"worker-#{@worker.id}"}
-      phx-click="select_worker"
-      phx-value-id={@worker.id}
-      class={[
-        "inline-block h-5 w-5 rounded-sm transition hover:scale-110",
-        colour_class(@worker.colour),
-        @worker.trained && "ring-2 ring-zinc-900",
-        @selected && "outline-3 outline-offset-2 outline-zinc-900"
-      ]}
-      title={"#{@worker.colour}#{if @worker.trained, do: ", trained"}"}
-    ></button>
+    <span class="inline-flex items-center gap-0.5">
+      <button
+        id={"worker-#{@worker.id}"}
+        phx-click="select_worker"
+        phx-value-id={@worker.id}
+        class={[
+          "inline-block h-5 w-5 rounded-sm transition hover:scale-110",
+          colour_class(@worker.colour),
+          @worker.trained && "ring-2 ring-zinc-900",
+          @worker.travel > 0 && "opacity-40",
+          @selected && "outline-3 outline-offset-2 outline-zinc-900"
+        ]}
+        title={worker_title(@worker)}
+      ></button>
+      <span
+        :if={@worker.travel > 0}
+        id={"travel-#{@worker.id}"}
+        class="text-xs tabular-nums opacity-60"
+        title="weeks of travel left"
+      >
+        ↦{@worker.travel}
+      </span>
+    </span>
     """
+  end
+
+  defp worker_title(worker) do
+    [
+      to_string(worker.colour),
+      worker.trained && "trained",
+      worker.travel > 0 && "travelling #{worker.travel} more week(s)"
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(", ")
   end
 
   defp type_colour(type), do: Building.colour(%Building{id: 0, type: type})

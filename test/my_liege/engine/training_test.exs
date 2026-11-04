@@ -15,7 +15,7 @@ defmodule MyLiege.Engine.TrainingTest do
 
   describe "R5: training in the guildhouse" do
     test "the guildhouse can be built and is neutral", %{guildhouse: guildhouse} do
-      assert guildhouse.ready_week == 2
+      assert guildhouse.ready_week == 3
       assert Building.colour(guildhouse) == nil
     end
 
@@ -66,12 +66,28 @@ defmodule MyLiege.Engine.TrainingTest do
       %{config: config, game: game, guildhouse: guildhouse} = context
       {:ok, game} = Game.place_worker(game, 1, guildhouse.id, config)
       {_reports, game} = EngineFixtures.run_weeks(game, 3, config)
-      {:ok, game} = Game.unplace_worker(game, 1)
+      {:ok, game} = Game.unplace_worker(game, 1, config)
       {:ok, game} = Game.place_worker(game, 1, guildhouse.id, config)
       {reports, game} = EngineFixtures.run_weeks(game, 3, config)
 
       assert Enum.all?(reports, &(&1.trained == []))
       refute find(game, 1).trained
+    end
+  end
+
+  describe "R5: training with travel" do
+    test "training starts after the travel; the trained worker travels back", context do
+      %{game: game, guildhouse: guildhouse} = context
+      config = EngineFixtures.config(travel_weeks: 1)
+      {:ok, game} = Game.place_worker(game, 1, guildhouse.id, config)
+
+      # placed at week 2: travel in week 3, training in weeks 4 to 7
+      assert find(game, 1).training_started == 4
+      {reports, game} = EngineFixtures.run_weeks(game, 5, config)
+
+      assert Enum.map(reports, &Enum.map(&1.trained, fn w -> w.id end)) == [[], [], [], [], [1]]
+      assert %Worker{trained: true, building: nil, travel: 1} = find(game, 1)
+      assert Game.place_worker(game, 1, 1, config) == {:error, :travelling}
     end
   end
 

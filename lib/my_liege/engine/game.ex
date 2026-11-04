@@ -3,8 +3,8 @@ defmodule MyLiege.Engine.Game do
   The state of one run and the weekly step. `week` is the last week run: 0 is the starting
   state from the config, and the first week that changes anything is week 1.
 
-  Each week runs in this order: production (and its mana), Manameter update, eating, birth,
-  training, taxes, demands, spoilage. The village is counted for taxes at the start of a count week, before its birth.
+  Each week runs in this order: production (and its mana), travel, Manameter update, eating,
+  birth, construction, training, taxes, demands, spoilage. The village is counted for taxes at the start of a count week, before its birth.
   Stocks are in thousandths (see `Fixed`).
   """
 
@@ -12,6 +12,7 @@ defmodule MyLiege.Engine.Game do
     Births,
     Building,
     Config,
+    Construction,
     Demands,
     Fixed,
     Food,
@@ -23,6 +24,7 @@ defmodule MyLiege.Engine.Game do
     Spoilage,
     Taxes,
     Training,
+    Travel,
     Worker
   }
 
@@ -83,6 +85,8 @@ defmodule MyLiege.Engine.Game do
         food_left: stocks.food,
         newborn: nil,
         trained: [],
+        builders: 0,
+        travelling: 0,
         gold: stocks.gold,
         tax_due: nil,
         tax: nil,
@@ -124,12 +128,18 @@ defmodule MyLiege.Engine.Game do
 
     production = Production.week(workers, buildings, week, config)
     mana = Mana.week(workers, buildings, week, config)
+    start_workers = workers
+    workers = Travel.week(workers)
     manameter = ManameterUpdate.update(game.manameter, mana, config)
     stocks = Map.merge(game.stocks, production, fn _product, stock, made -> stock + made end)
     food_left = Food.eat(stocks.food, workers, config)
     {newborn, rand} = Births.attempt(week, food_left, manameter, config, game.rand)
     newborn = newborn && %{newborn | id: Worker.next_id(workers), born_week: week}
     workers = if(newborn, do: workers ++ [newborn], else: workers)
+
+    {buildings, workers, _finished} =
+      Construction.week(buildings, start_workers, workers, week, config)
+
     {workers, trained} = Training.finish(workers, buildings, week, config)
 
     game = %{
@@ -137,6 +147,7 @@ defmodule MyLiege.Engine.Game do
       | rand: rand,
         week: week,
         workers: workers,
+        buildings: buildings,
         manameter: manameter,
         stocks: %{stocks | food: food_left}
     }
@@ -155,6 +166,8 @@ defmodule MyLiege.Engine.Game do
       food_left: stocks.food,
       newborn: newborn,
       trained: trained,
+      builders: Construction.arrived_builders(workers, buildings),
+      travelling: Enum.count(workers, &Travel.travelling?/1),
       gold: game.stocks.gold,
       tax_due: counted,
       tax: tax,
@@ -197,41 +210,76 @@ defmodule MyLiege.Engine.Game do
   end
 
   @doc """
-  Places or moves a worker, free and immediate: it works there from the next week run.
-  The building must be ready in that week and have room. In the guildhouse the worker starts
-  training (see `Training.check/3`); moving a trainee out loses its progress.
+  Places or moves a worker. It takes its place at once but travels `travel_weeks` first
+  (see `Travel`), also when it was still travelling. An unplaced worker can only be placed
+  once it has arrived. A finished building must have room; a site takes up to
+  `builders_per_building` builders. In the guildhouse the worker starts training after its
+  travel (see `Training.check/3`). Moving a trainee out loses its progress; moving a builder
+  off a site resets the site's progress to 0.
   """
   def place_worker(%__MODULE__{} = game, worker_id, building_id, %Config{} = config) do
     with {:ok, worker} <- fetch_worker(game, worker_id),
          {:ok, building} <- fetch_building(game, building_id) do
-      others = Enum.reject(game.workers, &(&1.id == worker_id))
-
       cond do
         worker.building == building_id -> {:ok, game}
-        not Building.ready?(building, game.week + 1) -> {:error, :not_ready}
-        not Building.has_room?(building, others, config) -> {:error, :full}
-        building.type == :guildhouse -> start_training(game, worker, building_id, config)
-        true -> {:ok, put_worker(game, %{worker | building: building_id, training_started: nil})}
+        error = placement_error(game, worker, building, config) -> {:error, error}
+        trains?(building) -> start_training(game, worker, building_id, config)
+        true -> {:ok, move(game, worker, building_id, nil, config)}
       end
     end
   end
 
-  defp start_training(game, worker, building_id, config) do
-    with :ok <- Training.check(worker, game.manameter, config) do
-      trainee = %{worker | building: building_id, training_started: game.week + 1}
-      {:ok, put_worker(game, trainee)}
+  defp placement_error(game, worker, building, config) do
+    others = Enum.reject(game.workers, &(&1.id == worker.id))
+
+    cond do
+      is_nil(worker.building) and Travel.travelling?(worker) -> :travelling
+      not Building.site?(building) and not Building.ready?(building, game.week + 1) -> :not_ready
+      not Building.has_room?(building, others, config) -> :full
+      true -> nil
     end
   end
 
-  @doc "Takes a worker out of its building; a trainee loses its progress."
-  def unplace_worker(%__MODULE__{} = game, worker_id) do
-    with {:ok, worker} <- fetch_worker(game, worker_id) do
-      {:ok, put_worker(game, %{worker | building: nil, training_started: nil})}
+  defp trains?(building), do: building.type == :guildhouse and not Building.site?(building)
+
+  defp start_training(game, worker, building_id, config) do
+    with :ok <- Training.check(worker, game.manameter, config) do
+      started = Training.first_week(game.week, config)
+      {:ok, move(game, worker, building_id, started, config)}
     end
   end
 
   @doc """
-  Orders a new building; see `Building.construct/4`. Every type costs `build_cost_gold`, paid
+  Takes a worker out of its building; it travels `travel_weeks` before it can be placed again.
+  A trainee loses its progress; a builder resets its site's progress to 0. A worker that is
+  already unplaced stays as it is.
+  """
+  def unplace_worker(%__MODULE__{} = game, worker_id, %Config{} = config) do
+    with {:ok, worker} <- fetch_worker(game, worker_id) do
+      if is_nil(worker.building),
+        do: {:ok, game},
+        else: {:ok, move(game, worker, nil, nil, config)}
+    end
+  end
+
+  defp move(game, worker, building_id, training_started, config) do
+    moved = Travel.depart(%{worker | training_started: training_started}, building_id, config)
+    game |> reset_site(worker.building) |> put_worker(moved)
+  end
+
+  defp reset_site(game, building_id) do
+    buildings =
+      Enum.map(game.buildings, fn building ->
+        if building.id == building_id and Building.site?(building),
+          do: %{building | progress: 0},
+          else: building
+      end)
+
+    %{game | buildings: buildings}
+  end
+
+  @doc """
+  Orders a new building, which starts as a site (see `Construction`). Every type costs `build_cost_gold`, paid
   from the gold stock now; refused with `{:error, :not_enough_gold}` if the stock is smaller.
   The gold spent is added to `gold_spent_buildings` of the current week's report.
   No limit on number or frequency.
@@ -252,7 +300,7 @@ defmodule MyLiege.Engine.Game do
         {:ok,
          %{
            game
-           | buildings: Building.construct(game.buildings, type, game.week, config),
+           | buildings: Building.construct(game.buildings, type),
              stocks: %{game.stocks | gold: game.stocks.gold - cost},
              report: report
          }}

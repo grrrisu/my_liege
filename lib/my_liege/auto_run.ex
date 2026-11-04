@@ -2,11 +2,13 @@ defmodule MyLiege.AutoRun do
   @moduledoc """
   Test A: plays a fixed placement pattern for a whole game, with random births from a seed.
 
-  Before each week every unplaced worker is sent to its pattern's building type. If no
-  building of that type is ready with room, the worker waits unplaced; a new building is
-  ordered only when the ones already under construction can't take all waiting workers, and
-  only if the gold stock covers `build_cost_gold`; otherwise the worker waits and the pattern
-  tries again before the next week.
+  Before each week, unplaced workers who have arrived (travel 0) first fill every site that
+  is short of builders, whatever their colour, in worker order. The rest are sent to their
+  pattern's building type. If no building of that type is ready with room, the worker waits
+  unplaced; a new building is ordered only when the ones already under construction can't
+  take all waiting workers, and only if the gold stock covers `build_cost_gold`; otherwise
+  the worker waits and the pattern tries again before the next week. A site ordered then
+  gets its builders before the next week after.
 
   Patterns:
   - `:stay` – every worker goes to a building of their own colour.
@@ -51,7 +53,7 @@ defmodule MyLiege.AutoRun do
       File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes}
+  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes, Travel}
 
   @weeks_per_year Game.weeks_per_year()
 
@@ -77,7 +79,12 @@ defmodule MyLiege.AutoRun do
         if g.game_over do
           {:halt, {reports, g, food_before}}
         else
-          g = g |> place_unplaced(target, food_before, config) |> always_pay(config)
+          g =
+            g
+            |> staff_sites(config)
+            |> place_unplaced(target, food_before, config)
+            |> always_pay(config)
+
           {:ok, _report, next} = Game.run_week(g, config)
           {:cont, {[Game.report(g) | reports], next, g.stocks.food}}
         end
@@ -191,11 +198,32 @@ defmodule MyLiege.AutoRun do
     food < 0 or (food_before != nil and food - food_before < one_more)
   end
 
+  defp staff_sites(game, config) do
+    game.buildings
+    |> Enum.filter(&Building.site?/1)
+    |> Enum.reduce(game, &staff_site(&2, &1, config))
+  end
+
+  defp staff_site(game, site, config) do
+    game
+    |> available()
+    |> Enum.reduce_while(game, fn worker, game ->
+      case Game.place_worker(game, worker.id, site.id, config) do
+        {:ok, game} -> {:cont, game}
+        {:error, _reason} -> {:halt, game}
+      end
+    end)
+  end
+
+  # unplaced workers who have arrived and can be placed
+  defp available(game),
+    do: Enum.filter(game.workers, &(is_nil(&1.building) and not Travel.travelling?(&1)))
+
   # food_before: the food stock a week earlier, nil before week 1
   defp place_unplaced(game, target, food_before, config) do
     {game, _waiting} =
-      game.workers
-      |> Enum.filter(&is_nil(&1.building))
+      game
+      |> available()
       |> Enum.reduce({game, %{}}, fn worker, {game, waiting} ->
         type = target.(worker, game, food_before)
 

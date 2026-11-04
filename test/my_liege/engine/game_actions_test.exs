@@ -26,7 +26,7 @@ defmodule MyLiege.Engine.GameActionsTest do
       assert report.production.food > 9_000
     end
 
-    test "a placed worker can be moved, free and immediate", context do
+    test "a placed worker can be moved, free", context do
       %{config: config, game: game} = context
       {:ok, moved} = Game.place_worker(game, 1, 2, config)
 
@@ -34,8 +34,8 @@ defmodule MyLiege.Engine.GameActionsTest do
       assert moved.stocks.gold == game.stocks.gold
     end
 
-    test "a worker can be taken out of its building", %{game: game} do
-      {:ok, game} = Game.unplace_worker(game, 1)
+    test "a worker can be taken out of its building", %{config: config, game: game} do
+      {:ok, game} = Game.unplace_worker(game, 1, config)
 
       assert %Worker{building: nil} = find_worker(game, 1)
     end
@@ -63,7 +63,7 @@ defmodule MyLiege.Engine.GameActionsTest do
     test "unknown workers and buildings are refused", %{config: config, game: game} do
       assert Game.place_worker(game, 99, 1, config) == {:error, :unknown_worker}
       assert Game.place_worker(game, 3, 99, config) == {:error, :unknown_building}
-      assert Game.unplace_worker(game, 99) == {:error, :unknown_worker}
+      assert Game.unplace_worker(game, 99, config) == {:error, :unknown_worker}
     end
   end
 
@@ -137,19 +137,16 @@ defmodule MyLiege.Engine.GameActionsTest do
       assert Game.construct(game, :castle, config) == {:error, :unknown_type}
     end
 
-    test "a worker can be placed before the first week the building produces", context do
+    test "a finished building takes workers who produce from the next week", context do
       %{config: config, game: game} = context
-      # ordered at week 1 with 2 construction weeks: produces from week 3
+      # no builders needed: ordered at week 1, built in weeks 2 and 3, produces from week 4
       {:ok, game} = Game.construct(game, :market, config)
       market = List.last(game.buildings)
-
-      assert Game.place_worker(game, 3, market.id, config) == {:error, :not_ready}
-
-      {:ok, _report, game} = Game.run_week(game, config)
+      {_reports, game} = EngineFixtures.run_weeks(game, 2, config)
       {:ok, game} = Game.place_worker(game, 3, market.id, config)
       {:ok, report, _game} = Game.run_week(game, config)
 
-      assert report.week == 3
+      assert report.week == 4
       assert report.production.gold > 0
     end
   end
