@@ -1,6 +1,6 @@
 defmodule MyLiege.Reporting do
   @moduledoc """
-  Turns weekly reports (from `Game.report/1` and `Game.run_week/2`) into CSV, one row per week.
+  Turns weekly reports (from `Game.report/1` and `Game.run_week/1`) into CSV, one row per week.
   Pass the week 0 report first to include the starting state.
 
   Values are in engine units: production, food and gold in thousandths, Manameter shares in

@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Config do
   @moduledoc """
-  The single source of every game value. Engine functions take this struct as an argument,
-  so the settings panel and tests can pass their own copy. `from_csv/0` is built at compile
+  The single source of every game value. The config is fixed for a game when `Game.new/2` is
+  called; tests can pass a modified copy to `Game.new/2`. `from_csv/0` is built at compile
   time from `priv/balance_inputs.csv`; a missing key or non-whole value fails the build.
 
   Shares and factors are in per mille (`800` = 80%).

@@ -9,7 +9,7 @@ defmodule MyLiege.ReportingTest do
     config = EngineFixtures.config()
     game = Game.new(config, 1)
 
-    {reports, _game} = EngineFixtures.run_weeks(game, 2, config)
+    {reports, _game} = EngineFixtures.run_weeks(game, 2)
 
     [header, week_0, week_1, week_2] =
       [Game.report(game) | reports] |> Reporting.to_csv() |> String.split("\n", trim: true)
@@ -40,7 +40,7 @@ defmodule MyLiege.ReportingTest do
     config =
       EngineFixtures.config(spoilage_rates: Map.merge(no_spoilage(), %{food: 50, gold: 10}))
 
-    {:ok, report, _game} = config |> Game.new(1) |> Game.run_week(config)
+    {:ok, report, _game} = config |> Game.new(1) |> Game.run_week()
 
     [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
     columns = String.split(row, ",")
@@ -57,7 +57,7 @@ defmodule MyLiege.ReportingTest do
     config = EngineFixtures.config(starting_food: 1000)
     game = Game.new(config, 1)
     [first | _] = game.demand_weeks
-    {reports, _game} = EngineFixtures.run_weeks(game, first + 8, config)
+    {reports, _game} = EngineFixtures.run_weeks(game, first + 8)
     made = Enum.find(reports, &(&1.week == first))
 
     rows =
@@ -73,11 +73,11 @@ defmodule MyLiege.ReportingTest do
 
   test "the trained column lists the colours of workers who finished training" do
     config = EngineFixtures.config()
-    {:ok, game} = config |> Game.new(1) |> Game.construct(:guildhouse, config)
-    {_reports, game} = EngineFixtures.run_weeks(game, 2, config)
+    {:ok, game} = config |> Game.new(1) |> Game.construct(:guildhouse)
+    {_reports, game} = EngineFixtures.run_weeks(game, 2)
     guildhouse = Enum.find(game.buildings, &(&1.type == :guildhouse))
-    {:ok, game} = Game.place_worker(game, 1, guildhouse.id, config)
-    {reports, _game} = EngineFixtures.run_weeks(game, 4, config)
+    {:ok, game} = Game.place_worker(game, 1, guildhouse.id)
+    {reports, _game} = EngineFixtures.run_weeks(game, 4)
 
     rows = reports |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
     trained = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(18)))
@@ -88,10 +88,10 @@ defmodule MyLiege.ReportingTest do
   test "gold_spent_buildings shows the gold paid for orders made while the game stood at that week" do
     config = EngineFixtures.config()
     game = Game.new(config, 1)
-    {:ok, game} = Game.construct(game, :market, config)
-    {:ok, game} = Game.construct(game, :guildhouse, config)
+    {:ok, game} = Game.construct(game, :market)
+    {:ok, game} = Game.construct(game, :guildhouse)
     week_0 = Game.report(game)
-    {[week_1], _game} = EngineFixtures.run_weeks(game, 1, config)
+    {[week_1], _game} = EngineFixtures.run_weeks(game, 1)
 
     rows = [week_0, week_1] |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
     [spent_0, spent_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(32)))
@@ -104,11 +104,11 @@ defmodule MyLiege.ReportingTest do
 
   test "the builders and travelling columns count arrived builders and travelling workers" do
     config = EngineFixtures.config(builders_per_building: 2, travel_weeks: 1)
-    {:ok, game} = config |> Game.new(1) |> Game.construct(:market, config)
+    {:ok, game} = config |> Game.new(1) |> Game.construct(:market)
     site = List.last(game.buildings)
-    {:ok, game} = Game.place_worker(game, 1, site.id, config)
-    {:ok, game} = Game.place_worker(game, 2, site.id, config)
-    {reports, _game} = EngineFixtures.run_weeks(game, 4, config)
+    {:ok, game} = Game.place_worker(game, 1, site.id)
+    {:ok, game} = Game.place_worker(game, 2, site.id)
+    {reports, _game} = EngineFixtures.run_weeks(game, 4)
 
     rows =
       [Game.report(game) | reports]

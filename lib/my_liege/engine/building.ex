@@ -53,7 +53,7 @@ defmodule MyLiege.Engine.Building do
 
   @doc """
   Orders a new building: it starts as a site without builders and progress. The price is paid
-  in `Game.construct/3`.
+  in `Game.construct/2`.
   """
   def construct(buildings, type) when type in @types do
     last_id = buildings |> Enum.map(& &1.id) |> Enum.max(fn -> 0 end)
