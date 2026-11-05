@@ -25,6 +25,7 @@ defmodule MyLiege.Engine.Game do
     Taxes,
     Training,
     Travel,
+    WeeklyReport,
     Worker
   }
 
@@ -83,7 +84,7 @@ defmodule MyLiege.Engine.Game do
       buildings: buildings,
       manameter: config.starting_manameter,
       stocks: stocks,
-      report: %{
+      report: %WeeklyReport{
         week: 0,
         production: Map.new(Building.products(), &{&1, 0}),
         mana: Map.new(Manameter.colours(), &{&1, 0}),
@@ -164,24 +165,24 @@ defmodule MyLiege.Engine.Game do
     {stocks, spoiled} = Spoilage.spoil(game.stocks, config)
     game = %{game | stocks: stocks}
 
-    report = %{
-      week: week,
-      production: production,
-      mana: mana,
-      manameter: manameter,
-      food_left: stocks.food,
-      newborn: newborn,
-      trained: trained,
-      builders: Construction.arrived_builders(workers, buildings),
-      travelling: Enum.count(workers, &Travel.travelling?/1),
-      gold: game.stocks.gold,
-      tax_due: counted,
-      tax: tax,
-      demand: demand,
-      demand_outcome: demand_outcome,
-      spoiled: spoiled,
-      gold_spent_buildings: 0,
-      game_over: game.game_over
+    report = %WeeklyReport{
+      WeeklyReport.new(week, game)
+      | start: nil,
+        production: production,
+        mana: mana,
+        manameter: manameter,
+        food_left: stocks.food,
+        newborn: newborn,
+        trained: trained,
+        builders: Construction.arrived_builders(workers, buildings),
+        travelling: Enum.count(workers, &Travel.travelling?/1),
+        gold: game.stocks.gold,
+        tax_due: counted,
+        tax: tax,
+        demand: demand,
+        demand_outcome: demand_outcome,
+        spoiled: spoiled,
+        game_over: game.game_over
     }
 
     {:ok, report, %{game | report: report}}
@@ -302,7 +303,7 @@ defmodule MyLiege.Engine.Game do
         {:error, :not_enough_gold}
 
       true ->
-        report = Map.update!(game.report, :gold_spent_buildings, &(&1 + cost))
+        report = %{game.report | gold_spent_buildings: game.report.gold_spent_buildings + cost}
 
         {:ok,
          %{
