@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.GameTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Manameter, WeeklyReport, Worker}
+  alias MyLiege.Engine.{Game, Manameter, SimSteps, WeeklyReport, Worker}
   alias MyLiege.EngineFixtures
 
   describe "a new game" do
@@ -48,6 +48,44 @@ defmodule MyLiege.Engine.GameTest do
       {:ok, report, game} = config |> Game.new(1) |> Game.run_week()
 
       assert Game.report(game) == report
+    end
+
+    test "no report keeps the start of its week" do
+      game = Game.new(EngineFixtures.config(), 1)
+      {:ok, report, _game} = Game.run_week(game)
+
+      assert Game.report(game).start == nil
+      assert report.start == nil
+    end
+  end
+
+  describe "pipeline" do
+    test "runs the steps in the weekly order" do
+      assert Game.pipeline() == [
+               SimSteps.TaxCount,
+               SimSteps.Production,
+               SimSteps.Mana,
+               SimSteps.Travel,
+               SimSteps.ManameterUpdate,
+               SimSteps.Eating,
+               SimSteps.Birth,
+               SimSteps.Construction,
+               SimSteps.TrainingEnd,
+               SimSteps.TaxPayment,
+               SimSteps.DemandDelivery,
+               SimSteps.DemandMade,
+               SimSteps.Spoilage,
+               SimSteps.EndOfWeek
+             ]
+    end
+
+    test "every step implements SimStep" do
+      for step <- Game.pipeline() do
+        assert Code.ensure_loaded?(step)
+        assert function_exported?(step, :run, 2)
+        behaviours = step.module_info(:attributes) |> Keyword.get_values(:behaviour)
+        assert MyLiege.Engine.SimStep in List.flatten(behaviours)
+      end
     end
   end
 

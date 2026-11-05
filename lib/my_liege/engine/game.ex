@@ -3,25 +3,20 @@ defmodule MyLiege.Engine.Game do
   The state of one run and the weekly step. `week` is the last week run: 0 is the starting
   state from the config, and the first week that changes anything is week 1.
 
-  Each week runs in this order: production (and its mana), travel, Manameter update, eating,
-  birth, construction, training, taxes, demands, spoilage. The village is counted for taxes at the start of a count week, before its birth.
+  A week is a pipeline of `MyLiege.Engine.SimStep`s, run in the order of `pipeline/0`, which
+  mirrors "Weekly order" in `rules/rules.md`. Each step writes to the game and to the week's
+  `MyLiege.Engine.WeeklyReport`.
   Stocks are in thousandths (see `Fixed`).
   """
 
   alias MyLiege.Engine.{
-    Births,
     Building,
     Config,
-    Construction,
     Demands,
     Fixed,
     Food,
-    Mana,
-    Manameter,
-    ManameterUpdate,
-    Production,
     Random,
-    Spoilage,
+    SimSteps,
     Taxes,
     Training,
     Travel,
@@ -52,6 +47,25 @@ defmodule MyLiege.Engine.Game do
                 game_over: false
               ]
 
+  @type t :: %__MODULE__{}
+
+  @pipeline [
+    SimSteps.TaxCount,
+    SimSteps.Production,
+    SimSteps.Mana,
+    SimSteps.Travel,
+    SimSteps.ManameterUpdate,
+    SimSteps.Eating,
+    SimSteps.Birth,
+    SimSteps.Construction,
+    SimSteps.TrainingEnd,
+    SimSteps.TaxPayment,
+    SimSteps.DemandDelivery,
+    SimSteps.DemandMade,
+    SimSteps.Spoilage,
+    SimSteps.EndOfWeek
+  ]
+
   # fixed by the designer, not read from the CSV
   @weeks_per_year 48
 
@@ -72,9 +86,8 @@ defmodule MyLiege.Engine.Game do
     {seed, rand} = Random.new(seed)
     {demand_weeks, rand} = Demands.schedule(@weeks_per_year, config, rand)
     buildings = Building.starting()
-    stocks = starting_stocks(config)
 
-    %__MODULE__{
+    game = %__MODULE__{
       config: config,
       seed: seed,
       rand: rand,
@@ -83,28 +96,18 @@ defmodule MyLiege.Engine.Game do
       workers: Worker.starting(buildings, config),
       buildings: buildings,
       manameter: config.starting_manameter,
-      stocks: stocks,
-      report: %WeeklyReport{
-        week: 0,
-        production: Map.new(Building.products(), &{&1, 0}),
-        mana: Map.new(Manameter.colours(), &{&1, 0}),
-        manameter: config.starting_manameter,
-        food_left: stocks.food,
-        newborn: nil,
-        trained: [],
-        builders: 0,
-        travelling: 0,
-        gold: stocks.gold,
-        tax_due: nil,
-        tax: nil,
-        demand: nil,
-        demand_outcome: nil,
-        spoiled: Map.new(Building.products(), &{&1, 0}),
-        gold_spent_buildings: 0,
-        game_over: false
-      }
+      stocks: starting_stocks(config),
+      report: nil
     }
+
+    {game, report} = SimSteps.EndOfWeek.run(game, WeeklyReport.new(0, game))
+    %{game | report: report}
   end
+
+  @doc """
+  The steps of a week, in the order they run. Mirrors "Weekly order" in `rules/rules.md`.
+  """
+  def pipeline, do: @pipeline
 
   @doc "The report of the last week run; for week 0, the starting state."
   def report(%__MODULE__{report: report}), do: report
@@ -117,75 +120,25 @@ defmodule MyLiege.Engine.Game do
   `decide_demand/2` was called.
   """
   def run_week(%__MODULE__{} = game) do
+    with :ok <- runnable(game) do
+      report = WeeklyReport.new(game.week + 1, game)
+      game = %{game | week: game.week + 1}
+
+      {game, report} =
+        Enum.reduce(@pipeline, {game, report}, fn step, {g, r} -> step.run(g, r) end)
+
+      {:ok, report, %{game | report: report}}
+    end
+  end
+
+  defp runnable(game) do
     cond do
       game.game_over -> {:error, :game_over}
       game.week >= last_week(game) -> {:error, :finished}
       tax_decision_due?(game) and is_nil(game.pay_tax) -> {:error, :tax_undecided}
       demand_decision_due?(game) and is_nil(game.deliver_demand) -> {:error, :demand_undecided}
-      true -> do_run_week(game)
+      true -> :ok
     end
-  end
-
-  defp do_run_week(game) do
-    %{workers: workers, buildings: buildings, config: config} = game
-    population = length(workers)
-    week = game.week + 1
-    counted = if Taxes.count_week?(week, config), do: Taxes.assess(workers, config)
-    game = if counted, do: %{game | tax_due: counted}, else: game
-
-    production = Production.week(workers, buildings, week, config)
-    mana = Mana.week(workers, buildings, week, config)
-    start_workers = workers
-    workers = Travel.week(workers)
-    manameter = ManameterUpdate.update(game.manameter, mana, config)
-    stocks = Map.merge(game.stocks, production, fn _product, stock, made -> stock + made end)
-    food_left = Food.eat(stocks.food, workers, config)
-    {newborn, rand} = Births.attempt(week, food_left, manameter, config, game.rand)
-    newborn = newborn && %{newborn | id: Worker.next_id(workers), born_week: week}
-    workers = if(newborn, do: workers ++ [newborn], else: workers)
-
-    {buildings, workers, _finished} =
-      Construction.week(buildings, start_workers, workers, week, config)
-
-    {workers, trained} = Training.finish(workers, buildings, week, config)
-
-    game = %{
-      game
-      | rand: rand,
-        week: week,
-        workers: workers,
-        buildings: buildings,
-        manameter: manameter,
-        stocks: %{stocks | food: food_left}
-    }
-
-    {tax, game} = settle_taxes(game)
-    {demand_outcome, game} = settle_demand(game)
-    {demand, game} = make_demand(game, population)
-    {stocks, spoiled} = Spoilage.spoil(game.stocks, config)
-    game = %{game | stocks: stocks}
-
-    report = %WeeklyReport{
-      WeeklyReport.new(week, game)
-      | start: nil,
-        production: production,
-        mana: mana,
-        manameter: manameter,
-        food_left: stocks.food,
-        newborn: newborn,
-        trained: trained,
-        builders: Construction.arrived_builders(workers, buildings),
-        travelling: Enum.count(workers, &Travel.travelling?/1),
-        gold: game.stocks.gold,
-        tax_due: counted,
-        tax: tax,
-        demand: demand,
-        demand_outcome: demand_outcome,
-        spoiled: spoiled,
-        game_over: game.game_over
-    }
-
-    {:ok, report, %{game | report: report}}
   end
 
   @doc "Whether the next week is a due week, so the player must decide on the payment first."
@@ -321,46 +274,6 @@ defmodule MyLiege.Engine.Game do
   @doc "Whether the gold stock covers the price of a building."
   def can_afford_building?(%__MODULE__{} = game),
     do: game.stocks.gold >= build_cost(game)
-
-  defp settle_taxes(%{tax_due: due} = game) when is_integer(due) do
-    if Taxes.due_week?(game.week, game.config) do
-      {outcome, gold} = Taxes.settle(game.stocks.gold, due, game.pay_tax)
-      game = %{game | stocks: %{game.stocks | gold: gold}, tax_due: nil, pay_tax: nil}
-      {outcome, count_miss(game, outcome != :paid)}
-    else
-      {nil, game}
-    end
-  end
-
-  defp settle_taxes(game), do: {nil, game}
-
-  defp settle_demand(%{demand: %{due_week: week} = demand, week: week} = game) do
-    {outcome, stocks} = Demands.settle(demand, game.stocks, game.deliver_demand)
-    game = %{game | stocks: stocks, demand: nil, deliver_demand: nil}
-    {outcome, count_miss(game, outcome != :delivered)}
-  end
-
-  defp settle_demand(game), do: {nil, game}
-
-  defp make_demand(game, population) do
-    if game.week in game.demand_weeks do
-      demand =
-        Demands.make(game.week, @weeks_per_year, game.manameter, population, game.config)
-
-      {demand, %{game | demand: demand}}
-    else
-      {nil, game}
-    end
-  end
-
-  # missed taxes, refused and missed demands share one count
-  defp count_miss(game, false), do: game
-
-  defp count_miss(game, true) do
-    misses = game.misses + 1
-    game_over = game.game_over or Taxes.game_over?(misses, game.config)
-    %{game | misses: misses, game_over: game_over}
-  end
 
   defp fetch_worker(game, worker_id) do
     case Enum.find(game.workers, &(&1.id == worker_id)) do
