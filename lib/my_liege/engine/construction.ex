@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.Construction do
   week in which all of them are on it and had arrived (travel 0) when the week started, and is
   finished after `construction_weeks` such weeks: it produces from the next week and its
   builders return unplaced, travelling. A builder leaving early resets the progress to 0
-  (`Game.place_worker/4`, `Game.unplace_worker/3`).
+  (`Game.place_worker/3`, `Game.unplace_worker/2`).
   """
 
   alias MyLiege.Engine.{Building, Config, Travel, Worker}

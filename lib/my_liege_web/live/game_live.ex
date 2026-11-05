@@ -15,12 +15,10 @@ defmodule MyLiegeWeb.GameLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    config = Config.from_csv()
-    game = Game.new(config)
+    game = Game.new(Config.from_csv())
 
     {:ok,
      socket
-     |> assign(:config, config)
      |> assign(:selected, nil)
      |> assign(:reports, [Game.report(game)])
      |> assign_game(game)}
@@ -28,7 +26,7 @@ defmodule MyLiegeWeb.GameLive do
 
   @impl true
   def handle_event("next_week", _params, socket) do
-    case Game.run_week(socket.assigns.game, socket.assigns.config) do
+    case Game.run_week(socket.assigns.game) do
       {:ok, report, game} ->
         {:noreply,
          socket
@@ -59,25 +57,25 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   def handle_event("place", %{"building" => building_id}, socket) do
-    %{game: game, selected: worker_id, config: config} = socket.assigns
-    result = Game.place_worker(game, worker_id, parse_id(building_id), config)
+    %{game: game, selected: worker_id} = socket.assigns
+    result = Game.place_worker(game, worker_id, parse_id(building_id))
     {:noreply, apply_result(socket, result)}
   end
 
   def handle_event("unplace", _params, socket) do
-    %{game: game, selected: worker_id, config: config} = socket.assigns
-    result = Game.unplace_worker(game, worker_id, config)
+    %{game: game, selected: worker_id} = socket.assigns
+    result = Game.unplace_worker(game, worker_id)
     {:noreply, apply_result(socket, result)}
   end
 
   def handle_event("build", %{"type" => type}, socket) do
     type = Enum.find(Building.types(), &(Atom.to_string(&1) == type))
-    result = Game.construct(socket.assigns.game, type, socket.assigns.config)
+    result = Game.construct(socket.assigns.game, type)
     {:noreply, apply_result(socket, result)}
   end
 
   def handle_event("decide_tax", %{"pay" => pay}, socket) do
-    result = Game.decide_tax(socket.assigns.game, pay == "true", socket.assigns.config)
+    result = Game.decide_tax(socket.assigns.game, pay == "true")
     {:noreply, apply_result(socket, result)}
   end
 
@@ -110,7 +108,7 @@ defmodule MyLiegeWeb.GameLive do
             "couldn't be delivered: not enough #{before.demand.product}.",
         report.tax_due &&
           "The village was counted: #{units(report.tax_due)} gold tax due in week " <>
-            "#{Taxes.next_due_week(report.week, socket.assigns.config)}.",
+            "#{Taxes.next_due_week(report.week, before.config)}.",
         report.demand &&
           "The king demands #{units(report.demand.amount)} #{report.demand.product} " <>
             "by week #{report.demand.due_week}."
@@ -146,8 +144,7 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   defp assign_game(socket, game) do
-    config = socket.assigns.config
-    decision_due? = Game.tax_decision_due?(game, config)
+    decision_due? = Game.tax_decision_due?(game)
     demand_due? = Game.demand_decision_due?(game)
 
     socket
@@ -155,10 +152,10 @@ defmodule MyLiegeWeb.GameLive do
     |> assign(:report, Game.report(game))
     |> assign(:tax_decision_due?, decision_due?)
     |> assign(:demand_decision_due?, demand_due?)
-    |> assign(:won?, Game.won?(game, config))
+    |> assign(:won?, Game.won?(game))
     |> assign(
       :blocked?,
-      game.game_over or game.week >= Game.last_week(config) or
+      game.game_over or game.week >= Game.last_week(game) or
         (decision_due? and is_nil(game.pay_tax)) or
         (demand_due? and is_nil(game.deliver_demand))
     )
@@ -179,13 +176,13 @@ defmodule MyLiegeWeb.GameLive do
           id="congratulations"
           class="rounded bg-green-100 px-4 py-3 font-semibold text-green-900"
         >
-          Congratulations, my liege! Your village has lasted {@config.years_per_game} years.
+          Congratulations, my liege! Your village has lasted {@game.config.years_per_game} years.
         </p>
 
         <div class="grid gap-10 lg:grid-cols-2">
           <div id="column-village" class="space-y-8">
-            <.village game={@game} config={@config} selected={@selected} blocked?={@blocked?} />
-            <.build_buttons game={@game} config={@config} />
+            <.village game={@game} selected={@selected} blocked?={@blocked?} />
+            <.build_buttons game={@game} />
           </div>
 
           <div id="column-state" class="space-y-8">
@@ -218,7 +215,10 @@ defmodule MyLiegeWeb.GameLive do
               </p>
               <div :if={@game.tax_due} id="tax-due" class="flex items-center gap-3 text-sm">
                 <span class="tabular-nums">
-                  {units(@game.tax_due)} gold due in week {Taxes.next_due_week(@game.week, @config)}
+                  {units(@game.tax_due)} gold due in week {Taxes.next_due_week(
+                    @game.week,
+                    @game.config
+                  )}
                 </span>
                 <span :if={@tax_decision_due?} id="tax-decision" class="flex items-center gap-2">
                   <button
@@ -249,11 +249,11 @@ defmodule MyLiegeWeb.GameLive do
                 </span>
               </div>
               <p :if={!@game.tax_due} class="text-sm opacity-60">
-                Next count in week {Taxes.next_due_week(@game.week, @config) -
-                  @config.tax_count_lead_weeks}
+                Next count in week {Taxes.next_due_week(@game.week, @game.config) -
+                  @game.config.tax_count_lead_weeks}
               </p>
               <p id="tax-misses" class="text-sm tabular-nums">
-                Missed payments and demands: {@game.misses} (forgiven: {@config.tax_misses_forgiven})
+                Missed payments and demands: {@game.misses} (forgiven: {@game.config.tax_misses_forgiven})
               </p>
             </section>
 
@@ -388,7 +388,6 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   attr :game, Game, required: true
-  attr :config, Config, required: true
   attr :selected, :integer, default: nil
   attr :blocked?, :boolean, required: true
 
@@ -410,7 +409,10 @@ defmodule MyLiegeWeb.GameLive do
             {building.type}<span :if={Building.site?(building)} class="opacity-60"> site</span>
           </span>
           <span class="w-10 text-sm tabular-nums">
-            {length(workers_in(@game.workers, building.id))}/{Building.capacity(building, @config)}
+            {length(workers_in(@game.workers, building.id))}/{Building.capacity(
+              building,
+              @game.config
+            )}
           </span>
           <.worker
             :for={worker <- workers_in(@game.workers, building.id)}
@@ -422,8 +424,8 @@ defmodule MyLiegeWeb.GameLive do
             id={"site-#{building.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            builders arrived {length(Construction.arrived(@game.workers, building.id))}/{@config.builders_per_building},
-            progress {building.progress}/{@config.construction_weeks} weeks
+            builders arrived {length(Construction.arrived(@game.workers, building.id))}/{@game.config.builders_per_building},
+            progress {building.progress}/{@game.config.construction_weeks} weeks
           </span>
           <span
             :for={worker <- workers_in(@game.workers, building.id)}
@@ -431,7 +433,7 @@ defmodule MyLiegeWeb.GameLive do
             id={"training-#{worker.id}"}
             class="text-sm opacity-60"
           >
-            trained after week {Training.last_week(worker.training_started, @config)}
+            trained after week {Training.last_week(worker.training_started, @game.config)}
           </span>
           <button
             :if={@selected}
@@ -475,17 +477,15 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   attr :game, Game, required: true
-  attr :config, Config, required: true
 
   defp build_buttons(assigns) do
-    assigns =
-      assign(assigns, :affordable?, Game.can_afford_building?(assigns.game, assigns.config))
+    assigns = assign(assigns, :affordable?, Game.can_afford_building?(assigns.game))
 
     ~H"""
     <section id="build">
       <h2 class="mb-2 font-semibold">Build</h2>
       <p id="build-cost" class="mb-2 text-sm opacity-60">
-        Every building costs {units(Game.build_cost(@config))} gold.
+        Every building costs {units(Game.build_cost(@game))} gold.
       </p>
       <div class="flex flex-wrap gap-2">
         <button

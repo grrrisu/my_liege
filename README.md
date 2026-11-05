@@ -16,24 +16,24 @@ alias MyLiege.Engine.{Config, Game}
 
 config = Config.from_csv()
 game = Game.new(config, 42)
-{:ok, report, game} = Game.run_week(game, config)
+{:ok, report, game} = Game.run_week(game)
 ```
 
 - `Config.from_csv/0` returns the values from `priv/balance_inputs.csv`, read when the app was compiled. Edit a copy to try other values, e.g. `%{config | manameter_points_per_week: 10}`.
-- `Game.new/2` takes the config and a seed. The same seed replays the same run; leave the seed out to get a random one, stored in `game.seed`.
-- `Game.run_week/2` runs the next week (tax count, production, Manameter update, eating, birth, tax payment) and returns `{:ok, report, game}`. Week 0 is the starting state from the config; the first `run_week` runs week 1.
-- `run_week` is blocked with `{:error, :tax_undecided}` before a due week until the player decides with `Game.decide_tax(game, true_or_false, config)`, and with `{:error, :game_over}` once the game is over.
+- `Game.new/2` takes the config and a seed. The config is kept in `game.config` and fixed for the whole game. The same seed replays the same run; leave the seed out to get a random one, stored in `game.seed`.
+- `Game.run_week/1` runs the next week (tax count, production, Manameter update, eating, birth, tax payment) and returns `{:ok, report, game}`. Week 0 is the starting state from the config; the first `run_week` runs week 1.
+- `run_week` is blocked with `{:error, :tax_undecided}` before a due week until the player decides with `Game.decide_tax(game, true_or_false)`, and with `{:error, :game_over}` once the game is over.
 
 Run several weeks, paying every tax, and keep the reports:
 
 ```elixir
 run = fn game ->
   game =
-    if Game.tax_decision_due?(game, config),
-      do: elem(Game.decide_tax(game, true, config), 1),
+    if Game.tax_decision_due?(game),
+      do: elem(Game.decide_tax(game, true), 1),
       else: game
 
-  Game.run_week(game, config)
+  Game.run_week(game)
 end
 
 {reports, game} =

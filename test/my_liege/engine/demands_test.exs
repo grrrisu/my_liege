@@ -63,7 +63,7 @@ defmodule MyLiege.Engine.DemandsTest do
       config = EngineFixtures.config(starting_food: 1000)
       game = Game.new(config, 1)
       [first | _] = game.demand_weeks
-      {reports, game} = EngineFixtures.run_weeks(game, first, config)
+      {reports, game} = EngineFixtures.run_weeks(game, first)
       %{config: config, game: game, demand: List.last(reports).demand, made: List.last(reports)}
     end
 
@@ -78,25 +78,25 @@ defmodule MyLiege.Engine.DemandsTest do
       assert demand.amount == population * 7_200
     end
 
-    test "the deadline week waits for the player's decision", %{config: config, game: game} do
-      {_reports, game} = EngineFixtures.run_weeks(game, 7, config)
+    test "the deadline week waits for the player's decision", %{game: game} do
+      {_reports, game} = EngineFixtures.run_weeks(game, 7)
 
       assert Game.demand_decision_due?(game)
-      assert Game.run_week(game, config) == {:error, :demand_undecided}
+      assert Game.run_week(game) == {:error, :demand_undecided}
     end
 
-    test "delivering takes the amount from the stock", %{config: config, game: game} do
-      {reports, game} = EngineFixtures.run_weeks(game, 8, config)
+    test "delivering takes the amount from the stock", %{game: game} do
+      {reports, game} = EngineFixtures.run_weeks(game, 8)
 
       assert List.last(reports).demand_outcome == :delivered
       assert game.demand == nil
       assert game.misses == 0
     end
 
-    test "a refusal counts as a miss", %{config: config, game: game} do
-      {_reports, game} = EngineFixtures.run_weeks(game, 7, config)
+    test "a refusal counts as a miss", %{game: game} do
+      {_reports, game} = EngineFixtures.run_weeks(game, 7)
       {:ok, game} = Game.decide_demand(game, false)
-      {:ok, report, game} = Game.run_week(game, config)
+      {:ok, report, game} = Game.run_week(game)
 
       assert report.demand_outcome == :refused
       assert game.misses == 1

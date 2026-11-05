@@ -50,11 +50,11 @@ defmodule MyLiege.EngineFixtures do
   def game_without_demands(config, seed), do: %{Game.new(config, seed) | demand_weeks: []}
 
   @doc "Runs `count` weeks, paying every due tax and delivering every demand. Returns `{reports, game}`."
-  def run_weeks(game, count, config) do
+  def run_weeks(game, count) do
     Enum.map_reduce(1..count//1, game, fn _, game ->
-      game = if Game.tax_decision_due?(game, config), do: decide!(game, config), else: game
+      game = if Game.tax_decision_due?(game), do: decide!(game), else: game
       game = if Game.demand_decision_due?(game), do: deliver!(game), else: game
-      {:ok, report, game} = Game.run_week(game, config)
+      {:ok, report, game} = Game.run_week(game)
       {report, game}
     end)
   end
@@ -64,8 +64,8 @@ defmodule MyLiege.EngineFixtures do
     game
   end
 
-  defp decide!(game, config) do
-    {:ok, game} = Game.decide_tax(game, true, config)
+  defp decide!(game) do
+    {:ok, game} = Game.decide_tax(game, true)
     game
   end
 end

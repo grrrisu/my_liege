@@ -67,10 +67,10 @@ defmodule MyLiege.AutoRun do
   """
   def run(pattern, %Config{} = config, seed, opts \\ [])
       when pattern in [:stay, :pivot, :feed, :feed_pivot] do
-    target = target(pattern, Keyword.get(opts, :pivot_week, @weeks_per_year), config)
+    target = target(pattern, Keyword.get(opts, :pivot_week, @weeks_per_year))
     start = Game.new(config, seed)
 
-    weeks = 1..Game.last_week(config)
+    weeks = 1..Game.last_week(start)
 
     # a week's report is kept after the pattern has acted on it, so it includes the gold spent
     # on buildings ordered then
@@ -81,11 +81,11 @@ defmodule MyLiege.AutoRun do
         else
           g =
             g
-            |> staff_sites(config)
-            |> place_unplaced(target, food_before, config)
-            |> always_pay(config)
+            |> staff_sites()
+            |> place_unplaced(target, food_before)
+            |> always_pay()
 
-          {:ok, _report, next} = Game.run_week(g, config)
+          {:ok, _report, next} = Game.run_week(g)
           {:cont, {[Game.report(g) | reports], next, g.stocks.food}}
         end
       end)
@@ -140,10 +140,10 @@ defmodule MyLiege.AutoRun do
     end
   end
 
-  defp always_pay(game, config) do
+  defp always_pay(game) do
     game =
-      if Game.tax_decision_due?(game, config),
-        do: elem(Game.decide_tax(game, true, config), 1),
+      if Game.tax_decision_due?(game),
+        do: elem(Game.decide_tax(game, true), 1),
         else: game
 
     if Game.demand_decision_due?(game),
@@ -151,28 +151,28 @@ defmodule MyLiege.AutoRun do
       else: game
   end
 
-  defp target(:stay, _pivot_week, _config),
+  defp target(:stay, _pivot_week),
     do: fn worker, _game, _food_before -> own_type(worker) end
 
-  defp target(:pivot, pivot_week, _config) do
+  defp target(:pivot, pivot_week) do
     fn worker, _game, _food_before -> pivot_type(worker, pivot_week) end
   end
 
-  defp target(:feed, _pivot_week, config) do
+  defp target(:feed, _pivot_week) do
     fn worker, game, food_before ->
       cond do
-        food_low?(game, food_before, config) -> :farm
-        gold_low?(game, config) -> :market
+        food_low?(game, food_before) -> :farm
+        gold_low?(game) -> :market
         true -> own_type(worker)
       end
     end
   end
 
-  defp target(:feed_pivot, pivot_week, config) do
+  defp target(:feed_pivot, pivot_week) do
     fn worker, game, food_before ->
       cond do
-        food_low?(game, food_before, config) -> :farm
-        not pivoted?(worker, pivot_week) and gold_low?(game, config) -> :market
+        food_low?(game, food_before) -> :farm
+        not pivoted?(worker, pivot_week) and gold_low?(game) -> :market
         true -> pivot_type(worker, pivot_week)
       end
     end
@@ -187,28 +187,28 @@ defmodule MyLiege.AutoRun do
   defp pivoted?(worker, pivot_week),
     do: worker.born_week != nil and worker.born_week >= pivot_week
 
-  defp gold_low?(game, config) do
-    next_tax = game.tax_due || Taxes.assess(game.workers, config)
+  defp gold_low?(game) do
+    next_tax = game.tax_due || Taxes.assess(game.workers, game.config)
     game.stocks.gold < next_tax
   end
 
-  defp food_low?(game, food_before, config) do
+  defp food_low?(game, food_before) do
     food = game.stocks.food
-    one_more = Fixed.from(config.food_eaten_per_worker)
+    one_more = Fixed.from(game.config.food_eaten_per_worker)
     food < 0 or (food_before != nil and food - food_before < one_more)
   end
 
-  defp staff_sites(game, config) do
+  defp staff_sites(game) do
     game.buildings
     |> Enum.filter(&Building.site?/1)
-    |> Enum.reduce(game, &staff_site(&2, &1, config))
+    |> Enum.reduce(game, &staff_site(&2, &1))
   end
 
-  defp staff_site(game, site, config) do
+  defp staff_site(game, site) do
     game
     |> available()
     |> Enum.reduce_while(game, fn worker, game ->
-      case Game.place_worker(game, worker.id, site.id, config) do
+      case Game.place_worker(game, worker.id, site.id) do
         {:ok, game} -> {:cont, game}
         {:error, _reason} -> {:halt, game}
       end
@@ -220,46 +220,46 @@ defmodule MyLiege.AutoRun do
     do: Enum.filter(game.workers, &(is_nil(&1.building) and not Travel.travelling?(&1)))
 
   # food_before: the food stock a week earlier, nil before week 1
-  defp place_unplaced(game, target, food_before, config) do
+  defp place_unplaced(game, target, food_before) do
     {game, _waiting} =
       game
       |> available()
       |> Enum.reduce({game, %{}}, fn worker, {game, waiting} ->
         type = target.(worker, game, food_before)
 
-        case place_in_any(game, worker, type, config) do
+        case place_in_any(game, worker, type) do
           {:ok, game} ->
             {game, waiting}
 
           :none ->
             waiting = Map.update(waiting, type, 1, &(&1 + 1))
-            {order_if_needed(game, type, Map.fetch!(waiting, type), config), waiting}
+            {order_if_needed(game, type, Map.fetch!(waiting, type)), waiting}
         end
       end)
 
     game
   end
 
-  defp place_in_any(game, worker, type, config) do
+  defp place_in_any(game, worker, type) do
     game.buildings
     |> Enum.filter(&(&1.type == type))
     |> Enum.find_value(:none, fn building ->
-      case Game.place_worker(game, worker.id, building.id, config) do
+      case Game.place_worker(game, worker.id, building.id) do
         {:ok, game} -> {:ok, game}
         {:error, _} -> nil
       end
     end)
   end
 
-  defp order_if_needed(game, type, waiting_count, config) do
+  defp order_if_needed(game, type, waiting_count) do
     room_under_construction =
       game.buildings
       |> Enum.filter(&(&1.type == type and not Building.ready?(&1, game.week + 1)))
-      |> Enum.map(&Map.fetch!(config.capacity, &1.type))
+      |> Enum.map(&Map.fetch!(game.config.capacity, &1.type))
       |> Enum.sum()
 
     with true <- waiting_count > room_under_construction,
-         {:ok, game} <- Game.construct(game, type, config) do
+         {:ok, game} <- Game.construct(game, type) do
       game
     else
       _ -> game

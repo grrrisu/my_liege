@@ -70,7 +70,7 @@ defmodule MyLiege.Engine.SpoilageTest do
       config = config(food: 500)
       game = EngineFixtures.game_without_demands(config, 1)
 
-      {:ok, report, game} = Game.run_week(game, config)
+      {:ok, report, game} = Game.run_week(game)
 
       # 24 + 9 - 2 × 3 = 27 after eating, enough for the birth; then half spoils
       assert report.newborn
@@ -83,7 +83,7 @@ defmodule MyLiege.Engine.SpoilageTest do
       config = config([gold: 10], starting_gold: 1_000, starting_food: 1_000)
 
       game = EngineFixtures.game_without_demands(config, 1)
-      {reports, _game} = EngineFixtures.run_weeks(game, config.tax_interval_weeks, config)
+      {reports, _game} = EngineFixtures.run_weeks(game, config.tax_interval_weeks)
       due = List.last(reports)
       before = Enum.at(reports, -2)
       tax = Enum.at(reports, -5).tax_due

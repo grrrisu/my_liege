@@ -5,14 +5,14 @@ description: 'How one week of My Liege runs in the rules engine (Game.run_week):
 
 # Weekly step
 
-One call to `Game.run_week(game, config)` runs one week and returns `{:ok, report, game}`.
+One call to `Game.run_week(game)` runs one week and returns `{:ok, report, game}`.
 It is blocked, without changing anything, with:
 - `{:error, :game_over}` once `game.game_over` is set;
 - `{:error, :finished}` after the last week, `Game.last_week/1` (48 × `years_per_game`;
   48 weeks per year is fixed in `Game.weeks_per_year/0`, not in the CSV). Reaching it without
-  game over is a win: `Game.won?/2`;
-- `{:error, :tax_undecided}` when the next week is a due week (`Game.tax_decision_due?/2`)
-  and the player hasn't decided with `Game.decide_tax/3` yet;
+  game over is a win: `Game.won?/1`;
+- `{:error, :tax_undecided}` when the next week is a due week (`Game.tax_decision_due?/1`)
+  and the player hasn't decided with `Game.decide_tax/2` yet;
 - `{:error, :demand_undecided}` when the next week is a demand's deadline
   (`Game.demand_decision_due?/1`) and the player hasn't decided with `Game.decide_demand/2`.
 
@@ -22,11 +22,13 @@ Code: [game.ex](../../../lib/my_liege/engine/game.ex).
 
 - `game.week` is the **last week run**, i.e. the state at the end of that week.
 - Week 0 is the starting state from the config (`Game.new/2`); nothing has happened yet.
+  The config is kept in `game.config` and fixed for the whole game; `Game` passes it to the
+  rule modules, which take it as an explicit `%Config{}` argument.
 - `run_week` runs `game.week + 1`. Every rule in it sees that same week number.
 - A full game is weeks 1 to 48 × `years_per_game`.
 - Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N:
-  `place_worker/4`, `unplace_worker/3`, `construct/3`, `decide_tax/3`, `decide_demand/2`.
-  Changes take effect in week N + 1. `construct/3` pays `build_cost_gold` from the gold stock
+  `place_worker/3`, `unplace_worker/2`, `construct/2`, `decide_tax/2`, `decide_demand/2`.
+  Changes take effect in week N + 1. `construct/2` pays `build_cost_gold` from the gold stock
   at once and adds it to `gold_spent_buildings` of week N's report (`{:error, :not_enough_gold}`
   if the stock is short).
 
@@ -91,7 +93,7 @@ Consequences of the order:
   the same run.
 - **Taxes:** due in weeks `tax_interval_weeks`, 2 × `tax_interval_weeks`, …; counted
   `tax_count_lead_weeks` earlier at `tax_per_worker` per head, and the amount is fixed then.
-  The player must decide with `decide_tax/3` while the game stands at the week before a due
+  The player must decide with `decide_tax/2` while the game stands at the week before a due
   week (`pay_tax` is `nil` until then and resets to `nil` after payment). Outcomes:
   `:paid` (full amount), `:skipped` (on purpose), `:missed` (not enough gold); no partial
   payments. More than `tax_misses_forgiven` misses set `game_over`, which blocks further
@@ -129,12 +131,12 @@ writes one row per report.
    every value must come from a CSV key, and open points must be asked, not guessed.
 2. Decide where the step sits in the order above and what it reads and writes; ask the
    designer if `rules/rules.md` doesn't say.
-3. Keep the rule in its own engine module of pure functions; call it from `run_week/2`.
+3. Keep the rule in its own engine module of pure functions; call it from `run_week/1`.
 4. Add what the step produces to the report, then to `Reporting` if it belongs in the export.
 5. Tests: one describe block per rule with `EngineFixtures.config/1` (it sets
    `builders_per_building` and `travel_weeks` to 0; tests about R2 builders or travel pass
    their own values), plus a case in
    `game_test.exs` that checks its place in the order. To run many weeks in a test, use
-   `EngineFixtures.run_weeks/3` (pays every tax). Update this skill, and update
+   `EngineFixtures.run_weeks/2` (pays every tax). Update this skill, and update
    `rules/rules.md` (the rule, its order and a changelog line) so the designer can sync it.
 6. Run `mix precommit`.

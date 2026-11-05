@@ -28,7 +28,9 @@ defmodule MyLiege.Engine.Game do
     Worker
   }
 
+  @derive {Inspect, except: [:config]}
   @enforce_keys [
+    :config,
     :seed,
     :rand,
     :week,
@@ -54,14 +56,17 @@ defmodule MyLiege.Engine.Game do
 
   def weeks_per_year, do: @weeks_per_year
 
-  @doc "The last week of the game: the end of year `years_per_game`."
-  def last_week(%Config{} = config), do: @weeks_per_year * config.years_per_game
+  @doc "The last week of the game: the end of year `years_per_game` of the game's config."
+  def last_week(%__MODULE__{config: config}), do: @weeks_per_year * config.years_per_game
 
   @doc "Whether the player reached the end of the last year without the game being over."
-  def won?(%__MODULE__{} = game, %Config{} = config),
-    do: game.week >= last_week(config) and not game.game_over
+  def won?(%__MODULE__{} = game),
+    do: game.week >= last_week(game) and not game.game_over
 
-  @doc "Starts a run. Without a seed one is generated; it is kept in `seed` for replay."
+  @doc """
+  Starts a run with `config`, which is kept in the game and fixed for the whole run. Without a
+  seed one is generated; it is kept in `seed` for replay.
+  """
   def new(%Config{} = config, seed \\ nil) do
     {seed, rand} = Random.new(seed)
     {demand_weeks, rand} = Demands.schedule(@weeks_per_year, config, rand)
@@ -69,6 +74,7 @@ defmodule MyLiege.Engine.Game do
     stocks = starting_stocks(config)
 
     %__MODULE__{
+      config: config,
       seed: seed,
       rand: rand,
       week: 0,
@@ -105,22 +111,22 @@ defmodule MyLiege.Engine.Game do
   @doc """
   Runs the next week. Returns `{:ok, report, game}`; a short week has `food_left < 0`.
   Blocked with `{:error, :game_over}` once the game is over, with `{:error, :finished}` after
-  the last week, with `{:error, :tax_undecided}` before a due week until `decide_tax/3` was
+  the last week, with `{:error, :tax_undecided}` before a due week until `decide_tax/2` was
   called, and with `{:error, :demand_undecided}` before a demand's deadline week until
   `decide_demand/2` was called.
   """
-  def run_week(%__MODULE__{} = game, %Config{} = config) do
+  def run_week(%__MODULE__{} = game) do
     cond do
       game.game_over -> {:error, :game_over}
-      game.week >= last_week(config) -> {:error, :finished}
-      tax_decision_due?(game, config) and is_nil(game.pay_tax) -> {:error, :tax_undecided}
+      game.week >= last_week(game) -> {:error, :finished}
+      tax_decision_due?(game) and is_nil(game.pay_tax) -> {:error, :tax_undecided}
       demand_decision_due?(game) and is_nil(game.deliver_demand) -> {:error, :demand_undecided}
-      true -> do_run_week(game, config)
+      true -> do_run_week(game)
     end
   end
 
-  defp do_run_week(game, config) do
-    %{workers: workers, buildings: buildings} = game
+  defp do_run_week(game) do
+    %{workers: workers, buildings: buildings, config: config} = game
     population = length(workers)
     week = game.week + 1
     counted = if Taxes.count_week?(week, config), do: Taxes.assess(workers, config)
@@ -152,9 +158,9 @@ defmodule MyLiege.Engine.Game do
         stocks: %{stocks | food: food_left}
     }
 
-    {tax, game} = settle_taxes(game, config)
-    {demand_outcome, game} = settle_demand(game, config)
-    {demand, game} = make_demand(game, population, config)
+    {tax, game} = settle_taxes(game)
+    {demand_outcome, game} = settle_demand(game)
+    {demand, game} = make_demand(game, population)
     {stocks, spoiled} = Spoilage.spoil(game.stocks, config)
     game = %{game | stocks: stocks}
 
@@ -182,15 +188,15 @@ defmodule MyLiege.Engine.Game do
   end
 
   @doc "Whether the next week is a due week, so the player must decide on the payment first."
-  def tax_decision_due?(%__MODULE__{} = game, %Config{} = config),
-    do: is_integer(game.tax_due) and Taxes.due_week?(game.week + 1, config)
+  def tax_decision_due?(%__MODULE__{} = game),
+    do: is_integer(game.tax_due) and Taxes.due_week?(game.week + 1, game.config)
 
   @doc """
   The player's decision for the payment due next week: `true` pays, `false` skips it on
-  purpose. Only possible when `tax_decision_due?/2`.
+  purpose. Only possible when `tax_decision_due?/1`.
   """
-  def decide_tax(%__MODULE__{} = game, pay?, %Config{} = config) when is_boolean(pay?) do
-    if tax_decision_due?(game, config),
+  def decide_tax(%__MODULE__{} = game, pay?) when is_boolean(pay?) do
+    if tax_decision_due?(game),
       do: {:ok, %{game | pay_tax: pay?}},
       else: {:error, :no_tax_due}
   end
@@ -217,35 +223,35 @@ defmodule MyLiege.Engine.Game do
   travel (see `Training.check/3`). Moving a trainee out loses its progress; moving a builder
   off a site resets the site's progress to 0.
   """
-  def place_worker(%__MODULE__{} = game, worker_id, building_id, %Config{} = config) do
+  def place_worker(%__MODULE__{} = game, worker_id, building_id) do
     with {:ok, worker} <- fetch_worker(game, worker_id),
          {:ok, building} <- fetch_building(game, building_id) do
       cond do
         worker.building == building_id -> {:ok, game}
-        error = placement_error(game, worker, building, config) -> {:error, error}
-        trains?(building) -> start_training(game, worker, building_id, config)
-        true -> {:ok, move(game, worker, building_id, nil, config)}
+        error = placement_error(game, worker, building) -> {:error, error}
+        trains?(building) -> start_training(game, worker, building_id)
+        true -> {:ok, move(game, worker, building_id, nil)}
       end
     end
   end
 
-  defp placement_error(game, worker, building, config) do
+  defp placement_error(game, worker, building) do
     others = Enum.reject(game.workers, &(&1.id == worker.id))
 
     cond do
       is_nil(worker.building) and Travel.travelling?(worker) -> :travelling
       not Building.site?(building) and not Building.ready?(building, game.week + 1) -> :not_ready
-      not Building.has_room?(building, others, config) -> :full
+      not Building.has_room?(building, others, game.config) -> :full
       true -> nil
     end
   end
 
   defp trains?(building), do: building.type == :guildhouse and not Building.site?(building)
 
-  defp start_training(game, worker, building_id, config) do
-    with :ok <- Training.check(worker, game.manameter, config) do
-      started = Training.first_week(game.week, config)
-      {:ok, move(game, worker, building_id, started, config)}
+  defp start_training(game, worker, building_id) do
+    with :ok <- Training.check(worker, game.manameter, game.config) do
+      started = Training.first_week(game.week, game.config)
+      {:ok, move(game, worker, building_id, started)}
     end
   end
 
@@ -254,16 +260,17 @@ defmodule MyLiege.Engine.Game do
   A trainee loses its progress; a builder resets its site's progress to 0. A worker that is
   already unplaced stays as it is.
   """
-  def unplace_worker(%__MODULE__{} = game, worker_id, %Config{} = config) do
+  def unplace_worker(%__MODULE__{} = game, worker_id) do
     with {:ok, worker} <- fetch_worker(game, worker_id) do
       if is_nil(worker.building),
         do: {:ok, game},
-        else: {:ok, move(game, worker, nil, nil, config)}
+        else: {:ok, move(game, worker, nil, nil)}
     end
   end
 
-  defp move(game, worker, building_id, training_started, config) do
-    moved = Travel.depart(%{worker | training_started: training_started}, building_id, config)
+  defp move(game, worker, building_id, training_started) do
+    worker = %{worker | training_started: training_started}
+    moved = Travel.depart(worker, building_id, game.config)
     game |> reset_site(worker.building) |> put_worker(moved)
   end
 
@@ -284,14 +291,14 @@ defmodule MyLiege.Engine.Game do
   The gold spent is added to `gold_spent_buildings` of the current week's report.
   No limit on number or frequency.
   """
-  def construct(%__MODULE__{} = game, type, %Config{} = config) do
-    cost = build_cost(config)
+  def construct(%__MODULE__{} = game, type) do
+    cost = build_cost(game)
 
     cond do
       type not in Building.types() ->
         {:error, :unknown_type}
 
-      not can_afford_building?(game, config) ->
+      not can_afford_building?(game) ->
         {:error, :not_enough_gold}
 
       true ->
@@ -308,35 +315,37 @@ defmodule MyLiege.Engine.Game do
   end
 
   @doc "The price of any building, in thousandths of gold."
-  def build_cost(%Config{} = config), do: Fixed.from(config.build_cost_gold)
+  def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)
 
   @doc "Whether the gold stock covers the price of a building."
-  def can_afford_building?(%__MODULE__{} = game, %Config{} = config),
-    do: game.stocks.gold >= build_cost(config)
+  def can_afford_building?(%__MODULE__{} = game),
+    do: game.stocks.gold >= build_cost(game)
 
-  defp settle_taxes(%{tax_due: due} = game, config) when is_integer(due) do
-    if Taxes.due_week?(game.week, config) do
+  defp settle_taxes(%{tax_due: due} = game) when is_integer(due) do
+    if Taxes.due_week?(game.week, game.config) do
       {outcome, gold} = Taxes.settle(game.stocks.gold, due, game.pay_tax)
       game = %{game | stocks: %{game.stocks | gold: gold}, tax_due: nil, pay_tax: nil}
-      {outcome, count_miss(game, outcome != :paid, config)}
+      {outcome, count_miss(game, outcome != :paid)}
     else
       {nil, game}
     end
   end
 
-  defp settle_taxes(game, _config), do: {nil, game}
+  defp settle_taxes(game), do: {nil, game}
 
-  defp settle_demand(%{demand: %{due_week: week} = demand, week: week} = game, config) do
+  defp settle_demand(%{demand: %{due_week: week} = demand, week: week} = game) do
     {outcome, stocks} = Demands.settle(demand, game.stocks, game.deliver_demand)
     game = %{game | stocks: stocks, demand: nil, deliver_demand: nil}
-    {outcome, count_miss(game, outcome != :delivered, config)}
+    {outcome, count_miss(game, outcome != :delivered)}
   end
 
-  defp settle_demand(game, _config), do: {nil, game}
+  defp settle_demand(game), do: {nil, game}
 
-  defp make_demand(game, population, config) do
+  defp make_demand(game, population) do
     if game.week in game.demand_weeks do
-      demand = Demands.make(game.week, @weeks_per_year, game.manameter, population, config)
+      demand =
+        Demands.make(game.week, @weeks_per_year, game.manameter, population, game.config)
+
       {demand, %{game | demand: demand}}
     else
       {nil, game}
@@ -344,11 +353,12 @@ defmodule MyLiege.Engine.Game do
   end
 
   # missed taxes, refused and missed demands share one count
-  defp count_miss(game, false, _config), do: game
+  defp count_miss(game, false), do: game
 
-  defp count_miss(game, true, config) do
+  defp count_miss(game, true) do
     misses = game.misses + 1
-    %{game | misses: misses, game_over: game.game_over or Taxes.game_over?(misses, config)}
+    game_over = game.game_over or Taxes.game_over?(misses, game.config)
+    %{game | misses: misses, game_over: game_over}
   end
 
   defp fetch_worker(game, worker_id) do

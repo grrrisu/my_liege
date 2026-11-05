@@ -20,7 +20,7 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 3. Only what `rules/rules.md` lists. No map, trade, raids, combat, culture effects, scoring or graphics.
 4. Bare UI: coloured squares, buttons, numbers.
 5. Ask before adding a dependency or changing the export or decision-log format.
-6. Never run AutoRun yourself: not in tests, not in `mix precommit`, not to check a change. If an AutoRun would help, ask the designer and say which pattern, how many seeds and how many weeks. Tests use small explicit runs (`EngineFixtures.run_weeks/3`).
+6. Never run AutoRun yourself: not in tests, not in `mix precommit`, not to check a change. If an AutoRun would help, ask the designer and say which pattern, how many seeds and how many weeks. Tests use small explicit runs (`EngineFixtures.run_weeks/2`).
 
 ## When a feature is agreed
 At the end of every task that changes or adds a rule, a key or the export:
