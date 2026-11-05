@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.GameTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Manameter, Worker}
+  alias MyLiege.Engine.{Game, Manameter, WeeklyReport, Worker}
   alias MyLiege.EngineFixtures
 
   describe "a new game" do
@@ -22,7 +22,7 @@ defmodule MyLiege.Engine.GameTest do
     test "its report shows week 0 as the starting state" do
       config = EngineFixtures.config()
 
-      assert Game.report(Game.new(config, 1)) == %{
+      assert Game.report(Game.new(config, 1)) == %WeeklyReport{
                week: 0,
                production: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
                mana: %{green: 0, blue: 0, red: 0, yellow: 0, violet: 0},
