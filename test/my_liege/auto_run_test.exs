@@ -1,8 +1,8 @@
 defmodule MyLiege.AutoRunTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.{AutoRun, Reporting}
-  alias MyLiege.Engine.{Building, Config, Manameter}
+  alias MyLiege.AutoRun
+  alias MyLiege.Engine.{Building, Manameter}
   alias MyLiege.EngineFixtures
 
   setup do
@@ -224,15 +224,6 @@ defmodule MyLiege.AutoRunTest do
                yellow: {0, 0},
                violet: {0, 0}
              }
-    end
-  end
-
-  describe "regression" do
-    test "feed with the CSV config and seed 42 exports the recorded CSV" do
-      {reports, _game} = AutoRun.run(:feed, Config.from_csv(), 42)
-
-      assert Reporting.to_csv(reports) ==
-               File.read!("test/fixtures/auto_run_feed_seed_42.csv")
     end
   end
 

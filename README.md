@@ -59,13 +59,28 @@ Plays a fixed pattern (`:stay`, `:pivot`, `:feed` or `:feed_pivot`) with random 
 
 ```elixir
 alias MyLiege.AutoRun
+alias MyLiege.Engine.Config
 
+config = Config.from_csv()
 runs = for seed <- 1..20, do: elem(AutoRun.run(:pivot, config, seed), 0)
 
 AutoRun.leading(hd(runs), config)      # leading colour and share at weeks 48, 96, 144
 AutoRun.pivot_weeks(hd(runs))          # weeks red needs to gain 20 points, or nil
 AutoRun.spread(runs, 144)              # lowest and highest share per colour across runs
 File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
+```
+or multiple game runs
+
+```elixir
+alias MyLiege.AutoRun
+alias MyLiege.Engine.Config
+
+config = Config.from_csv()
+
+Enum.each(0..20, fn seed ->
+  {runs, _game} = AutoRun.run(:feed, config, seed)
+  File.write!("feed_#{seed}.csv", MyLiege.Reporting.to_csv(runs))
+end)
 ```
 
 Units:
