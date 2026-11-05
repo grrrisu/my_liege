@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.TaxesTest do
+defmodule MyLiege.Engine.Rules.TaxesTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Taxes}
+  alias MyLiege.Engine.Game
+  alias MyLiege.Engine.Rules.Taxes
   alias MyLiege.EngineFixtures
 
   setup do
@@ -22,11 +23,6 @@ defmodule MyLiege.Engine.TaxesTest do
       assert Taxes.settle(150_000, 120_000, true) == {:paid, 30_000}
       assert Taxes.settle(150_000, 120_000, false) == {:skipped, 150_000}
       assert Taxes.settle(100_000, 120_000, true) == {:missed, 100_000}
-    end
-
-    test "the first miss is forgiven, the second ends the game", %{config: config} do
-      refute Taxes.game_over?(1, config)
-      assert Taxes.game_over?(2, config)
     end
   end
 

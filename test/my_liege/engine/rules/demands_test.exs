@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.DemandsTest do
+defmodule MyLiege.Engine.Rules.DemandsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Demands, Game, Manameter, Random}
+  alias MyLiege.Engine.{Game, Manameter, Random}
+  alias MyLiege.Engine.Rules.Demands
   alias MyLiege.EngineFixtures
 
   setup do

@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.Production do
+defmodule MyLiege.Engine.Rules.Production do
   @moduledoc """
   R2: production = base production × colour factor (in per mille).
 
@@ -17,7 +17,7 @@ defmodule MyLiege.Engine.Production do
   end
 
   @doc "Total output per product in `week`, from placed workers in ready buildings."
-  def week(workers, buildings, week, %Config{} = config) do
+  def output(workers, buildings, week, %Config{} = config) do
     totals = Map.new(Building.products(), &{&1, 0})
 
     workers

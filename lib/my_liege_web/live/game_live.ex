@@ -2,7 +2,8 @@ defmodule MyLiegeWeb.GameLive do
   @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
-  alias MyLiege.Engine.{Building, Config, Construction, Fixed, Game, Manameter, Taxes, Training}
+  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
+  alias MyLiege.Engine.Rules.{Construction, Taxes, Training}
   alias MyLiege.Reporting
 
   @colour_classes %{

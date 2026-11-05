@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.Births do
+defmodule MyLiege.Engine.Rules.Births do
   @moduledoc """
   R1: a newborn's colour is drawn with chances equal to the Manameter shares.
   A birth needs at least `birth_min_food_left` food left after eating.

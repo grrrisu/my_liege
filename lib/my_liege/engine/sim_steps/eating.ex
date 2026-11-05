@@ -1,8 +1,8 @@
 defmodule MyLiege.Engine.SimSteps.Eating do
-  @moduledoc "Eating (R8): all workers eat from the food stock after production."
+  @moduledoc "Step 5 of the week, R8 eating: all workers eat from the food stock after production."
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.Food
+  alias MyLiege.Engine.Rules.Food
 
   @impl true
   def run(game, report) do

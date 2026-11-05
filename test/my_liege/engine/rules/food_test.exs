@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.FoodTest do
+defmodule MyLiege.Engine.Rules.FoodTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Births, Food, Random, Worker}
+  alias MyLiege.Engine.{Random, Worker}
+  alias MyLiege.Engine.Rules.{Births, Food}
   alias MyLiege.EngineFixtures
 
   describe "R8: food" do

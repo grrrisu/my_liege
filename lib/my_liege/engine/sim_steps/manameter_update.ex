@@ -1,8 +1,8 @@
 defmodule MyLiege.Engine.SimSteps.ManameterUpdate do
-  @moduledoc "Manameter update (R4) from this week's mana."
+  @moduledoc "Step 4 of the week, R4 Manameter update: from this week's mana."
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.ManameterUpdate
+  alias MyLiege.Engine.Rules.ManameterUpdate
 
   @impl true
   def run(game, report) do

@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.ProductionTest do
+defmodule MyLiege.Engine.Rules.ProductionTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Pentagon, Production, Worker}
+  alias MyLiege.Engine.{Building, Pentagon, Worker}
+  alias MyLiege.Engine.Rules.Production
   alias MyLiege.EngineFixtures
 
   describe "R2: production by colour" do
@@ -68,7 +69,7 @@ defmodule MyLiege.Engine.ProductionTest do
         worker(:yellow)
       ]
 
-      assert Production.week(workers, buildings, 0, config) ==
+      assert Production.output(workers, buildings, 0, config) ==
                %{food: 13_500, knowledge: 3_000, defence: 0, gold: 0, entertainment: 0}
     end
 
@@ -85,18 +86,18 @@ defmodule MyLiege.Engine.ProductionTest do
       site = List.last(buildings)
       workers = [worker(:green, false, site.id)]
 
-      assert Production.week(workers, buildings, 99, config).food == 0
+      assert Production.output(workers, buildings, 99, config).food == 0
 
       buildings = List.replace_at(buildings, -1, %{site | ready_week: 7})
-      assert Production.week(workers, buildings, 6, config).food == 0
-      assert Production.week(workers, buildings, 7, config).food == 9_000
+      assert Production.output(workers, buildings, 6, config).food == 0
+      assert Production.output(workers, buildings, 7, config).food == 9_000
     end
 
     test "a worker still travelling produces nothing", context do
       %{config: config, buildings: buildings, buildings_by_type: %{farm: farm}} = context
       workers = [%{worker(:green, false, farm.id) | travel: 1}]
 
-      assert Production.week(workers, buildings, 0, config).food == 0
+      assert Production.output(workers, buildings, 0, config).food == 0
     end
 
     test "buildings can be built without limit", %{buildings: buildings} do

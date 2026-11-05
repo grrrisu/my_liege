@@ -9,20 +9,8 @@ defmodule MyLiege.Engine.Game do
   Stocks are in thousandths (see `Fixed`).
   """
 
-  alias MyLiege.Engine.{
-    Building,
-    Config,
-    Demands,
-    Fixed,
-    Food,
-    Random,
-    SimSteps,
-    Taxes,
-    Training,
-    Travel,
-    WeeklyReport,
-    Worker
-  }
+  alias MyLiege.Engine.{Building, Config, Fixed, Random, SimSteps, WeeklyReport, Worker}
+  alias MyLiege.Engine.Rules.{Demands, Food, Taxes, Training, Travel}
 
   @derive {Inspect, except: [:config]}
   @enforce_keys [

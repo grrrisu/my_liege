@@ -53,7 +53,8 @@ defmodule MyLiege.AutoRun do
       File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter, Taxes, Travel}
+  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
+  alias MyLiege.Engine.Rules.{Taxes, Travel}
 
   @weeks_per_year Game.weeks_per_year()
 

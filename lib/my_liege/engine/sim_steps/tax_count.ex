@@ -1,8 +1,8 @@
 defmodule MyLiege.Engine.SimSteps.TaxCount do
-  @moduledoc "Tax count (R7), count weeks only: counts all workers as at the start of the week."
+  @moduledoc "Step 0 of the week, R7 tax count: in a count week, counts all workers as at the start of the week."
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.Taxes
+  alias MyLiege.Engine.Rules.Taxes
 
   @impl true
   def run(game, report) do

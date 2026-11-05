@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.Training do
+defmodule MyLiege.Engine.Rules.Training do
   @moduledoc """
   R5, training in the guildhouse: an untrained worker can start training only while its
   colour has at least `training_threshold` of the Manameter (checked once, when placed).
@@ -8,7 +8,8 @@ defmodule MyLiege.Engine.Training do
   still eats and counts for taxes.
   """
 
-  alias MyLiege.Engine.{Building, Config, Manameter, Travel, Worker}
+  alias MyLiege.Engine.{Building, Config, Manameter, Worker}
+  alias MyLiege.Engine.Rules.Travel
 
   @doc "Whether `worker` may start training now. Returns `:ok` or `{:error, reason}`."
   def check(%Worker{} = worker, %Manameter{} = manameter, %Config{} = config) do

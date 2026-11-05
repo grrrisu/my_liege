@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.ManaTest do
+defmodule MyLiege.Engine.Rules.ManaTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Mana, Worker}
+  alias MyLiege.Engine.{Building, Worker}
+  alias MyLiege.Engine.Rules.Mana
   alias MyLiege.EngineFixtures
 
   describe "R3: mana per worker" do
@@ -41,7 +42,7 @@ defmodule MyLiege.Engine.ManaTest do
         worker(:violet)
       ]
 
-      assert Mana.week(workers, buildings, 0, config) ==
+      assert Mana.produced(workers, buildings, 0, config) ==
                %{green: 5, blue: 2, red: 2, yellow: 0, violet: 0}
     end
 

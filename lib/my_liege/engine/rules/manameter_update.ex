@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.ManameterUpdate do
+defmodule MyLiege.Engine.Rules.ManameterUpdate do
   @moduledoc """
   R4: each week `manameter_points_per_week` points are removed in proportion to the current
   shares and added in proportion to the week's mana per colour.

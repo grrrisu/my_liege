@@ -1,13 +1,13 @@
-defmodule MyLiege.Engine.Construction do
+defmodule MyLiege.Engine.Rules.Construction do
   @moduledoc """
   R2, builders: a site needs `builders_per_building` builders. It advances one week in every
-  week in which all of them are on it and had arrived (travel 0) when the week started, and is
+  week in which all of them are on it and had arrived (travel 0) in `start_workers`, and is
   finished after `construction_weeks` such weeks: it produces from the next week and its
-  builders return unplaced, travelling. A builder leaving early resets the progress to 0
-  (`Game.place_worker/3`, `Game.unplace_worker/2`).
+  builders return unplaced, travelling. A builder leaving early resets the progress to 0.
   """
 
-  alias MyLiege.Engine.{Building, Config, Travel, Worker}
+  alias MyLiege.Engine.{Building, Config, Worker}
+  alias MyLiege.Engine.Rules.Travel
 
   @doc "The workers placed on the building with id `site_id`."
   def builders(workers, site_id), do: Enum.filter(workers, &(&1.building == site_id))
@@ -25,11 +25,11 @@ defmodule MyLiege.Engine.Construction do
   end
 
   @doc """
-  Runs construction in `week`. `start_workers` are the workers as they were when the week
+  Advances every site by one week of construction in `week`. `start_workers` are the workers as they were when the week
   started, before travel went down; `workers` are the current ones, whose finished builders
   are released. Returns `{buildings, workers, finished_buildings}`.
   """
-  def week(buildings, start_workers, workers, week, %Config{} = config) do
+  def advance_sites(buildings, start_workers, workers, week, %Config{} = config) do
     {buildings, finished} =
       Enum.map_reduce(buildings, [], fn building, finished ->
         case advance(building, start_workers, week, config) do

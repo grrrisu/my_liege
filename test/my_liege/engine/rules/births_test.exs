@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.BirthsTest do
+defmodule MyLiege.Engine.Rules.BirthsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Births, Building, Fixed, Manameter, Random, Worker}
+  alias MyLiege.Engine.{Building, Fixed, Manameter, Random, Worker}
+  alias MyLiege.Engine.Rules.Births
   alias MyLiege.EngineFixtures
 
   defp seeded_rand(seed), do: seed |> Random.new() |> elem(1)

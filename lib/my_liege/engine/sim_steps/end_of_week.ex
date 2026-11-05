@@ -1,11 +1,12 @@
 defmodule MyLiege.Engine.SimSteps.EndOfWeek do
   @moduledoc """
-  Runs last: fills the report with the end-of-week state and cleans up (`start: nil`).
-  It contains no game rules; anything that changes the village is its own step before it.
+  Last step of the week: fills the report with the end-of-week state and cleans up
+  (`start: nil`). It contains no game rules; anything that changes the village is its own
+  step before it.
   """
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.{Construction, Travel}
+  alias MyLiege.Engine.Rules.{Construction, Travel}
 
   @impl true
   def run(game, report) do
