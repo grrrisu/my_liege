@@ -1,6 +1,6 @@
 ---
 name: weekly-step
-description: 'How one week of My Liege runs in the rules engine (Game.run_week): order of steps, week numbering, units, and what each step reads and writes. Use when: changing or debugging the weekly loop, adding a step (e.g. taxes R7, training R5, plough R6), reading reports or CSV exports, writing Game or AutoRun tests, or answering "when does X happen in a week".'
+description: 'How one week of My Liege runs in the rules engine (Game.run_week): order of steps, week numbering, units, and what each step reads and writes. Use when: changing or debugging the weekly loop, adding a step (e.g. taxes R7, training R5, plough R6), reading reports or CSV exports, writing tests that run weeks, or answering "when does X happen in a week".'
 ---
 
 # Weekly step
@@ -17,41 +17,19 @@ It is blocked, without changing anything, with:
   (`Game.demand_decision_due?/1`) and the player hasn't decided with `Game.decide_demand/2`.
 
 Code: [game.ex](../../../lib/my_liege/engine/game.ex),
-[sim_step.ex](../../../lib/my_liege/engine/sim_step.ex),
-[sim_steps/](../../../lib/my_liege/engine/sim_steps/) (when),
-[rules/](../../../lib/my_liege/engine/rules/) (what),
-[weekly_report.ex](../../../lib/my_liege/engine/weekly_report.ex).
+[sim_steps/](../../../lib/my_liege/engine/sim_steps/),
+[rules/](../../../lib/my_liege/engine/rules/).
 
 ## Pipeline
 
-A week is a pipeline of steps, `Game.pipeline/0`, in the order of "Weekly order" in
-`rules/rules.md`. `run_week/1` only validates, then builds `WeeklyReport.new(game.week + 1, game)`,
-increments `game.week` and reduces `{game, report}` over the pipeline.
-
-Each step is a module in `lib/my_liege/engine/sim_steps/` with `@behaviour SimStep`:
-`run(game, report) :: {game, report}`. It is a thin adapter that calls a rule module in `lib/my_liege/engine/rules/`
-(`MyLiege.Engine.Rules.*`: pure functions on plain data taking `%Config{}`); the rule itself
-stays there. A step says *when* something happens, a rule says *what* happens: rule modules
-never reference `Game`, `WeeklyReport`, `SimStep` or `SimSteps`.
-- `game` is the state **now**, after the earlier steps of the week; `game.week` is already the
-  week being run.
-- `report.start` is the game **as it was when the week began**. Use it for anything that reads
-  "at the start of the week" (placed workers, builders, tax count, demand population).
-- A step decides itself whether it applies this week, and otherwise returns `{game, report}`
-  unchanged. Steps can't fail.
-- `SimSteps.EndOfWeek` runs last: it fills the report with the end-of-week state (`manameter`,
-  `food_left`, `gold`, `builders`, `travelling`, `game_over`) and sets `start: nil`. It has no
-  game rules; anything that changes the village is its own step before it. `Game.new/2`
-  builds the week-0 report by passing `WeeklyReport.new(0, game)` through it.
-- Missed taxes and refused or missed demands go through `Rules.Misses.add/2`; the
-  step writes `misses` and `game_over` back to the game.
+The week is `Game.pipeline/0`, in the order of "Weekly order" in `rules/rules.md` (table
+below). The structure (the step contract, `game` vs. the start of the week, `EndOfWeek`,
+rules vs. steps) is in the `engine-architecture` skill.
 
 ## Week numbering
 
 - `game.week` is the **last week run**, i.e. the state at the end of that week.
 - Week 0 is the starting state from the config (`Game.new/2`); nothing has happened yet.
-  The config is kept in `game.config` and fixed for the whole game; `Game` passes it to the
-  rule modules, which take it as an explicit `%Config{}` argument.
 - `run_week` runs `game.week + 1`. Every rule in it sees that same week number.
 - A full game is weeks 1 to 48 × `years_per_game`.
 - Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N:
@@ -149,10 +127,8 @@ Consequences of the order:
 
 `%WeeklyReport{week, production, mana, manameter, food_left, newborn, trained, builders,
 travelling, gold, tax_due, tax, demand, demand_outcome, spoiled, gold_spent_buildings,
-game_over, start}`; `start` is only used during the week, is `nil` in every report that
-leaves `run_week/1` and is never exported. `builders`
-counts arrived builders on sites and `travelling` the workers with travel above 0, both at
-the end of the week;
+game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
+on sites and `travelling` the workers with travel above 0, both at the end of the week;
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`
 writes one row per report.
 
@@ -162,19 +138,16 @@ writes one row per report.
    every value must come from a CSV key, and open points must be asked, not guessed.
 2. Decide where the step sits in the order above and what it reads and writes; ask the
    designer if `rules/rules.md` doesn't say.
-3. The rule goes in `lib/my_liege/engine/rules/` (`MyLiege.Engine.Rules.*`): pure functions
-   on plain data, no `Game`, `WeeklyReport` or steps; its moduledoc starts with its rule
-   number (e.g. "R7, taxes: …") and names no step or position in the week. The step goes in
-   `lib/my_liege/engine/sim_steps/` (`@behaviour MyLiege.Engine.SimStep`): it calls the rule,
-   and its moduledoc names its rule and its place ("Step 9 of the week, R7 tax payment: …").
-   Add one line in `@pipeline` in `Game`, at its place in "Weekly order" in `rules/rules.md`.
-   Read "at the start of the week" values from `report.start`, current ones from `game`.
+3. Put the rule in `rules/` and the step in `sim_steps/` as described in the
+   `engine-architecture` skill, and add one line in `@pipeline` in `Game` at its place in
+   "Weekly order".
 4. Add what the step produces to `WeeklyReport`, then to `Reporting` if it belongs in the
    export.
 5. Tests: one describe block per rule with `EngineFixtures.config/1` (it sets
    `builders_per_building` and `travel_weeks` to 0; tests about R2 builders or travel pass
-   their own values) in `test/my_liege/engine/rules/`, a test of the step in `test/my_liege/engine/sim_steps/`, and the new
-   step in the `Game.pipeline/0` test in `game_test.exs`. To run many weeks in a test, use
+   their own values) in `test/my_liege/engine/rules/`, a test of the step in
+   `test/my_liege/engine/sim_steps/`, and the new step in the `Game.pipeline/0` test in
+   `game_test.exs`. To run many weeks in a test, use
    `EngineFixtures.run_weeks/2` (pays every tax). Update this skill, and update
    `rules/rules.md` (the rule, its order and a changelog line) so the designer can sync it.
 6. Run `mix precommit`.
