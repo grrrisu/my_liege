@@ -1,15 +1,15 @@
 defmodule MyLiege.Engine.SimSteps.TaxPayment do
-  @moduledoc "Tax payment (R7), due weeks only: pays or skips the counted tax, or misses it."
+  @moduledoc "Step 9 of the week, R7 tax payment: in a due week, pays or skips the counted tax, or misses it."
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.{Misses, Taxes}
+  alias MyLiege.Engine.Rules.{Misses, Taxes}
 
   @impl true
   def run(%{tax_due: due} = game, report) when is_integer(due) do
     if Taxes.due_week?(game.week, game.config) do
       {outcome, gold} = Taxes.settle(game.stocks.gold, due, game.pay_tax)
       game = %{game | stocks: %{game.stocks | gold: gold}, tax_due: nil, pay_tax: nil}
-      game = if outcome == :paid, do: game, else: Misses.record(game)
+      game = if outcome == :paid, do: game, else: add_miss(game)
       {game, %{report | tax: outcome}}
     else
       {game, report}
@@ -17,4 +17,9 @@ defmodule MyLiege.Engine.SimSteps.TaxPayment do
   end
 
   def run(game, report), do: {game, report}
+
+  defp add_miss(game) do
+    {misses, over?} = Misses.add(game.misses, game.config)
+    %{game | misses: misses, game_over: game.game_over or over?}
+  end
 end

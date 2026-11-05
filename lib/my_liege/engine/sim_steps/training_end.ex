@@ -1,8 +1,8 @@
 defmodule MyLiege.Engine.SimSteps.TrainingEnd do
-  @moduledoc "Training ends (R5): finished trainees are trained, unplaced and travelling."
+  @moduledoc "Step 8 of the week, R5 training ends: finished trainees are trained, unplaced and travelling."
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.Training
+  alias MyLiege.Engine.Rules.Training
 
   @impl true
   def run(game, report) do

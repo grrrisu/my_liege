@@ -1,6 +1,6 @@
-defmodule MyLiege.Engine.Spoilage do
+defmodule MyLiege.Engine.Rules.Spoilage do
   @moduledoc """
-  Spoilage, at the end of each week: every stock above 0 loses its product's
+  R9, spoilage: each week, every stock above 0 loses its product's
   `spoilage_rates` share (per mille) of itself, rounded down, so the stock keeps the
   remainder. Stocks at or below 0 (a short week's -1 food) don't spoil.
 

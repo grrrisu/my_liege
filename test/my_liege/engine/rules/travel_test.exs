@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.TravelTest do
+defmodule MyLiege.Engine.Rules.TravelTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Taxes, Worker}
+  alias MyLiege.Engine.{Game, Worker}
+  alias MyLiege.Engine.Rules.Taxes
   alias MyLiege.EngineFixtures
 
   # 1 week of travel; worker 1 (green) on the farm (id 1), worker 2 (red) in the tower (id 2);

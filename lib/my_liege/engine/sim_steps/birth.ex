@@ -1,8 +1,9 @@
 defmodule MyLiege.Engine.SimSteps.Birth do
-  @moduledoc "Birth (R1): from the food left and the updated Manameter; the newborn is unplaced."
+  @moduledoc "Step 6 of the week, R1 birth: from the food left and the updated Manameter; the newborn is unplaced."
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.{Births, Worker}
+  alias MyLiege.Engine.Rules.Births
+  alias MyLiege.Engine.Worker
 
   @impl true
   def run(game, report) do

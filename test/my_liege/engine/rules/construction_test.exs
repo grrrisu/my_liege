@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.ConstructionTest do
+defmodule MyLiege.Engine.Rules.ConstructionTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Building, Game, Manameter, Worker}

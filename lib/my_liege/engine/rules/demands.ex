@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.Demands do
+defmodule MyLiege.Engine.Rules.Demands do
   @moduledoc """
   R7, the king's demands, in addition to taxes. Twice a year, in a random week of each
   half year, the king demands an amount of one product, due `demand_deadline_weeks` later.
@@ -8,11 +8,11 @@ defmodule MyLiege.Engine.Demands do
   biggest share in year 1, the middle one (3rd of 5) in year 2, the smallest from year 3 on;
   ties in pentagon order. The amount is
   `population × demand_population_share (per mille) × base production of that colour's
-  building × demand_production_weeks`, with the population counted at the start of the
-  demand week, before its birth (as for taxes); a demand of 0 is not made.
+  building × demand_production_weeks`, with the population passed in by the caller; a
+  demand of 0 is not made.
 
   The player delivers or refuses; delivering without enough stock is a miss. Refusals and
-  misses count with missed taxes against `tax_misses_forgiven`.
+  misses count with missed taxes in `Misses`.
   """
 
   alias MyLiege.Engine.{Building, Config, Fixed, Manameter}

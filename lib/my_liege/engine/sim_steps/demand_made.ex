@@ -1,10 +1,12 @@
 defmodule MyLiege.Engine.SimSteps.DemandMade do
   @moduledoc """
-  Demand made (R7), demand weeks only: the amount uses the workers at the start of the week.
+  Step 11 of the week, R7 demand made: in a demand week, the amount uses the workers at the
+  start of the week.
   """
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.{Demands, Game}
+  alias MyLiege.Engine.Game
+  alias MyLiege.Engine.Rules.Demands
 
   @impl true
   def run(game, report) do

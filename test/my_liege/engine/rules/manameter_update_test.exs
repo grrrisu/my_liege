@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.ManameterUpdateTest do
+defmodule MyLiege.Engine.Rules.ManameterUpdateTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Manameter, ManameterUpdate}
+  alias MyLiege.Engine.Manameter
+  alias MyLiege.Engine.Rules.ManameterUpdate
   alias MyLiege.EngineFixtures
 
   @no_mana %{green: 0, blue: 0, red: 0, yellow: 0, violet: 0}

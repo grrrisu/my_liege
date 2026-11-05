@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.Food do
+defmodule MyLiege.Engine.Rules.Food do
   @moduledoc """
   R8: every worker, placed or not, eats `food_eaten_per_worker` each week. Leftover food
   carries over with no limit. In a week without enough food the missing food is forgotten

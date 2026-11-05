@@ -1,9 +1,9 @@
-defmodule MyLiege.Engine.Taxes do
+defmodule MyLiege.Engine.Rules.Taxes do
   @moduledoc """
-  R7, taxes: twice a year, per head. The village is counted at the start of the count week,
+  R7, taxes: twice a year, per head. The village is counted in the count week,
   `tax_count_lead_weeks` before each payment, and the amount is fixed then. In the due week
-  the player pays in full or the payment is missed; no partial payments. More misses than
-  `tax_misses_forgiven` end the game.
+  the player pays in full or the payment is missed; no partial payments. Missed payments
+  count in `Misses`.
 
   Amounts are in thousandths (see `Fixed`).
   """
@@ -36,7 +36,4 @@ defmodule MyLiege.Engine.Taxes do
       true -> {:missed, gold}
     end
   end
-
-  @doc "Whether this many misses end the game."
-  def game_over?(misses, %Config{} = config), do: misses > config.tax_misses_forgiven
 end

@@ -18,7 +18,8 @@ It is blocked, without changing anything, with:
 
 Code: [game.ex](../../../lib/my_liege/engine/game.ex),
 [sim_step.ex](../../../lib/my_liege/engine/sim_step.ex),
-[sim_steps/](../../../lib/my_liege/engine/sim_steps/),
+[sim_steps/](../../../lib/my_liege/engine/sim_steps/) (when),
+[rules/](../../../lib/my_liege/engine/rules/) (what),
 [weekly_report.ex](../../../lib/my_liege/engine/weekly_report.ex).
 
 ## Pipeline
@@ -28,8 +29,10 @@ A week is a pipeline of steps, `Game.pipeline/0`, in the order of "Weekly order"
 increments `game.week` and reduces `{game, report}` over the pipeline.
 
 Each step is a module in `lib/my_liege/engine/sim_steps/` with `@behaviour SimStep`:
-`run(game, report) :: {game, report}`. It is a thin adapter that calls the rule module (pure
-functions taking `%Config{}`); the rule itself stays in the rule module.
+`run(game, report) :: {game, report}`. It is a thin adapter that calls a rule module in `lib/my_liege/engine/rules/`
+(`MyLiege.Engine.Rules.*`: pure functions on plain data taking `%Config{}`); the rule itself
+stays there. A step says *when* something happens, a rule says *what* happens: rule modules
+never reference `Game`, `WeeklyReport`, `SimStep` or `SimSteps`.
 - `game` is the state **now**, after the earlier steps of the week; `game.week` is already the
   week being run.
 - `report.start` is the game **as it was when the week began**. Use it for anything that reads
@@ -40,7 +43,8 @@ functions taking `%Config{}`); the rule itself stays in the rule module.
   `food_left`, `gold`, `builders`, `travelling`, `game_over`) and sets `start: nil`. It has no
   game rules; anything that changes the village is its own step before it. `Game.new/2`
   builds the week-0 report by passing `WeeklyReport.new(0, game)` through it.
-- Missed taxes and refused or missed demands go through `Misses.record/1`.
+- Missed taxes and refused or missed demands go through `Rules.Misses.add/2`; the
+  step writes `misses` and `game_over` back to the game.
 
 ## Week numbering
 
@@ -60,19 +64,19 @@ functions taking `%Config{}`); the rule itself stays in the rule module.
 
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
-| 0 | Tax count (R7), count weeks only | `TaxCount` → `Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2) | `Production` → `Production.week/4` | placed workers with travel 0 in buildings ready this week | `report.production`, added to `stocks` |
-| 2 | Mana (R3) | `Mana` → `Mana.week/4` | same workers | `report.mana` |
-| 3 | Travel (R2) | `Travel` → `Travel.week/1` | every worker's `travel` | `travel` − 1, not below 0 |
-| 4 | Manameter update (R4) | `ManameterUpdate` → `ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
-| 5 | Eating (R8) | `Eating` → `Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
-| 6 | Birth (R1) | `Birth` → `Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
-| 7 | Construction (R2) | `Construction` → `Construction.week/5` | sites, builders as at the **start** of the week (before step 3) | `progress`, `ready_week`, finished builders `building: nil` with `travel_weeks` |
-| 8 | Training ends (R5) | `TrainingEnd` → `Training.finish/4` | trainees in the guildhouse, week | `trained`, `building: nil`, `travel_weeks`, `report.trained` |
-| 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax` |
-| 10 | Demand delivery (R7), deadline weeks only | `DemandDelivery` → `Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks, `misses`, `game_over`, `report.demand_outcome` |
-| 11 | Demand made (R7), demand weeks only | `DemandMade` → `Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand` |
-| 12 | Spoilage | `Spoilage` → `Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
+| 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
+| 1 | Production (R2) | `Production` → `Rules.Production.output/4` | placed workers with travel 0 in buildings ready this week | `report.production`, added to `stocks` |
+| 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers | `report.mana` |
+| 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
+| 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
+| 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
+| 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
+| 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/5` | sites, builders as at the **start** of the week (before step 3) | `progress`, `ready_week`, finished builders `building: nil` with `travel_weeks` |
+| 8 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `building: nil`, `travel_weeks`, `report.trained` |
+| 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax` |
+| 10 | Demand delivery (R7), deadline weeks only | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks, `misses`, `game_over`, `report.demand_outcome` |
+| 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand` |
+| 12 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
 | 13 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `game_over`; `start: nil` |
 
 Consequences of the order:
@@ -95,17 +99,17 @@ Consequences of the order:
   the end of week M, `ready_week = M + 1`. A builder leaving (moved or unplaced) resets
   `progress` to 0. Placement in a finished building needs `ready?(building, game.week + 1)`
   and room.
-- **Travel:** `Travel.depart/3` sets `travel = travel_weeks` on every place, move, unplace and
+- **Travel:** `Rules.Travel.depart/3` sets `travel = travel_weeks` on every place, move, unplace and
   release. Unplaced workers with travel above 0 can't be placed (`{:error, :travelling}`).
   `Building.staffed/3` leaves travelling workers out.
 - **Training:** the guildhouse is neutral (no colour, product or mana; `Building.staffed/3`
   leaves it out). Placing an untrained worker in a finished guildhouse needs its colour's share ≥
   `training_threshold`, checked once; `training_started = game.week + 1 + travel_weeks`
-  (`Training.first_week/2`). At the end of week `training_started + training_weeks - 1` the
+  (`Rules.Training.first_week/2`). At the end of week `training_started + training_weeks - 1` the
   worker is trained, unplaced and travelling. Moving it out earlier loses the progress.
   Trainees still eat and count for taxes; no other cost.
 - **Births:** attempted in weeks 1, 1 + interval, … (`rem(week - 1, birth_interval_weeks) == 0`),
-  only if `food_left >= Fixed.from(birth_min_food_left)`. `Births.attempt/5` is the
+  only if `food_left >= Fixed.from(birth_min_food_left)`. `Rules.Births.attempt/5` is the
   single place that decides a birth.
 - **Short week:** if food after production is less than everyone eats, the missing food is
   forgotten and `food_left` is set to -1. That blocks the birth and marks the week as short
@@ -158,15 +162,18 @@ writes one row per report.
    every value must come from a CSV key, and open points must be asked, not guessed.
 2. Decide where the step sits in the order above and what it reads and writes; ask the
    designer if `rules/rules.md` doesn't say.
-3. Keep the rule in its own engine module of pure functions. Add one module in
-   `lib/my_liege/engine/sim_steps/` (`@behaviour MyLiege.Engine.SimStep`) that calls it, and
-   one line in `@pipeline` in `Game`, at its place in "Weekly order" in `rules/rules.md`.
+3. The rule goes in `lib/my_liege/engine/rules/` (`MyLiege.Engine.Rules.*`): pure functions
+   on plain data, no `Game`, `WeeklyReport` or steps; its moduledoc starts with its rule
+   number (e.g. "R7, taxes: …") and names no step or position in the week. The step goes in
+   `lib/my_liege/engine/sim_steps/` (`@behaviour MyLiege.Engine.SimStep`): it calls the rule,
+   and its moduledoc names its rule and its place ("Step 9 of the week, R7 tax payment: …").
+   Add one line in `@pipeline` in `Game`, at its place in "Weekly order" in `rules/rules.md`.
    Read "at the start of the week" values from `report.start`, current ones from `game`.
 4. Add what the step produces to `WeeklyReport`, then to `Reporting` if it belongs in the
    export.
 5. Tests: one describe block per rule with `EngineFixtures.config/1` (it sets
    `builders_per_building` and `travel_weeks` to 0; tests about R2 builders or travel pass
-   their own values), a test of the step in `test/my_liege/engine/sim_steps/`, and the new
+   their own values) in `test/my_liege/engine/rules/`, a test of the step in `test/my_liege/engine/sim_steps/`, and the new
    step in the `Game.pipeline/0` test in `game_test.exs`. To run many weeks in a test, use
    `EngineFixtures.run_weeks/2` (pays every tax). Update this skill, and update
    `rules/rules.md` (the rule, its order and a changelog line) so the designer can sync it.

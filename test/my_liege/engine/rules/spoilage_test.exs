@@ -1,7 +1,8 @@
-defmodule MyLiege.Engine.SpoilageTest do
+defmodule MyLiege.Engine.Rules.SpoilageTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Spoilage}
+  alias MyLiege.Engine.Game
+  alias MyLiege.Engine.Rules.Spoilage
   alias MyLiege.EngineFixtures
 
   defp config(rates, overrides \\ []) do

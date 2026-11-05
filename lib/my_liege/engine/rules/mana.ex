@@ -1,4 +1,4 @@
-defmodule MyLiege.Engine.Mana do
+defmodule MyLiege.Engine.Rules.Mana do
   @moduledoc """
   R3: mana per worker per week. Untrained: 2 in the building's colour and 1 in their own;
   trained: 1 and 2. Same colour gives 3 of that colour. Unplaced workers make no mana.
@@ -16,7 +16,7 @@ defmodule MyLiege.Engine.Mana do
   end
 
   @doc "Total mana per colour in `week`, from placed workers in ready buildings."
-  def week(workers, buildings, week, %Config{} = config) do
+  def produced(workers, buildings, week, %Config{} = config) do
     totals = Map.new(Manameter.colours(), &{&1, 0})
 
     workers
