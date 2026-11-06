@@ -1,5 +1,5 @@
 defmodule MyLiege.Engine.SimSteps.Spoilage do
-  @moduledoc "Step 12 of the week, R9 spoilage: every stock above 0 loses its `spoilage_rate_<product>`."
+  @moduledoc "Step 13 of the week, R9 spoilage: every stock above 0 loses its `spoilage_rate_<product>`."
   @behaviour MyLiege.Engine.SimStep
 
   alias MyLiege.Engine.Rules.Spoilage

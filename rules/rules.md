@@ -5,6 +5,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-06: R10 (new), bandits, robbery only: weekly pressure (gold ÷ protected gold) drives a threat with a rising floor; at `bandit_threshold` bandits set out and raid `bandit_warning_weeks` later, taking the gold above the protected gold; new weekly step 12 after taxes and demands, before spoilage; export columns `bandit_pressure`, `bandit_threat`, `bandits_weeks_to_raid`, `gold_robbed`. R1: `starting_gold` lowered in the CSV.
 - 2026-11-06: R7, grace period and the king takes what he can: no taxes and no demands for the first `grace_weeks` weeks; on every skipped or missed tax and every refused or missed food or gold demand the king takes the stock there is, up to the amount owed; export columns `king_took_gold`, `king_took_food`.
 - 2026-11-06: Terms, new pentagon order: Growth – Wealth – Wisdom – Strength – Culture (was Growth – Wisdom – Strength – Wealth – Culture); changes neighbours/opposites (R2 factors), tie-breaks (R4 rounding, R7 demand ranks), the birth draw order (R1, same chances) and the colour/product column order in the UI and export.
 - 2026-11-06: R7, demand projects (T42): knowledge and entertainment demands are projects fed by the village's whole production of that good until the target; delivered at the deadline only if reached; refusable at any time (miss counted in the next week); export column `demand_progress`.
@@ -33,7 +34,8 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 9. Tax payment (R7), due weeks only
 10. Demand delivery (R7), deadline weeks only; a project refused before the week is settled then
 11. Demand made (R7), demand weeks only
-12. Spoilage (R9)
+12. Bandits (R10): threat, setting out, raid; every week from week 1
+13. Spoilage (R9)
 
 The player acts between weeks; changes take effect the following week. Production, mana, construction and training use travel as it was when the week started, so a worker placed while the game stands at week N does nothing in week N+1 and works from week N+2. Code-level detail: the `weekly-step` skill.
 
@@ -108,7 +110,19 @@ The player acts between weeks; changes take effect the following week. Productio
 - Births, tax payments, demand deliveries and what the king takes use stocks before spoilage.
 - Food, gold, defence, entertainment and knowledge are all stored. A king's project (R7) is not a stock and doesn't spoil.
 
+## R10 Bandits
+Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
+- Runs every week from week 1; the grace period (R7) doesn't apply.
+- Uses the gold after taxes and demands, before spoilage (step 12), and this week's defence production: what watchtowers produce this week, the tower included (travelling workers produce nothing, R2). The defence stock plays no part.
+- Protected gold = defence production × `bandit_cover_weeks`.
+- Pressure = gold ÷ protected gold, per mille, rounded down. Gold at or below 0 gives 0. No defence production with gold above 0: the threat jumps to `bandit_threshold` at once, so bandits set out (unless they already are on their way).
+- Threat: starts at 0; each week it changes by pressure − 1000 (per mille; `bandit_threshold` and `bandit_floor_step` are whole threat points). It never falls below the floor: 0 in year 1 (the first two half years), then `bandit_floor_step` more at the start of each later half year (half year = 48 ÷ 2 weeks).
+- Setting out: when the threat reaches `bandit_threshold` (at or above) and no bandits are on their way, they set out and raid `bandit_warning_weeks` later. In the setting-out week the threat has already changed. From the next week until the raid, it doesn't change.
+- The raid, in the raid week with that week's values: pressure 1000 or less → repelled, nothing lost; otherwise they take loot = gold − protected gold. Afterwards, repelled or not, the threat drops to the floor and moves again from the following week.
+- A raid is not a miss (R7) and the king takes nothing for it.
+- UI: the threat and its direction (rising, falling or steady, from the last week's change) are always visible, and the protected gold next to the gold stock (next week's defence production with the workers as placed now × `bandit_cover_weeks`). Bandits on their way are shown with the raid week and the weeks left instead of the direction; setting out and the raid's outcome are reported when the week runs.
+
 ## Export
 - Weekly CSV, one row per week. Header states units (values ×1000). Keep the column names already in use; the list below describes content, not exact names.
-- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, builders (arrived, at the end of the week), travelling (workers with travel above 0, at the end of the week), demand_progress (a project's total at the end of every week it is open, the week it is made and its deadline week included; empty for food, gold and defence demands and when no project is open), king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise), gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold), game_over.
+- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, builders (arrived, at the end of the week), travelling (workers with travel above 0, at the end of the week), demand_progress (a project's total at the end of every week it is open, the week it is made and its deadline week included; empty for food, gold and defence demands and when no project is open), king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise), gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold), bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0), bandit_threat (end of the week, ×1000), bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week), gold_robbed (what the bandits took that week, before spoilage; 0 otherwise), game_over.
 - Separate decision log, one row per decision: week, worker colour, trained or not, from building, to building, on- or off-colour, rating (easy / some thought / torn).

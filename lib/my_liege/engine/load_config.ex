@@ -44,7 +44,11 @@ defmodule MyLiege.Engine.LoadConfig do
       demand_deadline_weeks: fetch!(inputs, "demand_deadline_weeks"),
       demand_population_share: fetch!(inputs, "demand_population_share"),
       demand_production_weeks: fetch!(inputs, "demand_production_weeks"),
-      spoilage_rates: spoilage_rates(inputs)
+      spoilage_rates: spoilage_rates(inputs),
+      bandit_threshold: fetch!(inputs, "bandit_threshold"),
+      bandit_warning_weeks: fetch!(inputs, "bandit_warning_weeks"),
+      bandit_cover_weeks: fetch!(inputs, "bandit_cover_weeks"),
+      bandit_floor_step: fetch!(inputs, "bandit_floor_step")
     }
 
     Logger.info(
