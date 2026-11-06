@@ -5,6 +5,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-06: R7, demand projects (T42): knowledge and entertainment demands are projects fed by the village's whole production of that good until the target; delivered at the deadline only if reached; refusable at any time (miss counted in the next week); export column `demand_progress`.
 - 2026-11-04: R2, R3, R5, builders and travel (T43): ordered buildings need `builders_per_building` builders for `construction_weeks` weeks; every move costs `travel_weeks`; export shows builders and travelling workers.
 - 2026-11-03: R2, building costs (T43): every ordered building costs `build_cost_gold`; export shows gold spent on buildings.
 - 2026-11-03: R7, missed demands decided: they count in the same tally as tax misses (as already implemented).
@@ -19,7 +20,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Weekly order
 0. Tax count (R7), count weeks only
-1. Production (R2)
+1. Production (R2); an open project (R7) takes its good first
 2. Mana (R3)
 3. Travel (R2): every travelling worker's travel goes down by 1
 4. Manameter update (R4)
@@ -28,7 +29,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 7. Construction (R2): sites advance; finished buildings release their builders
 8. Training ends (R5)
 9. Tax payment (R7), due weeks only
-10. Demand delivery (R7), deadline weeks only
+10. Demand delivery (R7), deadline weeks only; a project refused before the week is settled then
 11. Demand made (R7), demand weeks only
 12. Spoilage (R9)
 
@@ -76,7 +77,7 @@ The player acts between weeks; changes take effect the following week. Productio
 - Moving a trainee out early loses the progress. A finished trainee is unplaced and travels (R2).
 
 ## R6 Improved plough
-- Research needs green at or above `plough_threshold_green`; costs `plough_cost_wisdom` knowledge (about `plough_research_weeks` of a full monastery).
+- Research needs green at or above `plough_threshold_green`; costs `plough_cost_wisdom` knowledge from the stock (about `plough_research_weeks` of a full monastery), never from a project (R7).
 - Effect: farm production + `plough_bonus`. Kept if green later drops.
 
 ## R7 Taxes and demands
@@ -84,8 +85,13 @@ The player acts between weeks; changes take effect the following week. Productio
 - Demands: one per half year, in a random week. `demand_deadline_weeks` to deliver.
 - Demanded colour by Manameter rank: year 1 biggest, year 2 third, year 3 smallest.
 - Amount: population × `demand_population_share` × base production of that colour × `demand_production_weeks`.
-- The player decides before the deadline: deliver or refuse. Delivered, refused or missed (stock short).
-- The current demand, its amount, deadline and progress must be visible in the UI.
+- Food, gold and defence demands are delivered from the stock. The player decides before the deadline: deliver or refuse. Delivered, refused or missed (stock short).
+- Knowledge and entertainment demands are projects with the amount above as target:
+  - From the week after the demand until the target is reached, the village's whole production of that good (all monasteries or all taverns) goes into the project instead of the stock. In the week the target is reached, only what is missing goes in and the rest to the stock; after that, production goes to the stock.
+  - Mana is unchanged. The project doesn't spoil; the stock of that good is never used for it and spoils as usual.
+  - The project stays open until the deadline (the deadline week's production counts). Target reached → delivered; otherwise → missed. No partial delivery; no decision needed.
+  - The player can refuse it at any time while it is open: from the next week production goes to the stock again, and the refusal counts as a miss in that next week.
+- The current demand, its amount, deadline and progress must be visible in the UI; for a project also the buildings whose production goes into it.
 - Misses: skipped or missed taxes and refused or missed demands count in one shared tally. `tax_misses_forgiven` misses are forgiven; the next ends the game.
 
 ## R8 Food
@@ -96,9 +102,9 @@ The player acts between weeks; changes take effect the following week. Productio
 ## R9 Spoilage
 - At the end of the week, every stock above 0 loses `spoilage_rate_<good>` per mille of itself, rounded down. Stocks at or below 0 don't spoil.
 - Births, tax payments and demand deliveries use stocks before spoilage.
-- Food, gold, defence, entertainment and knowledge are all stored.
+- Food, gold, defence, entertainment and knowledge are all stored. A king's project (R7) is not a stock and doesn't spoil.
 
 ## Export
 - Weekly CSV, one row per week. Header states units (values ×1000). Keep the column names already in use; the list below describes content, not exact names.
-- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, builders (arrived, at the end of the week), travelling (workers with travel above 0, at the end of the week), demand_progress, gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold), game_over.
+- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, builders (arrived, at the end of the week), travelling (workers with travel above 0, at the end of the week), demand_progress (a project's total at the end of every week it is open, the week it is made and its deadline week included; empty for food, gold and defence demands and when no project is open), gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold), game_over.
 - Separate decision log, one row per decision: week, worker colour, trained or not, from building, to building, on- or off-colour, rating (easy / some thought / torn).

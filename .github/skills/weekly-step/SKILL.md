@@ -13,8 +13,9 @@ It is blocked, without changing anything, with:
   game over is a win: `Game.won?/1`;
 - `{:error, :tax_undecided}` when the next week is a due week (`Game.tax_decision_due?/1`)
   and the player hasn't decided with `Game.decide_tax/2` yet;
-- `{:error, :demand_undecided}` when the next week is a demand's deadline
+- `{:error, :demand_undecided}` when the next week is the deadline of a demand from the stock
   (`Game.demand_decision_due?/1`) and the player hasn't decided with `Game.decide_demand/2`.
+  Projects (knowledge, entertainment) need no decision.
 
 Code: [game.ex](../../../lib/my_liege/engine/game.ex),
 [sim_steps/](../../../lib/my_liege/engine/sim_steps/),
@@ -33,7 +34,8 @@ rules vs. steps) is in the `engine-architecture` skill.
 - `run_week` runs `game.week + 1`. Every rule in it sees that same week number.
 - A full game is weeks 1 to 48 × `years_per_game`.
 - Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N:
-  `place_worker/3`, `unplace_worker/2`, `construct/2`, `decide_tax/2`, `decide_demand/2`.
+  `place_worker/3`, `unplace_worker/2`, `construct/2`, `decide_tax/2`, `decide_demand/2`,
+  `refuse_project/1`.
   Changes take effect in week N + 1. `construct/2` pays `build_cost_gold` from the gold stock
   at once and adds it to `gold_spent_buildings` of week N's report (`{:error, :not_enough_gold}`
   if the stock is short).
@@ -43,7 +45,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
 | 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2) | `Production` → `Rules.Production.output/4` | placed workers with travel 0 in buildings ready this week | `report.production`, added to `stocks` |
+| 1 | Production (R2) | `Production` → `Rules.Production.output/4`, `Rules.Demands.feed/2` | placed workers with travel 0 in buildings ready this week; an open, unrefused project | `report.production`; the project's product into `demand.progress` up to its amount, the rest added to `stocks`; `report.demand_progress` |
 | 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
@@ -52,8 +54,8 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/5` | sites, builders as at the **start** of the week (before step 3) | `progress`, `ready_week`, finished builders `building: nil` with `travel_weeks` |
 | 8 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `building: nil`, `travel_weeks`, `report.trained` |
 | 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax` |
-| 10 | Demand delivery (R7), deadline weeks only | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks, `misses`, `game_over`, `report.demand_outcome` |
-| 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand` |
+| 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome` |
+| 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand`, `report.demand_progress` (0 for a project) |
 | 12 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
 | 13 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `game_over`; `start: nil` |
 
@@ -116,6 +118,13 @@ Consequences of the order:
   `EngineFixtures.game_without_demands/2`.
   Outcomes: `:delivered`, `:refused`, `:missed` (stock short); refused and missed count as
   misses.
+- **Projects:** a demand for knowledge or entertainment has `progress: 0` (others `nil`,
+  `Rules.Demands.project?/1`). From the next week's step 1 the product goes into the project
+  until `progress` reaches `amount`, the rest to the stock; mana is unchanged, the project
+  doesn't spoil and the stock is never used for it. At the deadline (step 10, after that
+  week's production) it is `:delivered` if `progress >= amount`, otherwise `:missed`; no
+  decision gate. `refuse_project/1` (between weeks, while open) sets `deliver_demand: false`:
+  the next week's production goes to the stock and its step 10 settles it as `:refused`.
 
 ## Units
 
@@ -126,7 +135,8 @@ Consequences of the order:
 ## Report
 
 `%WeeklyReport{week, production, mana, manameter, food_left, newborn, trained, builders,
-travelling, gold, tax_due, tax, demand, demand_outcome, spoiled, gold_spent_buildings,
+travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, spoiled,
+gold_spent_buildings,
 game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
 on sites and `travelling` the workers with travel above 0, both at the end of the week;
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`

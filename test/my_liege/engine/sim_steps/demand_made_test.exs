@@ -17,8 +17,18 @@ defmodule MyLiege.Engine.SimSteps.DemandMadeTest do
     {game, report} = DemandMade.run(now, WeeklyReport.new(1, start))
 
     # 2 workers × 100‰ × 9 food (farm, green leads) × 8 weeks
-    assert report.demand == %{product: :food, amount: 14_400, due_week: 9}
+    assert report.demand == %{product: :food, amount: 14_400, due_week: 9, progress: nil}
     assert game.demand == report.demand
+  end
+
+  test "a project starts at progress 0, shown in the report", %{start: start} do
+    start = %{start | manameter: %{start.manameter | green: 0, blue: 850}}
+
+    {game, report} = DemandMade.run(%{start | week: 1}, WeeklyReport.new(1, start))
+
+    # 2 workers × 100‰ × 3 knowledge (monastery, blue leads) × 8 weeks
+    assert game.demand == %{product: :knowledge, amount: 4_800, due_week: 9, progress: 0}
+    assert report.demand_progress == 0
   end
 
   test "no demand outside the demand weeks", %{start: start} do

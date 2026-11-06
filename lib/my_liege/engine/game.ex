@@ -104,8 +104,8 @@ defmodule MyLiege.Engine.Game do
   Runs the next week. Returns `{:ok, report, game}`; a short week has `food_left < 0`.
   Blocked with `{:error, :game_over}` once the game is over, with `{:error, :finished}` after
   the last week, with `{:error, :tax_undecided}` before a due week until `decide_tax/2` was
-  called, and with `{:error, :demand_undecided}` before a demand's deadline week until
-  `decide_demand/2` was called.
+  called, and with `{:error, :demand_undecided}` before the deadline week of a demand from the
+  stock until `decide_demand/2` was called.
   """
   def run_week(%__MODULE__{} = game) do
     with :ok <- runnable(game) do
@@ -143,9 +143,27 @@ defmodule MyLiege.Engine.Game do
       else: {:error, :no_tax_due}
   end
 
-  @doc "Whether the next week is a demand's deadline, so the player must decide first."
+  @doc """
+  Whether the next week is the deadline of a demand delivered from the stock, so the player
+  must decide first. A project (`Demands.project?/1`) needs no decision.
+  """
   def demand_decision_due?(%__MODULE__{demand: demand} = game),
-    do: demand != nil and demand.due_week == game.week + 1
+    do: demand != nil and not Demands.project?(demand) and demand.due_week == game.week + 1
+
+  @doc "Whether the open demand is a project the player can still refuse."
+  def project_refusable?(%__MODULE__{demand: demand} = game),
+    do: Demands.project?(demand) and is_nil(game.deliver_demand)
+
+  @doc """
+  Refuses the open project at once: from the next week its product goes to the stock again,
+  and the next week's run settles it as refused, which counts as a miss. Only possible when
+  `project_refusable?/1`.
+  """
+  def refuse_project(%__MODULE__{} = game) do
+    if project_refusable?(game),
+      do: {:ok, %{game | deliver_demand: false}},
+      else: {:error, :no_project}
+  end
 
   @doc """
   The player's decision for the demand due next week: `true` delivers, `false` refuses.
