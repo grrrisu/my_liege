@@ -49,21 +49,22 @@ defmodule MyLiege.Engine.Rules.BanditsTest do
   end
 
   describe "threat" do
-    test "changes each week by pressure − 1000" do
+    test "rises each week by pressure − 1000" do
       {state, gold, result} = run(Bandits.starting(), 1, 100_000)
 
       assert state == %{threat: 666, raid_week: nil}
       assert gold == 100_000
       assert result == %{protected: 60_000, pressure: 1666, robbed: 0, raid: nil}
-
-      {state, _gold, _result} = run(%{threat: 5_000, raid_week: nil}, 2, 30_000)
-      assert state.threat == 4_500
     end
 
-    test "never falls below the floor" do
-      {state, _gold, _result} = run(%{threat: 300, raid_week: nil}, 1, 0)
-      assert state.threat == 0
+    test "never falls on its own: with a pressure of 1000 or less it stays" do
+      for gold <- [60_000, 30_000, 0] do
+        {state, _gold, _result} = run(%{threat: 5_000, raid_week: nil}, 2, gold)
+        assert state.threat == 5_000
+      end
+    end
 
+    test "is raised to the floor" do
       # week 49: floor 2
       {state, _gold, _result} = run(%{threat: 0, raid_week: nil}, 49, 30_000)
       assert state.threat == 2_000
@@ -94,11 +95,11 @@ defmodule MyLiege.Engine.Rules.BanditsTest do
       assert state == %{threat: 10_000, raid_week: 5}
     end
 
-    test "without defence and without gold, the threat falls" do
+    test "without defence and without gold, the threat stays" do
       {state, _gold, result} = run(%{threat: 3_000, raid_week: nil}, 1, 0, 0)
 
       assert result.pressure == 0
-      assert state == %{threat: 2_000, raid_week: nil}
+      assert state == %{threat: 3_000, raid_week: nil}
     end
   end
 

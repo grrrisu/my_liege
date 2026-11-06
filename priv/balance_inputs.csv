@@ -60,5 +60,5 @@ travel_weeks,1
 grace_weeks,24
 bandit_threshold,10
 bandit_warning_weeks,4
-bandit_cover_weeks,20
-bandit_floor_step,2
+bandit_cover_weeks,10
+bandit_floor_step,3

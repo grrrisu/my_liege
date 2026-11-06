@@ -5,8 +5,9 @@ defmodule MyLiege.Engine.Rules.Bandits do
   - Protected gold = defence production of the week × `bandit_cover_weeks`.
   - Pressure (per mille) = gold ÷ protected gold. Gold at or below 0 gives 0. Without defence
     production, any gold above 0 gives `:unbounded`.
-  - The threat (in thousandths, so `bandit_threshold` 10 is 10 000) changes each week by
-    pressure − 1000 and never falls below the floor (`floor/3`). An `:unbounded` pressure sets
+  - The threat (in thousandths, so `bandit_threshold` 10 is 10 000) rises each week by
+    pressure − 1000 if that is positive; otherwise it stays. It never falls on its own, only
+    after a raid, and is never below the floor (`floor/3`). An `:unbounded` pressure sets
     it to `bandit_threshold` at once.
   - When the threat reaches `bandit_threshold` and no bandits are on their way, they set out
     and raid `bandit_warning_weeks` later. While they are on their way, the threat doesn't
@@ -86,7 +87,9 @@ defmodule MyLiege.Engine.Rules.Bandits do
   end
 
   defp next_threat(_threat, :unbounded, _floor, config), do: threshold(config)
-  defp next_threat(threat, pressure, floor, _config), do: max(threat + pressure - 1000, floor)
+
+  defp next_threat(threat, pressure, floor, _config),
+    do: max(threat + max(pressure - 1000, 0), floor)
 
   defp raid(gold, protected, pressure, floor, result) do
     state = %{threat: floor, raid_week: nil}
