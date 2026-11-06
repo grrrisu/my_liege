@@ -42,7 +42,13 @@ defmodule MyLiege.EngineFixtures do
         demand_deadline_weeks: 8,
         demand_population_share: 100,
         demand_production_weeks: 8,
-        spoilage_rates: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0}
+        spoilage_rates: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
+        # bandits never set out and, if they do (no defence), never arrive, so tests about other
+        # rules keep their gold; bandit tests set their own values
+        bandit_threshold: 1_000_000,
+        bandit_warning_weeks: 1_000_000,
+        bandit_cover_weeks: 20,
+        bandit_floor_step: 2
       },
       overrides
     )

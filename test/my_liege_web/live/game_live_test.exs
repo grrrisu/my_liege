@@ -196,6 +196,35 @@ defmodule MyLiegeWeb.GameLiveTest do
     assert content |> String.split("\n", trim: true) |> length() == 4
   end
 
+  test "shows the bandit threat, its direction and the protected gold", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#bandit-threat")
+    assert has_element?(view, "#protected-gold")
+    refute has_element?(view, "#bandits-approaching")
+
+    # the starting gold is more than the one soldier protects
+    next_week(view)
+    assert has_element?(view, "#bandit-threat-direction", "rising")
+  end
+
+  test "approaching bandits are shown with the weeks left until the raid", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    Enum.find(1..Config.from_csv().grace_weeks, fn _ ->
+      next_week(view)
+      has_element?(view, "#bandits-approaching")
+    end)
+
+    assert has_element?(
+             view,
+             "#bandits-approaching",
+             "#{Config.from_csv().bandit_warning_weeks} weeks left"
+           )
+
+    refute has_element?(view, "#bandit-threat-direction")
+  end
+
   defp next_week(view) do
     deliver_demand(view)
     view |> element("#next-week") |> render_click()

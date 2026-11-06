@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
-  alias MyLiege.Engine.Rules.{Construction, Demands, Grace, Taxes, Training}
+  alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Taxes, Training}
   alias MyLiege.Reporting
 
   @colour_classes %{
@@ -115,6 +115,7 @@ defmodule MyLiegeWeb.GameLive do
           "The village was counted: #{units(report.tax_due)} gold tax due in week " <>
             "#{Taxes.next_due_week(report.week, before.config)}.",
         king_took(report.king_took),
+        bandits_message(before, report),
         report.demand &&
           "The king demands #{units(report.demand.amount)} #{report.demand.product} " <>
             "by week #{report.demand.due_week}."
@@ -122,6 +123,17 @@ defmodule MyLiegeWeb.GameLive do
       |> Enum.filter(& &1)
 
     if messages == [], do: socket, else: put_flash(socket, :info, Enum.join(messages, " "))
+  end
+
+  defp bandits_message(_before, %{bandit_raid: :robbed} = report),
+    do: "Bandits raided the village and took #{units(report.gold_robbed)} gold."
+
+  defp bandits_message(_before, %{bandit_raid: :repelled}),
+    do: "Bandits raided the village but were repelled: nothing was lost."
+
+  defp bandits_message(before, report) do
+    report.bandits_weeks_to_raid && not Bandits.on_their_way?(before.bandits) &&
+      "Bandits have set out: they raid in week #{report.week + report.bandits_weeks_to_raid}."
   end
 
   defp king_took(%{gold: 0, food: 0}), do: false
@@ -178,6 +190,7 @@ defmodule MyLiegeWeb.GameLive do
     |> assign(:demand_decision_due?, demand_due?)
     |> assign(:project_refusable?, Game.project_refusable?(game))
     |> assign(:won?, Game.won?(game))
+    |> assign(:protected_gold, Game.protected_gold(game))
     |> assign(
       :blocked?,
       game.game_over or game.week >= Game.last_week(game) or
@@ -229,9 +242,14 @@ defmodule MyLiegeWeb.GameLive do
                 <tr :for={product <- Building.products()} id={"stock-#{product}"}>
                   <td class="pr-4">{product}</td>
                   <td class="text-right">{units(Map.fetch!(@game.stocks, product))}</td>
+                  <td :if={product == :gold} id="protected-gold" class="pl-4 opacity-70">
+                    protected {units(@protected_gold)}
+                  </td>
                 </tr>
               </table>
             </section>
+
+            <.bandits game={@game} report={@report} protected_gold={@protected_gold} />
 
             <section id="taxes">
               <h2 class="mb-2 font-semibold">Taxes</h2>
@@ -640,6 +658,53 @@ defmodule MyLiegeWeb.GameLive do
   defp colour_class(colour), do: Map.fetch!(@colour_classes, colour)
 
   defp per_mille(share), do: "#{div(share, 10)}.#{rem(share, 10)}%"
+
+  attr :game, Game, required: true
+  attr :report, :map, required: true
+  attr :protected_gold, :integer, required: true
+
+  defp bandits(assigns) do
+    assigns =
+      assigns
+      |> assign(:threshold, Bandits.threshold(assigns.game.config))
+      |> assign(:weeks_to_raid, Bandits.weeks_to_raid(assigns.game.bandits, assigns.game.week))
+      |> assign(:exposed, max(assigns.game.stocks.gold - assigns.protected_gold, 0))
+
+    ~H"""
+    <section id="bandits">
+      <h2 class="mb-2 font-semibold">Bandits</h2>
+      <p id="bandit-threat" class="text-sm tabular-nums">
+        Threat {units(@game.bandits.threat)} / {units(@threshold)}
+        <span
+          :if={is_nil(@weeks_to_raid)}
+          id="bandit-threat-direction"
+          class={["ml-2 font-semibold", direction_class(@report.bandit_threat_change)]}
+        >
+          {direction(@report.bandit_threat_change)}
+        </span>
+      </p>
+      <p
+        :if={@weeks_to_raid}
+        id="bandits-approaching"
+        class="mt-1 text-sm font-semibold text-red-600 tabular-nums"
+      >
+        Bandits are on their way: they raid in week {@game.bandits.raid_week} ({@weeks_to_raid} {if(
+          @weeks_to_raid == 1,
+          do: "week",
+          else: "weeks"
+        )} left). At today's defence they would take {units(@exposed)} gold.
+      </p>
+    </section>
+    """
+  end
+
+  defp direction(change) when change > 0, do: "▲ rising"
+  defp direction(change) when change < 0, do: "▼ falling"
+  defp direction(_change), do: "● steady"
+
+  defp direction_class(change) when change > 0, do: "text-red-600"
+  defp direction_class(change) when change < 0, do: "text-green-700"
+  defp direction_class(_change), do: "opacity-60"
 
   defp units(amount) do
     if rem(amount, Fixed.scale()) == 0 do

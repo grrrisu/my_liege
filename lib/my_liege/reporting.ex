@@ -17,6 +17,10 @@ defmodule MyLiege.Reporting do
   week (after it ran, before the next one), so it is not yet taken from that row's `gold`.
   `king_took_gold` and `king_took_food` are what the king took that week on a skipped or
   missed tax and on a refused or missed demand, before spoilage.
+  R10: `bandit_pressure` is gold ÷ protected gold in per mille, `inf` without defence
+  production, empty in week 0; `bandit_threat` (thousandths) and `bandits_weeks_to_raid` are at
+  the end of the week, the latter empty when no bandits are on their way (also in the raid
+  week); `gold_robbed` is what the bandits took that week, before spoilage.
   """
 
   alias MyLiege.Engine.{Building, Manameter}
@@ -35,7 +39,9 @@ defmodule MyLiege.Reporting do
       ["demand_product", "demand_amount", "demand_outcome", "demand_progress"] ++
       ["king_took_gold", "king_took_food"] ++
       Enum.map(Building.products(), &"spoiled_#{&1}") ++
-      ["gold_spent_buildings", "game_over"]
+      ["gold_spent_buildings"] ++
+      ["bandit_pressure", "bandit_threat", "bandits_weeks_to_raid", "gold_robbed"] ++
+      ["game_over"]
   end
 
   defp row(report) do
@@ -60,8 +66,18 @@ defmodule MyLiege.Reporting do
         report.king_took.food
       ] ++
       Enum.map(Building.products(), &Map.fetch!(report.spoiled, &1)) ++
-      [report.gold_spent_buildings, report.game_over]
+      [
+        report.gold_spent_buildings,
+        pressure(report.bandit_pressure),
+        report.bandit_threat,
+        report.bandits_weeks_to_raid,
+        report.gold_robbed,
+        report.game_over
+      ]
   end
+
+  defp pressure(:unbounded), do: "inf"
+  defp pressure(pressure), do: pressure
 
   defp newborn(nil), do: ""
   defp newborn(worker), do: worker.colour

@@ -10,6 +10,11 @@ defmodule MyLiege.Engine.WeeklyReport do
 
   `king_took` is the food and gold the king took that week on a skipped or missed tax and on a
   refused or missed demand.
+
+  R10 bandits: `bandit_pressure` (per mille, `:unbounded` without defence production, `nil` in
+  week 0), `bandit_threat` (thousandths, end of week), `bandit_threat_change` (this week's
+  change), `bandits_weeks_to_raid` (end of week, `nil` if none are on their way),
+  `bandit_raid` (`:repelled` or `:robbed` in a raid week) and `gold_robbed`.
   """
 
   alias MyLiege.Engine.{Building, Game, Manameter, Worker}
@@ -35,6 +40,12 @@ defmodule MyLiege.Engine.WeeklyReport do
     king_took: %{food: 0, gold: 0},
     spoiled: %{},
     gold_spent_buildings: 0,
+    bandit_pressure: nil,
+    bandit_threat: nil,
+    bandit_threat_change: 0,
+    bandits_weeks_to_raid: nil,
+    bandit_raid: nil,
+    gold_robbed: 0,
     game_over: false
   ]
 
@@ -58,6 +69,12 @@ defmodule MyLiege.Engine.WeeklyReport do
           king_took: %{food: integer(), gold: integer()},
           spoiled: %{atom() => integer()},
           gold_spent_buildings: integer(),
+          bandit_pressure: non_neg_integer() | :unbounded | nil,
+          bandit_threat: integer() | nil,
+          bandit_threat_change: integer(),
+          bandits_weeks_to_raid: non_neg_integer() | nil,
+          bandit_raid: :repelled | :robbed | nil,
+          gold_robbed: integer(),
           game_over: boolean()
         }
 
