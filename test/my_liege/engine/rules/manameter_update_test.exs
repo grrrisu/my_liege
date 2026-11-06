@@ -58,9 +58,10 @@ defmodule MyLiege.Engine.Rules.ManameterUpdateTest do
       config = EngineFixtures.config(manameter_points_per_week: 2)
       mana = %{@no_mana | blue: 1, red: 1, yellow: 1}
 
-      # blue, red and yellow each gain 0.67; the two leftover units go to blue and red
+      # blue, red and yellow each gain 0.67; pentagon order puts yellow before blue before
+      # red, so the two leftover units go to yellow and blue
       assert ManameterUpdate.update(shares(1000, 0, 0, 0, 0), mana, config) ==
-               shares(998, 1, 1, 0, 0)
+               shares(998, 1, 0, 1, 0)
     end
 
     test "shares always sum to 100% and never go below 0", context do

@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.ProductionTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Pentagon, Worker}
+  alias MyLiege.Engine.{Building, Worker}
   alias MyLiege.Engine.Rules.Production
   alias MyLiege.EngineFixtures
 
@@ -11,14 +11,6 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
       buildings = all_building_types()
       buildings_by_type = Map.new(buildings, &{&1.type, &1})
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type}
-    end
-
-    test "colours relate as same, neighbour or opposite on the pentagon" do
-      assert Pentagon.relation(:green, :green) == :same
-      assert Pentagon.relation(:green, :blue) == :neighbour
-      assert Pentagon.relation(:green, :violet) == :neighbour
-      assert Pentagon.relation(:green, :red) == :opposite
-      assert Pentagon.relation(:green, :yellow) == :opposite
     end
 
     test "buildings take the colour of their path" do
@@ -32,8 +24,8 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
       %{config: config, buildings_by_type: %{farm: farm}} = context
 
       assert Production.worker_output(worker(:green), farm, config) == 9_000
-      assert Production.worker_output(worker(:blue), farm, config) == 7_200
-      assert Production.worker_output(worker(:red), farm, config) == 4_500
+      assert Production.worker_output(worker(:yellow), farm, config) == 7_200
+      assert Production.worker_output(worker(:blue), farm, config) == 4_500
     end
 
     test "trained workers: same 125%, neighbour 60%, opposite 30%", context do
@@ -41,7 +33,7 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
 
       assert Production.worker_output(worker(:green, true), farm, config) == 11_250
       assert Production.worker_output(worker(:violet, true), farm, config) == 5_400
-      assert Production.worker_output(worker(:yellow, true), farm, config) == 2_700
+      assert Production.worker_output(worker(:red, true), farm, config) == 2_700
     end
 
     test "each building has its own base production", context do

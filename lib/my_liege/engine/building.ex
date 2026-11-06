@@ -8,7 +8,7 @@ defmodule MyLiege.Engine.Building do
   builders, at most `builders_per_building`.
   """
 
-  alias MyLiege.Engine.{Config, Worker}
+  alias MyLiege.Engine.{Config, Manameter, Worker}
 
   @enforce_keys [:id, :type]
   defstruct id: nil, type: nil, ready_week: 0, progress: 0
@@ -21,7 +21,10 @@ defmodule MyLiege.Engine.Building do
     market: :gold,
     tavern: :entertainment
   }
-  @path_types [:farm, :monastery, :watchtower, :market, :tavern]
+  # path building types in pentagon order, from the order in `Manameter.colours/0`
+  @path_types Enum.map(Manameter.colours(), fn colour ->
+                Enum.find(Map.keys(@colours), &(Map.fetch!(@colours, &1) == colour))
+              end)
   @types @path_types ++ [:guildhouse]
 
   @doc "The building's path colour, or `nil` for the neutral guildhouse."
@@ -38,7 +41,7 @@ defmodule MyLiege.Engine.Building do
   def product(%__MODULE__{type: type}), do: Map.fetch!(@products, type)
 
   @doc "The products in pentagon order of their buildings."
-  def products, do: [:food, :knowledge, :defence, :gold, :entertainment]
+  def products, do: Enum.map(@path_types, &Map.fetch!(@products, &1))
 
   def ready?(%__MODULE__{ready_week: nil}, _week), do: false
   def ready?(%__MODULE__{ready_week: ready_week}, week), do: week >= ready_week
