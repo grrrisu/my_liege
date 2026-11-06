@@ -118,7 +118,7 @@ Consequences of the order:
 - **Bandits (R10):** `game.bandits` is `%{threat, raid_week}` (threat in thousandths).
   Not affected by the grace period. Protected gold = defence production × `bandit_cover_weeks`;
   pressure = gold × 1000 ÷ protected (0 without gold, `:unbounded` without defence); the
-  threat moves by pressure − 1000, floored at `Rules.Bandits.floor/3` (0 in year 1, then
+  threat rises by pressure − 1000 when positive (never falls on its own), floored at `Rules.Bandits.floor/3` (0 in year 1, then
   + `bandit_floor_step` per half year); `:unbounded` sets it to the threshold. At the threshold
   they set out (`raid_week = week + bandit_warning_weeks`) and the threat freezes; in the raid
   week they take gold − protected unless pressure ≤ 1000, then the threat drops to the floor.

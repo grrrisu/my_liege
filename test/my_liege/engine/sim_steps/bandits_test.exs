@@ -59,12 +59,13 @@ defmodule MyLiege.Engine.SimSteps.BanditsTest do
     assert week_1.bandit_protected == 60_000
     assert week_1.bandit_threat_change == 666
 
-    # two more soldiers in the tower: 9 defence protects 180, so the threat falls
+    # two more soldiers in the tower: 9 defence protects 180, so the threat stays
     soldiers = for id <- [90, 91], do: %Worker{id: id, colour: :red, building: 2}
     {[week_2], _game} = EngineFixtures.run_weeks(%{game | workers: game.workers ++ soldiers}, 1)
 
     assert week_2.production.defence == 9_000
     assert week_2.bandit_protected == 180_000
-    assert week_2.bandit_threat_change == -445
+    assert week_2.bandit_threat_change == 0
+    assert week_2.bandit_threat == 666
   end
 end
