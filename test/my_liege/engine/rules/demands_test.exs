@@ -29,9 +29,10 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       manameter = %Manameter{green: 400, blue: 100, red: 200, yellow: 100, violet: 200}
 
       assert Demands.colour(manameter, 1) == :green
-      # red and violet tie at 200: red comes first in pentagon order
+      # red and violet tie at 200: red comes first in pentagon order, so violet is 3rd
       assert Demands.colour(manameter, 2) == :violet
-      assert Demands.colour(manameter, 3) == :yellow
+      # yellow and blue tie at 100: yellow comes first in pentagon order, so blue is last
+      assert Demands.colour(manameter, 3) == :blue
     end
 
     test "amount: population × share × base production × production weeks", %{config: config} do

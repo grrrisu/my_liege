@@ -1,10 +1,12 @@
 defmodule MyLiege.Engine.Manameter do
   @moduledoc "The society's mana shares per colour in per mille, summing to 1000."
 
-  @enforce_keys [:green, :blue, :red, :yellow, :violet]
+  # the pentagon order: the one place it is defined; each colour neighbours the next, and the
+  # last neighbours the first
+  @enforce_keys [:green, :yellow, :blue, :red, :violet]
   defstruct @enforce_keys
 
-  @doc "The five colours in pentagon order: Growth – Wisdom – Strength – Wealth – Culture."
+  @doc "The five colours in pentagon order: Growth – Wealth – Wisdom – Strength – Culture."
   def colours, do: @enforce_keys
 
   def total_shares, do: 1000
