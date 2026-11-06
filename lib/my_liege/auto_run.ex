@@ -15,15 +15,16 @@ defmodule MyLiege.AutoRun do
   - `:pivot` – as `:stay`, but workers born from `pivot_week` on go to a watchtower.
     Workers already placed stay where they are.
   - `:feed` – as `:stay`, but a newborn goes to a farm, whatever their colour, when last
-    week's food balance (food left now minus food left a week earlier) can't feed one more
-    worker (< `food_eaten_per_worker`), or when the food stock is below 0. Otherwise, while
+    week's food balance (`Forecast.food/1`: the change in the food stock in the last week)
+    can't feed one more worker (< `food_eaten_per_worker`), or when the food stock is below 0.
+    Otherwise, while
     gold is below the next tax, it goes to a market.
   - `:feed_pivot` – a newborn goes to a farm when food is low as in `:feed`; workers born
     before `pivot_week` go to a market while gold is low as in `:feed`; otherwise it is
     placed as in `:pivot`.
 
-  The next tax is the amount fixed at the count, or before the count `tax_per_worker` for
-  every current worker.
+  The next tax is `Forecast.tax_amount/1`: the amount fixed at the count, or before the count
+  `tax_per_worker` for every current worker.
 
   ## Running the test cases
 
@@ -53,8 +54,8 @@ defmodule MyLiege.AutoRun do
       File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
-  alias MyLiege.Engine.Rules.{Taxes, Travel}
+  alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Manameter}
+  alias MyLiege.Engine.Rules.Travel
 
   @weeks_per_year Game.weeks_per_year()
 
@@ -75,19 +76,19 @@ defmodule MyLiege.AutoRun do
 
     # a week's report is kept after the pattern has acted on it, so it includes the gold spent
     # on buildings ordered then
-    {reports, game, _food_before} =
-      Enum.reduce_while(weeks, {[], start, nil}, fn _, {reports, g, food_before} ->
+    {reports, game} =
+      Enum.reduce_while(weeks, {[], start}, fn _, {reports, g} ->
         if g.game_over do
-          {:halt, {reports, g, food_before}}
+          {:halt, {reports, g}}
         else
           g =
             g
             |> staff_sites()
-            |> place_unplaced(target, food_before)
+            |> place_unplaced(target)
             |> always_pay()
 
           {:ok, _report, next} = Game.run_week(g)
-          {:cont, {[Game.report(g) | reports], next, g.stocks.food}}
+          {:cont, {[Game.report(g) | reports], next}}
         end
       end)
 
@@ -153,16 +154,16 @@ defmodule MyLiege.AutoRun do
   end
 
   defp target(:stay, _pivot_week),
-    do: fn worker, _game, _food_before -> own_type(worker) end
+    do: fn worker, _game -> own_type(worker) end
 
   defp target(:pivot, pivot_week) do
-    fn worker, _game, _food_before -> pivot_type(worker, pivot_week) end
+    fn worker, _game -> pivot_type(worker, pivot_week) end
   end
 
   defp target(:feed, _pivot_week) do
-    fn worker, game, food_before ->
+    fn worker, game ->
       cond do
-        food_low?(game, food_before) -> :farm
+        food_low?(game) -> :farm
         gold_low?(game) -> :market
         true -> own_type(worker)
       end
@@ -170,9 +171,9 @@ defmodule MyLiege.AutoRun do
   end
 
   defp target(:feed_pivot, pivot_week) do
-    fn worker, game, food_before ->
+    fn worker, game ->
       cond do
-        food_low?(game, food_before) -> :farm
+        food_low?(game) -> :farm
         not pivoted?(worker, pivot_week) and gold_low?(game) -> :market
         true -> pivot_type(worker, pivot_week)
       end
@@ -188,15 +189,15 @@ defmodule MyLiege.AutoRun do
   defp pivoted?(worker, pivot_week),
     do: worker.born_week != nil and worker.born_week >= pivot_week
 
-  defp gold_low?(game) do
-    next_tax = game.tax_due || Taxes.assess(game.workers, game.config)
-    game.stocks.gold < next_tax
-  end
+  defp gold_low?(game), do: game.stocks.gold < Forecast.tax_amount(game)
 
-  defp food_low?(game, food_before) do
-    food = game.stocks.food
+  defp food_low?(game) do
     one_more = Fixed.from(game.config.food_eaten_per_worker)
-    food < 0 or (food_before != nil and food - food_before < one_more)
+
+    case Forecast.food(game) do
+      nil -> game.stocks.food < 0
+      forecast -> game.stocks.food < 0 or forecast.change < one_more
+    end
   end
 
   defp staff_sites(game) do
@@ -220,13 +221,12 @@ defmodule MyLiege.AutoRun do
   defp available(game),
     do: Enum.filter(game.workers, &(is_nil(&1.building) and not Travel.travelling?(&1)))
 
-  # food_before: the food stock a week earlier, nil before week 1
-  defp place_unplaced(game, target, food_before) do
+  defp place_unplaced(game, target) do
     {game, _waiting} =
       game
       |> available()
       |> Enum.reduce({game, %{}}, fn worker, {game, waiting} ->
-        type = target.(worker, game, food_before)
+        type = target.(worker, game)
 
         case place_in_any(game, worker, type) do
           {:ok, game} ->

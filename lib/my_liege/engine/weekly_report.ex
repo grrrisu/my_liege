@@ -16,6 +16,12 @@ defmodule MyLiege.Engine.WeeklyReport do
   (thousandths, end of week), `bandit_threat_change` (the threat at the end of the week minus at
   the end of the week before), `bandits_weeks_to_raid` (end of week, `nil` if none are on their way),
   `bandit_raid` (`:repelled` or `:robbed` in a raid week) and `gold_robbed`.
+
+  For the forecasts (`Forecast`): `stock_change` is every stock at the end of the week minus at
+  its start (one-off payments, the king's takings and robbery included; gold spent on buildings
+  between weeks is not), `nil` in week 0. `project_change` is what an open king's project gained
+  in the week; `nil` if no project was open both at the start and at the end of the week.
+  Neither is exported.
   """
 
   alias MyLiege.Engine.{Building, Game, Manameter, Worker}
@@ -48,6 +54,8 @@ defmodule MyLiege.Engine.WeeklyReport do
     bandits_weeks_to_raid: nil,
     bandit_raid: nil,
     gold_robbed: 0,
+    stock_change: nil,
+    project_change: nil,
     game_over: false
   ]
 
@@ -78,6 +86,8 @@ defmodule MyLiege.Engine.WeeklyReport do
           bandits_weeks_to_raid: non_neg_integer() | nil,
           bandit_raid: :repelled | :robbed | nil,
           gold_robbed: integer(),
+          stock_change: %{atom() => integer()} | nil,
+          project_change: integer() | nil,
           game_over: boolean()
         }
 

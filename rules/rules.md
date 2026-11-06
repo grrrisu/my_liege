@@ -5,6 +5,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-06: Forecasts (T77, UI only, no rule change): food, gold, next tax, open demand or project and bandits each show what happens if the last week's change repeats; computed in the engine, used by the UI and the AutoRun bots (their results unchanged). No new CSV keys or export columns.
 - 2026-11-06: R10, the threat never falls on its own: it rises by pressure − 1000 only if that is positive, otherwise it stays; it still drops to the floor after a raid. CSV: `bandit_floor_step` and `bandit_cover_weeks` changed.
 - 2026-11-06: R10, UI: the threat's direction and the protected gold both describe the last week run, matching the production shown (3 defence → 60 protected); the protected gold was next week's, which could contradict the direction.
 - 2026-11-06: R10 (new), bandits, robbery only: weekly pressure (gold ÷ protected gold) drives a threat with a rising floor; at `bandit_threshold` bandits set out and raid `bandit_warning_weeks` later, taking the gold above the protected gold; new weekly step 12 after taxes and demands, before spoilage; export columns `bandit_pressure`, `bandit_threat`, `bandits_weeks_to_raid`, `gold_robbed`. R1: `starting_gold` lowered in the CSV.
@@ -123,6 +124,14 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 - The raid, in the raid week with that week's values: pressure 1000 or less → repelled, nothing lost; otherwise they take loot = gold − protected gold. Afterwards, repelled or not, the threat drops to the floor and can rise again from the following week.
 - A raid is not a miss (R7) and the king takes nothing for it.
 - UI: the threat and its direction (rising or steady: its change in the last week run; falling only in a raid week) are always visible, and the protected gold next to the gold stock (the last week's defence production, as shown with the production, × `bandit_cover_weeks`). Both describe the same week as the production shown. Bandits on their way are shown with the raid week and the weeks left instead of the direction; setting out and the raid's outcome are reported when the week runs.
+
+## Forecasts
+UI only: forecasts change nothing in the game. Each one repeats the change of the last week run (its end minus its start) unchanged for every week ahead. The change is raw: taxes paid, demands delivered, what the king took and robbery in that week count in it; gold spent on buildings between weeks doesn't. No forecasts in week 0 (no week before it); the next tax's amount and week are shown from week 0. The AutoRun bots use the same forecasts (food balance, next tax).
+- Food: the stock's change per week, rising, falling or steady; if falling, the week it goes below 0.
+- Gold: the stock's change per week (spoilage included), rising, falling or steady.
+- Next tax: the amount fixed at the count, or before the count `tax_per_worker` × the current workers (shown as "at least": births until the count raise it); its due week; the gold expected then (gold now + change × weeks until the due week, that week included) and the shortfall, if any. None after the game's last payment.
+- Open demand: the amount, the deadline and the amount expected by the deadline, deadline week included: from the stock, the stock + its change × weeks left; for a project, progress + its gain in the last week × weeks left, at most the target. Met or short. No forecast for a project in the week it was made, or once refused.
+- Bandits: the threat's direction (as in R10) and the week it reaches `bandit_threshold` at the last week's pressure (rising by pressure − 1000 a week; next week if the pressure was unbounded; never at 1000 or less). The rising floor is left out. Not shown while bandits are on their way.
 
 ## Export
 - Weekly CSV, one row per week. Header states units (values ×1000). Keep the column names already in use; the list below describes content, not exact names.
