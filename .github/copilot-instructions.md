@@ -36,12 +36,12 @@ At the end of every task that changes or adds a rule, a key or the export:
 Keep `rules/rules.md` short: current rules only, no history or reasoning.
 
 ## Git and review
-- **Never work or commit on `main`.** All code goes on a feature branch.
+- **Never work on `main`.** All code goes on a feature branch.
 - **One branch per feature or rule change**, created from `main` and named after it, e.g. `t43-building-costs`.
-- **Agree the rule in the chat first;** create the branch only when nothing is open.
-- **Commits:** the feature's implementation is one commit. Each round of designer feedback and each refactor gets its own commit. Work that is not a rule (configuration, interface, export) goes in its own commits on the current branch.
-- **`rules/rules.md` is updated in the same commit as the rule it describes.**
-- **Run `mix precommit` before every commit**; it must pass.
-- **Review before every commit:** stop, show a short summary of what changed and why, and wait for the designer's OK. Don't print the diff; the designer reviews it in the editor.
-- **The designer pushes, pulls and merges.** Never run `git push` or `git pull`.
+- **Agree the rule in the chat first;** create the branch only when nothing is open. Create it only from a clean working tree; if there are uncommitted changes, ask.
+- **Never commit, push, pull or merge.** No `git commit`, `git push`, `git pull`, `git merge`, `git rebase` or `git stash`. Leave all changes uncommitted on the branch; the designer commits, pushes and merges.
+- **`rules/rules.md` is updated together with the rule it describes.**
+- **Run `mix precommit` before handing over**; it must pass.
+- **Hand-over when the work is ready to merge:** stop and show a short summary of what changed and why. Don't print the diff; the designer reviews it in the editor.
+- **Pull request description:** with the hand-over, give a pull request description as one fenced markdown block, ready to paste: a title line, what changed and why, then the full checklist from `.github/pull_request_template.md`. Tick the items that are done, mark items that don't apply "n/a", and complete open phrases such as "because …".
 - **After the designer has pulled `main`**, delete local branches already merged into it with `git branch -d` without asking. Never use `git branch -D`.
