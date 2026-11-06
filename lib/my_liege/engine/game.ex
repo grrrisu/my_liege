@@ -280,12 +280,30 @@ defmodule MyLiege.Engine.Game do
   R10: the gold protected next week with the workers as placed now (defence production of
   next week × `bandit_cover_weeks`), in thousandths.
   """
-  def protected_gold(%__MODULE__{} = game) do
-    defence =
-      Production.output(game.workers, game.buildings, game.week + 1, game.config).defence
+  def protected_gold(%__MODULE__{} = game),
+    do: Bandits.protected(next_defence(game), game.config)
 
-    Bandits.protected(defence, game.config)
+  @doc """
+  R10: how the threat would change next week with today's gold and the workers as placed now
+  (the same figures as `protected_gold/1`), in thousandths. Next week's production, taxes and
+  demands can still change the gold. 0 while bandits are on their way.
+  """
+  def next_threat_change(%__MODULE__{} = game) do
+    {bandits, _gold, _result} =
+      Bandits.run(
+        game.bandits,
+        game.week + 1,
+        game.stocks.gold,
+        next_defence(game),
+        @weeks_per_year,
+        game.config
+      )
+
+    if Bandits.on_their_way?(game.bandits), do: 0, else: bandits.threat - game.bandits.threat
   end
+
+  defp next_defence(game),
+    do: Production.output(game.workers, game.buildings, game.week + 1, game.config).defence
 
   @doc "The price of any building, in thousandths of gold."
   def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)

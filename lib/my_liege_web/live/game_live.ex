@@ -191,6 +191,7 @@ defmodule MyLiegeWeb.GameLive do
     |> assign(:project_refusable?, Game.project_refusable?(game))
     |> assign(:won?, Game.won?(game))
     |> assign(:protected_gold, Game.protected_gold(game))
+    |> assign(:threat_change, Game.next_threat_change(game))
     |> assign(
       :blocked?,
       game.game_over or game.week >= Game.last_week(game) or
@@ -249,7 +250,7 @@ defmodule MyLiegeWeb.GameLive do
               </table>
             </section>
 
-            <.bandits game={@game} report={@report} protected_gold={@protected_gold} />
+            <.bandits game={@game} threat_change={@threat_change} protected_gold={@protected_gold} />
 
             <section id="taxes">
               <h2 class="mb-2 font-semibold">Taxes</h2>
@@ -660,7 +661,7 @@ defmodule MyLiegeWeb.GameLive do
   defp per_mille(share), do: "#{div(share, 10)}.#{rem(share, 10)}%"
 
   attr :game, Game, required: true
-  attr :report, :map, required: true
+  attr :threat_change, :integer, required: true
   attr :protected_gold, :integer, required: true
 
   defp bandits(assigns) do
@@ -678,10 +679,12 @@ defmodule MyLiegeWeb.GameLive do
         <span
           :if={is_nil(@weeks_to_raid)}
           id="bandit-threat-direction"
-          class={["ml-2 font-semibold", direction_class(@report.bandit_threat_change)]}
+          class={["ml-2 font-semibold", direction_class(@threat_change)]}
+          title="next week, with today's gold and the protected gold shown above"
         >
-          {direction(@report.bandit_threat_change)}
+          {direction(@threat_change)}
         </span>
+        <span :if={is_nil(@weeks_to_raid)} class="ml-1 opacity-60">next week</span>
       </p>
       <p
         :if={@weeks_to_raid}
