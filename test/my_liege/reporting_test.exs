@@ -1,7 +1,7 @@
 defmodule MyLiege.ReportingTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.Game
+  alias MyLiege.Engine.{Building, Game, Worker}
   alias MyLiege.EngineFixtures
   alias MyLiege.Reporting
 
@@ -20,20 +20,20 @@ defmodule MyLiege.ReportingTest do
                "mana_green,mana_blue,mana_red,mana_yellow,mana_violet," <>
                "manameter_green,manameter_blue,manameter_red,manameter_yellow,manameter_violet," <>
                "food_left,newborn,trained,builders,travelling,gold,tax_due,tax," <>
-               "demand_product,demand_amount,demand_outcome," <>
+               "demand_product,demand_amount,demand_outcome,demand_progress," <>
                "spoiled_food,spoiled_knowledge,spoiled_defence,spoiled_gold,spoiled_entertainment," <>
                "gold_spent_buildings,game_over"
 
     assert week_0 ==
-             "0,0,0,0,0,0,0,0,0,0,0,800,50,100,50,0,24000,,,0,0,100000,,,,,,0,0,0,0,0,0,false"
+             "0,0,0,0,0,0,0,0,0,0,0,800,50,100,50,0,24000,,,0,0,100000,,,,,,,0,0,0,0,0,0,false"
 
     # seed 1 draws a green newborn in week 1
     assert week_1 ==
-             "1,9000,0,3000,0,0,3,0,3,0,0,799,50,101,50,0,27000,green,,0,0,100000,,,,,,0,0,0,0,0,0,false"
+             "1,9000,0,3000,0,0,3,0,3,0,0,799,50,101,50,0,27000,green,,0,0,100000,,,,,,,0,0,0,0,0,0,false"
 
     # the unplaced newborn makes no mana but eats: 27 + 9 - 3 × 3
     assert week_2 ==
-             "2,9000,0,3000,0,0,3,0,3,0,0,798,50,102,50,0,27000,,,0,0,100000,,,,,,0,0,0,0,0,0,false"
+             "2,9000,0,3000,0,0,3,0,3,0,0,798,50,102,50,0,27000,,,0,0,100000,,,,,,,0,0,0,0,0,0,false"
   end
 
   test "the spoiled columns show what each stock lost; food_left and gold are after spoilage" do
@@ -48,7 +48,7 @@ defmodule MyLiege.ReportingTest do
     # food 27 - 1.35 spoiled, gold 100 - 1 spoiled
     assert Enum.at(columns, 16) == "25650"
     assert Enum.at(columns, 21) == "99000"
-    assert Enum.slice(columns, 27..31) == ["1350", "0", "0", "1000", "0"]
+    assert Enum.slice(columns, 28..32) == ["1350", "0", "0", "1000", "0"]
   end
 
   defp no_spoilage, do: EngineFixtures.config().spoilage_rates
@@ -67,8 +67,33 @@ defmodule MyLiege.ReportingTest do
       |> tl()
       |> Map.new(&{&1 |> String.split(",") |> hd() |> String.to_integer(), String.split(&1, ",")})
 
-    assert Enum.slice(rows[first], 24..26) == ["food", "#{made.demand.amount}", ""]
-    assert Enum.slice(rows[first + 8], 24..26) == ["", "", "delivered"]
+    assert Enum.slice(rows[first], 24..27) == ["food", "#{made.demand.amount}", "", ""]
+    assert Enum.slice(rows[first + 8], 24..27) == ["", "", "delivered", ""]
+  end
+
+  test "demand_progress shows a project's total in every week it is open" do
+    game = EngineFixtures.game_without_demands(EngineFixtures.config(), 1)
+    monastery = %Building{id: 3, type: :monastery}
+    monk = %Worker{id: 3, colour: :blue, building: 3}
+    project = %{product: :knowledge, amount: 9_000, due_week: 2, progress: 0}
+
+    game = %{
+      game
+      | buildings: game.buildings ++ [monastery],
+        workers: game.workers ++ [monk],
+        demand: project
+    }
+
+    {reports, _game} = EngineFixtures.run_weeks(game, 3)
+
+    progress =
+      reports
+      |> Reporting.to_csv()
+      |> String.split("\n", trim: true)
+      |> tl()
+      |> Enum.map(&(&1 |> String.split(",") |> Enum.slice(26..27)))
+
+    assert progress == [["", "3000"], ["missed", "6000"], ["", ""]]
   end
 
   test "the trained column lists the colours of workers who finished training" do
@@ -94,7 +119,7 @@ defmodule MyLiege.ReportingTest do
     {[week_1], _game} = EngineFixtures.run_weeks(game, 1)
 
     rows = [week_0, week_1] |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
-    [spent_0, spent_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(32)))
+    [spent_0, spent_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(33)))
     [gold_0, gold_1] = Enum.map(rows, &(&1 |> String.split(",") |> Enum.at(21)))
 
     assert {spent_0, spent_1} == {"60000", "0"}

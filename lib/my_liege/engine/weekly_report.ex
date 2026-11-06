@@ -4,6 +4,9 @@ defmodule MyLiege.Engine.WeeklyReport do
 
   `start` holds the game as it was when the week began, for the steps of that week. It is not
   exported and is `nil` in every report that leaves `Game.run_week/1`.
+
+  `demand_progress` is a king's project's total at the end of the week, in every week it is
+  open (the week it is made and its deadline week included); `nil` otherwise.
   """
 
   alias MyLiege.Engine.{Building, Game, Manameter, Worker}
@@ -25,6 +28,7 @@ defmodule MyLiege.Engine.WeeklyReport do
     tax: nil,
     demand: nil,
     demand_outcome: nil,
+    demand_progress: nil,
     spoiled: %{},
     gold_spent_buildings: 0,
     game_over: false
@@ -46,6 +50,7 @@ defmodule MyLiege.Engine.WeeklyReport do
           tax: atom() | nil,
           demand: map() | nil,
           demand_outcome: atom() | nil,
+          demand_progress: integer() | nil,
           spoiled: %{atom() => integer()},
           gold_spent_buildings: integer(),
           game_over: boolean()

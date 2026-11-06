@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
-  alias MyLiege.Engine.Rules.{Construction, Taxes, Training}
+  alias MyLiege.Engine.Rules.{Construction, Demands, Taxes, Training}
   alias MyLiege.Reporting
 
   @colour_classes %{
@@ -85,6 +85,10 @@ defmodule MyLiegeWeb.GameLive do
     {:noreply, apply_result(socket, result)}
   end
 
+  def handle_event("refuse_project", _params, socket) do
+    {:noreply, apply_result(socket, Game.refuse_project(socket.assigns.game))}
+  end
+
   # ordering a building changes the current week's report (gold spent on buildings)
   defp apply_result(socket, {:ok, game}) do
     socket
@@ -106,7 +110,7 @@ defmodule MyLiegeWeb.GameLive do
           "The tax of #{units(before.tax_due)} gold couldn't be paid: not enough gold.",
         report.demand_outcome == :missed &&
           "The king's demand for #{units(before.demand.amount)} #{before.demand.product} " <>
-            "couldn't be delivered: not enough #{before.demand.product}.",
+            "couldn't be delivered: #{missed_reason(before.demand)}.",
         report.tax_due &&
           "The village was counted: #{units(report.tax_due)} gold tax due in week " <>
             "#{Taxes.next_due_week(report.week, before.config)}.",
@@ -119,6 +123,13 @@ defmodule MyLiegeWeb.GameLive do
     if messages == [], do: socket, else: put_flash(socket, :info, Enum.join(messages, " "))
   end
 
+  defp missed_reason(demand) do
+    if Demands.project?(demand),
+      do: "the project didn't reach its target",
+      else: "not enough #{demand.product}"
+  end
+
+  defp error_message(:no_project), do: "There is no open project to refuse."
   defp error_message(:full), do: "That building is full."
   defp error_message(:not_ready), do: "That building is not finished yet."
   defp error_message(:unknown_worker), do: "Select a worker first."
@@ -153,6 +164,7 @@ defmodule MyLiegeWeb.GameLive do
     |> assign(:report, Game.report(game))
     |> assign(:tax_decision_due?, decision_due?)
     |> assign(:demand_decision_due?, demand_due?)
+    |> assign(:project_refusable?, Game.project_refusable?(game))
     |> assign(:won?, Game.won?(game))
     |> assign(
       :blocked?,
@@ -260,7 +272,42 @@ defmodule MyLiegeWeb.GameLive do
 
             <section id="demands">
               <h2 class="mb-2 font-semibold">The king's demands</h2>
-              <div :if={@game.demand} id="demand" class="flex items-center gap-3 text-sm">
+              <div
+                :if={Demands.project?(@game.demand)}
+                id="project"
+                class="flex flex-wrap items-center gap-3 text-sm"
+              >
+                <span class="tabular-nums">
+                  Project: {units(@game.demand.progress)}/{units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}
+                </span>
+                <span
+                  :if={@game.demand.progress >= @game.demand.amount}
+                  id="project-reached"
+                  class="font-semibold text-green-700"
+                >
+                  target reached
+                </span>
+                <button
+                  :if={@project_refusable?}
+                  id="refuse-project"
+                  phx-click="refuse_project"
+                  class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
+                >
+                  Refuse
+                </button>
+                <span
+                  :if={@game.deliver_demand == false}
+                  id="project-refused"
+                  class="font-semibold text-red-600"
+                >
+                  refused: counts as a miss next week
+                </span>
+              </div>
+              <div
+                :if={@game.demand && !Demands.project?(@game.demand)}
+                id="demand"
+                class="flex items-center gap-3 text-sm"
+              >
                 <span class="tabular-nums">
                   {units(@game.demand.amount)} {@game.demand.product} due in week {@game.demand.due_week}
                 </span>
@@ -421,6 +468,14 @@ defmodule MyLiegeWeb.GameLive do
             selected={@selected == worker.id}
           />
           <span
+            :if={feeds_project?(@game, building)}
+            id={"feeds-project-#{building.id}"}
+            class="rounded bg-amber-100 px-1.5 text-xs text-amber-900"
+            title="this building's production goes into the king's project"
+          >
+            → project
+          </span>
+          <span
             :if={Building.site?(building)}
             id={"site-#{building.id}"}
             class="text-sm tabular-nums opacity-60"
@@ -544,6 +599,16 @@ defmodule MyLiegeWeb.GameLive do
     ]
     |> Enum.filter(& &1)
     |> Enum.join(", ")
+  end
+
+  # the next week's production of this building goes into the open project
+  defp feeds_project?(game, building) do
+    project = game.demand
+
+    Demands.project?(project) and game.deliver_demand != false and
+      project.progress < project.amount and not Building.neutral?(building) and
+      not Building.site?(building) and
+      Building.product(building) == project.product
   end
 
   defp type_colour(type), do: Building.colour(%Building{id: 0, type: type})

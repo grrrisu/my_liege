@@ -9,7 +9,9 @@ defmodule MyLiege.Reporting do
   `builders` counts the builders on sites who have arrived, `travelling` the workers still
   travelling, both at the end of the week.
   `demand_product` and `demand_amount` are filled in the week the king makes a demand,
-  `demand_outcome` (delivered, refused, missed) in its deadline week. `spoiled_*` is what each
+  `demand_outcome` (delivered, refused, missed) in its deadline week, or for a refused
+  project in the week after the refusal. `demand_progress` is a project's (knowledge or
+  entertainment) total at the end of every week it is open, empty otherwise. `spoiled_*` is what each
   stock lost at the end of the week; `food_left` and `gold` are after spoilage.
   `gold_spent_buildings` is the gold paid for buildings ordered while the game stood at that
   week (after it ran, before the next one), so it is not yet taken from that row's `gold`.
@@ -28,7 +30,7 @@ defmodule MyLiege.Reporting do
       Enum.map(Manameter.colours(), &"mana_#{&1}") ++
       Enum.map(Manameter.colours(), &"manameter_#{&1}") ++
       ["food_left", "newborn", "trained", "builders", "travelling", "gold", "tax_due", "tax"] ++
-      ["demand_product", "demand_amount", "demand_outcome"] ++
+      ["demand_product", "demand_amount", "demand_outcome", "demand_progress"] ++
       Enum.map(Building.products(), &"spoiled_#{&1}") ++
       ["gold_spent_buildings", "game_over"]
   end
@@ -49,7 +51,8 @@ defmodule MyLiege.Reporting do
         report.tax,
         report.demand && report.demand.product,
         report.demand && report.demand.amount,
-        report.demand_outcome
+        report.demand_outcome,
+        report.demand_progress
       ] ++
       Enum.map(Building.products(), &Map.fetch!(report.spoiled, &1)) ++
       [report.gold_spent_buildings, report.game_over]
