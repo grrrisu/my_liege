@@ -5,6 +5,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-06: R10, UI: the threat's direction is next week's change at today's gold and the protected gold shown (was last week's change, which could contradict the protected gold next to it).
 - 2026-11-06: R10 (new), bandits, robbery only: weekly pressure (gold ÷ protected gold) drives a threat with a rising floor; at `bandit_threshold` bandits set out and raid `bandit_warning_weeks` later, taking the gold above the protected gold; new weekly step 12 after taxes and demands, before spoilage; export columns `bandit_pressure`, `bandit_threat`, `bandits_weeks_to_raid`, `gold_robbed`. R1: `starting_gold` lowered in the CSV.
 - 2026-11-06: R7, grace period and the king takes what he can: no taxes and no demands for the first `grace_weeks` weeks; on every skipped or missed tax and every refused or missed food or gold demand the king takes the stock there is, up to the amount owed; export columns `king_took_gold`, `king_took_food`.
 - 2026-11-06: Terms, new pentagon order: Growth – Wealth – Wisdom – Strength – Culture (was Growth – Wisdom – Strength – Wealth – Culture); changes neighbours/opposites (R2 factors), tie-breaks (R4 rounding, R7 demand ranks), the birth draw order (R1, same chances) and the colour/product column order in the UI and export.
@@ -120,7 +121,7 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 - Setting out: when the threat reaches `bandit_threshold` (at or above) and no bandits are on their way, they set out and raid `bandit_warning_weeks` later. In the setting-out week the threat has already changed. From the next week until the raid, it doesn't change.
 - The raid, in the raid week with that week's values: pressure 1000 or less → repelled, nothing lost; otherwise they take loot = gold − protected gold. Afterwards, repelled or not, the threat drops to the floor and moves again from the following week.
 - A raid is not a miss (R7) and the king takes nothing for it.
-- UI: the threat and its direction (rising, falling or steady, from the last week's change) are always visible, and the protected gold next to the gold stock (next week's defence production with the workers as placed now × `bandit_cover_weeks`). Bandits on their way are shown with the raid week and the weeks left instead of the direction; setting out and the raid's outcome are reported when the week runs.
+- UI: the threat and its direction (rising, falling or steady: how it would change next week with today's gold and the protected gold shown) are always visible, and the protected gold next to the gold stock (next week's defence production with the workers as placed now × `bandit_cover_weeks`). Bandits on their way are shown with the raid week and the weeks left instead of the direction; setting out and the raid's outcome are reported when the week runs.
 
 ## Export
 - Weekly CSV, one row per week. Header states units (values ×1000). Keep the column names already in use; the list below describes content, not exact names.

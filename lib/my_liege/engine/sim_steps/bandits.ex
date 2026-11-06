@@ -24,7 +24,6 @@ defmodule MyLiege.Engine.SimSteps.Bandits do
     report = %{
       report
       | bandit_pressure: result.pressure,
-        bandit_threat_change: bandits.threat - game.bandits.threat,
         bandit_raid: result.raid,
         gold_robbed: result.robbed
     }
