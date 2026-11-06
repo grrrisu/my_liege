@@ -6,7 +6,7 @@ capacity_farm,4
 wheat_per_farm_worker,12
 wheat_eaten_per_worker,3
 gold_per_market_worker,3
-starting_gold,150
+starting_gold,100
 tax_per_worker,10
 tax_interval_weeks,24
 tax_count_lead_weeks,4
@@ -58,3 +58,7 @@ build_cost_gold,30
 builders_per_building,2
 travel_weeks,1
 grace_weeks,24
+bandit_threshold,10
+bandit_warning_weeks,4
+bandit_cover_weeks,20
+bandit_floor_step,2

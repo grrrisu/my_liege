@@ -10,7 +10,7 @@ defmodule MyLiege.Engine.Game do
   """
 
   alias MyLiege.Engine.{Building, Config, Fixed, Random, SimSteps, WeeklyReport, Worker}
-  alias MyLiege.Engine.Rules.{Demands, Food, Taxes, Training, Travel}
+  alias MyLiege.Engine.Rules.{Bandits, Demands, Food, Production, Taxes, Training, Travel}
 
   @derive {Inspect, except: [:config]}
   @enforce_keys [
@@ -32,6 +32,7 @@ defmodule MyLiege.Engine.Game do
                 demand: nil,
                 deliver_demand: nil,
                 misses: 0,
+                bandits: Bandits.starting(),
                 game_over: false
               ]
 
@@ -50,6 +51,7 @@ defmodule MyLiege.Engine.Game do
     SimSteps.TaxPayment,
     SimSteps.DemandDelivery,
     SimSteps.DemandMade,
+    SimSteps.Bandits,
     SimSteps.Spoilage,
     SimSteps.EndOfWeek
   ]
@@ -272,6 +274,17 @@ defmodule MyLiege.Engine.Game do
              report: report
          }}
     end
+  end
+
+  @doc """
+  R10: the gold protected next week with the workers as placed now (defence production of
+  next week × `bandit_cover_weeks`), in thousandths.
+  """
+  def protected_gold(%__MODULE__{} = game) do
+    defence =
+      Production.output(game.workers, game.buildings, game.week + 1, game.config).defence
+
+    Bandits.protected(defence, game.config)
   end
 
   @doc "The price of any building, in thousandths of gold."

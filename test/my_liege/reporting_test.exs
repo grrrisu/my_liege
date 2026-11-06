@@ -23,18 +23,19 @@ defmodule MyLiege.ReportingTest do
                "demand_product,demand_amount,demand_outcome,demand_progress," <>
                "king_took_gold,king_took_food," <>
                "spoiled_food,spoiled_gold,spoiled_knowledge,spoiled_defence,spoiled_entertainment," <>
-               "gold_spent_buildings,game_over"
+               "gold_spent_buildings,bandit_pressure,bandit_threat,bandits_weeks_to_raid," <>
+               "gold_robbed,game_over"
 
     assert week_0 ==
-             "0,0,0,0,0,0,0,0,0,0,0,800,50,50,100,0,24000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,false"
+             "0,0,0,0,0,0,0,0,0,0,0,800,50,50,100,0,24000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,,0,,0,false"
 
     # seed 1 draws a green newborn in week 1
     assert week_1 ==
-             "1,9000,0,0,3000,0,3,0,0,3,0,799,50,50,101,0,27000,green,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,false"
+             "1,9000,0,0,3000,0,3,0,0,3,0,799,50,50,101,0,27000,green,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,666,,0,false"
 
     # the unplaced newborn makes no mana but eats: 27 + 9 - 3 × 3
     assert week_2 ==
-             "2,9000,0,0,3000,0,3,0,0,3,0,798,50,50,102,0,27000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,false"
+             "2,9000,0,0,3000,0,3,0,0,3,0,798,50,50,102,0,27000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,1332,,0,false"
   end
 
   test "the spoiled columns show what each stock lost; food_left and gold are after spoilage" do
@@ -163,6 +164,25 @@ defmodule MyLiege.ReportingTest do
     took = Enum.map(rows, &(&1 |> String.split(",") |> Enum.slice(28..29)))
 
     assert took == [["#{due}", "0"], ["0", "0"]]
+  end
+
+  test "the bandit columns show pressure, threat, weeks to the raid and gold robbed" do
+    # without its soldier the tower makes no defence: the bandits set out in week 1 and raid in 5
+    config = EngineFixtures.config(bandit_threshold: 10, bandit_warning_weeks: 4)
+    {:ok, game} = Game.unplace_worker(EngineFixtures.game_without_demands(config, 1), 2)
+    {reports, _game} = EngineFixtures.run_weeks(game, 6)
+
+    rows = reports |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
+    bandits = Enum.map(rows, &(&1 |> String.split(",") |> Enum.slice(36..39)))
+
+    assert bandits == [
+             ["inf", "10000", "4", "0"],
+             ["inf", "10000", "3", "0"],
+             ["inf", "10000", "2", "0"],
+             ["inf", "10000", "1", "0"],
+             ["inf", "0", "", "100000"],
+             ["0", "0", "", "0"]
+           ]
   end
 
   test "no reports gives only the header" do

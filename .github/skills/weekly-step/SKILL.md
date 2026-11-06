@@ -56,8 +56,9 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
 | 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
 | 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand`, `report.demand_progress` (0 for a project) |
-| 12 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
-| 13 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `game_over`; `start: nil` |
+| 12 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 9–10, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
+| 13 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
+| 14 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `game_over`; `start: nil` |
 
 Consequences of the order:
 - A newborn is drawn from the Manameter updated in step 4 of the same week.
@@ -67,7 +68,9 @@ Consequences of the order:
   the end of week M, they can be placed again from state M + 1.
 - A newborn is added after eating, so it eats from the following week; it is unplaced.
 - Production and mana use the workers as placed before the week started.
-- Births, taxes and demands see the stocks before spoilage; spoilage rounds down and leaves
+- Bandits see the gold after taxes and demands: paying the king lowers the pressure, and a
+  raid never causes a tax or demand miss.
+- Births, taxes, demands and bandits see the stocks before spoilage; spoilage rounds down and leaves
   stocks at or below 0 (a short week's -1) alone.
 
 ## Rules each step relies on
@@ -112,6 +115,15 @@ Consequences of the order:
   (`Rules.Taxes.settle/3` returns it as `taken`). More than `tax_misses_forgiven` misses set `game_over`, which blocks further
   weeks. The count `misses` is shared with the king's demands. `AutoRun` always tries to pay
   and deliver; its runs end at game over.
+- **Bandits (R10):** `game.bandits` is `%{threat, raid_week}` (threat in thousandths).
+  Not affected by the grace period. Protected gold = defence production × `bandit_cover_weeks`;
+  pressure = gold × 1000 ÷ protected (0 without gold, `:unbounded` without defence); the
+  threat moves by pressure − 1000, floored at `Rules.Bandits.floor/3` (0 in year 1, then
+  + `bandit_floor_step` per half year); `:unbounded` sets it to the threshold. At the threshold
+  they set out (`raid_week = week + bandit_warning_weeks`) and the threat freezes; in the raid
+  week they take gold − protected unless pressure ≤ 1000, then the threat drops to the floor.
+  `EngineFixtures.config/1` sets threshold and warning weeks so high that tests about other
+  rules are never robbed. `Game.protected_gold/1` is next week's protected gold for the UI.
 - **King's demands:** one per half year (`Game.weeks_per_year/0` ÷ 2), in a week drawn at
   `Game.new/2` from the seed (`game.demand_weeks`), among the half year's weeks after the
   grace period, so the deadline, `demand_deadline_weeks` later, stays in the same half year;
@@ -142,8 +154,8 @@ Consequences of the order:
 
 `%WeeklyReport{week, production, mana, manameter, food_left, newborn, trained, builders,
 travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, king_took, spoiled,
-gold_spent_buildings,
-game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
+gold_spent_buildings, bandit_pressure, bandit_threat, bandit_threat_change,
+bandits_weeks_to_raid, bandit_raid, gold_robbed, game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
 on sites and `travelling` the workers with travel above 0, both at the end of the week;
 `king_took` is `%{food, gold}`, what the king took that week on misses.
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`

@@ -39,6 +39,7 @@ defmodule MyLiege.Engine.GameTest do
                demand_outcome: nil,
                spoiled: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
                gold_spent_buildings: 0,
+               bandit_threat: 0,
                game_over: false
              }
     end
@@ -74,6 +75,7 @@ defmodule MyLiege.Engine.GameTest do
                SimSteps.TaxPayment,
                SimSteps.DemandDelivery,
                SimSteps.DemandMade,
+               SimSteps.Bandits,
                SimSteps.Spoilage,
                SimSteps.EndOfWeek
              ]

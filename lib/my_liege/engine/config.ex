@@ -38,7 +38,11 @@ defmodule MyLiege.Engine.Config do
     :demand_deadline_weeks,
     :demand_population_share,
     :demand_production_weeks,
-    :spoilage_rates
+    :spoilage_rates,
+    :bandit_threshold,
+    :bandit_warning_weeks,
+    :bandit_cover_weeks,
+    :bandit_floor_step
   ]
   defstruct @enforce_keys
 

@@ -6,7 +6,7 @@ defmodule MyLiege.Engine.SimSteps.EndOfWeek do
   """
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.Rules.{Construction, Travel}
+  alias MyLiege.Engine.Rules.{Bandits, Construction, Travel}
 
   @impl true
   def run(game, report) do
@@ -17,6 +17,8 @@ defmodule MyLiege.Engine.SimSteps.EndOfWeek do
         gold: game.stocks.gold,
         builders: Construction.arrived_builders(game.workers, game.buildings),
         travelling: Enum.count(game.workers, &Travel.travelling?/1),
+        bandit_threat: game.bandits.threat,
+        bandits_weeks_to_raid: Bandits.weeks_to_raid(game.bandits, game.week),
         game_over: game.game_over,
         start: nil
     }
