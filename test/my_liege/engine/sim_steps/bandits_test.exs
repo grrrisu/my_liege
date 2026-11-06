@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.SimSteps.BanditsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Worker}
+  alias MyLiege.Engine.Worker
   alias MyLiege.EngineFixtures
 
   # the one soldier in the tower makes 3 defence a week: 60 gold protected
@@ -50,33 +50,21 @@ defmodule MyLiege.Engine.SimSteps.BanditsTest do
     assert game.stocks.gold == 54_000
   end
 
-  test "Game.next_threat_change/1 uses today's gold and next week's defence" do
+  test "the report holds the week's protected gold and threat change, as the UI shows them" do
     game = EngineFixtures.game_without_demands(config(starting_gold: 100), 1)
-    {[report], game} = EngineFixtures.run_weeks(game, 1)
+    {[week_1], game} = EngineFixtures.run_weeks(game, 1)
 
-    # week 1: 100 gold against 60 protected, the threat rose
-    assert report.bandit_threat == 666
-    assert Game.next_threat_change(game) == 666
+    # 3 defence protects 60; 100 gold against 60: the threat rose by 0.666
+    assert week_1.production.defence == 3_000
+    assert week_1.bandit_protected == 60_000
+    assert week_1.bandit_threat_change == 666
 
-    # two more soldiers have arrived in the tower: 180 protected, so it will fall
+    # two more soldiers in the tower: 9 defence protects 180, so the threat falls
     soldiers = for id <- [90, 91], do: %Worker{id: id, colour: :red, building: 2}
-    game = %{game | workers: game.workers ++ soldiers}
+    {[week_2], _game} = EngineFixtures.run_weeks(%{game | workers: game.workers ++ soldiers}, 1)
 
-    assert Game.protected_gold(game) == 180_000
-    # pressure 100 ÷ 180 = 555 per mille
-    assert Game.next_threat_change(game) == -445
-  end
-
-  test "Game.next_threat_change/1 is 0 while bandits are on their way" do
-    game = EngineFixtures.game_without_demands(config([]), 1)
-    assert Game.next_threat_change(%{game | bandits: %{threat: 10_000, raid_week: 3}}) == 0
-  end
-
-  test "Game.protected_gold/1 is next week's defence production × bandit_cover_weeks" do
-    game = Game.new(config([]), 1)
-    assert Game.protected_gold(game) == 60_000
-
-    {:ok, game} = Game.unplace_worker(game, 2)
-    assert Game.protected_gold(game) == 0
+    assert week_2.production.defence == 9_000
+    assert week_2.bandit_protected == 180_000
+    assert week_2.bandit_threat_change == -445
   end
 end
