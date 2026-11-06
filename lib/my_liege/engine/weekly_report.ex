@@ -12,7 +12,9 @@ defmodule MyLiege.Engine.WeeklyReport do
   refused or missed demand.
 
   R10 bandits: `bandit_pressure` (per mille, `:unbounded` without defence production, `nil` in
-  week 0), `bandit_threat` (thousandths, end of week), `bandits_weeks_to_raid` (end of week, `nil` if none are on their way),
+  week 0), `bandit_protected` (the week's defence production × `bandit_cover_weeks`), `bandit_threat`
+  (thousandths, end of week), `bandit_threat_change` (the threat at the end of the week minus at
+  the end of the week before), `bandits_weeks_to_raid` (end of week, `nil` if none are on their way),
   `bandit_raid` (`:repelled` or `:robbed` in a raid week) and `gold_robbed`.
   """
 
@@ -40,6 +42,8 @@ defmodule MyLiege.Engine.WeeklyReport do
     spoiled: %{},
     gold_spent_buildings: 0,
     bandit_pressure: nil,
+    bandit_protected: 0,
+    bandit_threat_change: 0,
     bandit_threat: nil,
     bandits_weeks_to_raid: nil,
     bandit_raid: nil,
@@ -68,7 +72,9 @@ defmodule MyLiege.Engine.WeeklyReport do
           spoiled: %{atom() => integer()},
           gold_spent_buildings: integer(),
           bandit_pressure: non_neg_integer() | :unbounded | nil,
+          bandit_protected: integer(),
           bandit_threat: integer() | nil,
+          bandit_threat_change: integer(),
           bandits_weeks_to_raid: non_neg_integer() | nil,
           bandit_raid: :repelled | :robbed | nil,
           gold_robbed: integer(),

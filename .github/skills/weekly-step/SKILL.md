@@ -56,7 +56,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
 | 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
 | 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand`, `report.demand_progress` (0 for a project) |
-| 12 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 9–10, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_raid`, `gold_robbed` |
+| 12 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 9–10, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
 | 13 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
 | 14 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `game_over`; `start: nil` |
 
@@ -123,8 +123,8 @@ Consequences of the order:
   they set out (`raid_week = week + bandit_warning_weeks`) and the threat freezes; in the raid
   week they take gold − protected unless pressure ≤ 1000, then the threat drops to the floor.
   `EngineFixtures.config/1` sets threshold and warning weeks so high that tests about other
-  rules are never robbed. `Game.protected_gold/1` (next week's protected gold) and `Game.next_threat_change/1` (next
-  week's threat change at today's gold) are for the UI.
+  rules are never robbed. The UI shows the last report's `bandit_protected` and
+  `bandit_threat_change`, so they match the production shown.
 - **King's demands:** one per half year (`Game.weeks_per_year/0` ÷ 2), in a week drawn at
   `Game.new/2` from the seed (`game.demand_weeks`), among the half year's weeks after the
   grace period, so the deadline, `demand_deadline_weeks` later, stays in the same half year;
@@ -155,7 +155,7 @@ Consequences of the order:
 
 `%WeeklyReport{week, production, mana, manameter, food_left, newborn, trained, builders,
 travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, king_took, spoiled,
-gold_spent_buildings, bandit_pressure, bandit_threat,
+gold_spent_buildings, bandit_pressure, bandit_protected, bandit_threat, bandit_threat_change,
 bandits_weeks_to_raid, bandit_raid, gold_robbed, game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
 on sites and `travelling` the workers with travel above 0, both at the end of the week;
 `king_took` is `%{food, gold}`, what the king took that week on misses.
