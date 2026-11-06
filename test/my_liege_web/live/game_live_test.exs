@@ -24,6 +24,22 @@ defmodule MyLiegeWeb.GameLiveTest do
     assert has_element?(view, "#last-week", "Week 1")
   end
 
+  test "forecasts appear from week 1, the next tax already in week 0", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#forecast-tax")
+    refute has_element?(view, "#forecast-tax-outcome")
+    refute has_element?(view, "#forecast-food")
+    refute has_element?(view, "#forecast-bandits")
+
+    view |> element("#next-week") |> render_click()
+
+    assert has_element?(view, "#forecast-food")
+    assert has_element?(view, "#forecast-gold")
+    assert has_element?(view, "#forecast-tax-outcome")
+    assert has_element?(view, "#forecast-bandits")
+  end
+
   test "select a worker and place it in another building", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 

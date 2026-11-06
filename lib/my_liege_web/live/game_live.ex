@@ -2,7 +2,7 @@ defmodule MyLiegeWeb.GameLive do
   @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
+  alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Manameter}
   alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Taxes, Training}
   alias MyLiege.Reporting
 
@@ -186,6 +186,13 @@ defmodule MyLiegeWeb.GameLive do
     socket
     |> assign(:game, game)
     |> assign(:report, Game.report(game))
+    |> assign(:forecast, %{
+      food: Forecast.food(game),
+      gold: Forecast.gold(game),
+      tax: Forecast.next_tax(game),
+      demand: Forecast.demand(game),
+      bandits: Forecast.bandits(game)
+    })
     |> assign(:tax_decision_due?, decision_due?)
     |> assign(:demand_decision_due?, demand_due?)
     |> assign(:project_refusable?, Game.project_refusable?(game))
@@ -244,11 +251,19 @@ defmodule MyLiegeWeb.GameLive do
                   <td :if={product == :gold} id="protected-gold" class="pl-4 opacity-70">
                     protected {units(@report.bandit_protected)}
                   </td>
+                  <td
+                    :if={product in [:food, :gold] and Map.fetch!(@forecast, product)}
+                    id={"forecast-#{product}"}
+                    class="pl-4"
+                    title="change in the last week; forecast if nothing changes"
+                  >
+                    <.stock_forecast forecast={Map.fetch!(@forecast, product)} week={@game.week} />
+                  </td>
                 </tr>
               </table>
             </section>
 
-            <.bandits game={@game} report={@report} />
+            <.bandits game={@game} report={@report} forecast={@forecast.bandits} />
 
             <section id="taxes">
               <h2 class="mb-2 font-semibold">Taxes</h2>
@@ -302,6 +317,29 @@ defmodule MyLiegeWeb.GameLive do
               <p :if={!@game.tax_due} class="text-sm opacity-60">
                 Next count in week {Taxes.next_due_week(@game.week, @game.config) -
                   @game.config.tax_count_lead_weeks}
+              </p>
+              <p :if={@forecast.tax} id="forecast-tax" class="mt-1 text-sm tabular-nums">
+                <span class="opacity-70">
+                  Next tax: {if(@forecast.tax.counted?, do: "", else: "at least ")}{units(
+                    @forecast.tax.amount
+                  )} gold in week {@forecast.tax.due_week}.
+                </span>
+                <span :if={@forecast.tax.expected_gold} class="opacity-70">
+                  Expected gold by then: {units(@forecast.tax.expected_gold)}.
+                </span>
+                <span
+                  :if={@forecast.tax.expected_gold}
+                  id="forecast-tax-outcome"
+                  class={[
+                    "font-semibold",
+                    if(@forecast.tax.shortfall > 0, do: "text-red-600", else: "text-green-700")
+                  ]}
+                >
+                  {if(@forecast.tax.shortfall > 0,
+                    do: "Short by #{units(@forecast.tax.shortfall)}",
+                    else: "Covered"
+                  )}
+                </span>
               </p>
               <p id="tax-misses" class="text-sm tabular-nums">
                 Missed payments and demands: {@game.misses} (forgiven: {@game.config.tax_misses_forgiven})
@@ -377,6 +415,27 @@ defmodule MyLiegeWeb.GameLive do
                   </span>
                 </span>
               </div>
+              <p
+                :if={@forecast.demand && @forecast.demand.expected}
+                id="forecast-demand"
+                class="mt-1 text-sm tabular-nums"
+                title="change in the last week, repeated until the deadline"
+              >
+                <span class="opacity-70">
+                  Expected by week {@forecast.demand.due_week}: {units(@forecast.demand.expected)}/{units(
+                    @forecast.demand.amount
+                  )}.
+                </span>
+                <span
+                  id="forecast-demand-outcome"
+                  class={[
+                    "font-semibold",
+                    if(@forecast.demand.met?, do: "text-green-700", else: "text-red-600")
+                  ]}
+                >
+                  {if(@forecast.demand.met?, do: "Will be met", else: "Will fall short")}
+                </span>
+              </p>
               <p :if={!@game.demand} class="text-sm opacity-60">No open demand.</p>
             </section>
 
@@ -658,8 +717,36 @@ defmodule MyLiegeWeb.GameLive do
 
   defp per_mille(share), do: "#{div(share, 10)}.#{rem(share, 10)}%"
 
+  attr :forecast, :map, required: true
+  attr :week, :integer, required: true
+
+  defp stock_forecast(assigns) do
+    ~H"""
+    <span class={["font-semibold", forecast_class(@forecast.direction)]}>
+      {direction(@forecast.change)} {signed(@forecast.change)}/week
+    </span>
+    <span :if={Map.get(@forecast, :weeks_left)} class="font-semibold text-red-600">
+      · runs out {if(@forecast.weeks_left == 0,
+        do: "now",
+        else: "in week #{@week + @forecast.weeks_left} (#{weeks(@forecast.weeks_left)})"
+      )}
+    </span>
+    """
+  end
+
+  defp forecast_class(:rising), do: "text-green-700"
+  defp forecast_class(:falling), do: "text-red-600"
+  defp forecast_class(:steady), do: "opacity-60"
+
+  defp signed(amount) when amount > 0, do: "+" <> units(amount)
+  defp signed(amount), do: units(amount)
+
+  defp weeks(1), do: "1 week"
+  defp weeks(n), do: "#{n} weeks"
+
   attr :game, Game, required: true
   attr :report, :map, required: true
+  attr :forecast, :map, default: nil
 
   defp bandits(assigns) do
     assigns =
@@ -679,6 +766,21 @@ defmodule MyLiegeWeb.GameLive do
           title="change in the last week, from its gold and protected gold"
         >
           {direction(@report.bandit_threat_change)}
+        </span>
+        <span
+          :if={@forecast}
+          id="forecast-bandits"
+          class={[
+            "ml-2",
+            if(@forecast.weeks_to_threshold == :never, do: "opacity-60", else: "text-red-600")
+          ]}
+          title="at the last week's pressure, if nothing changes"
+        >
+          {if(@forecast.weeks_to_threshold == :never,
+            do: "· threshold: never",
+            else:
+              "· threshold in week #{@game.week + @forecast.weeks_to_threshold} (#{weeks(@forecast.weeks_to_threshold)})"
+          )}
         </span>
       </p>
       <p
