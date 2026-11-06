@@ -56,6 +56,8 @@ defmodule MyLiege.AutoRunTest do
     end
 
     test "orders only as many buildings as the workers need", %{config: config} do
+      # enough gold, so what the king takes on a miss never stops an order
+      config = %{config | starting_gold: 1_000_000}
       {_reports, game} = AutoRun.run(:stay, config, 1)
 
       for type <- Building.types() do

@@ -36,7 +36,7 @@ display or decisions), never `SimSteps`.
 [rules/](../../../lib/my_liege/engine/rules/)
 
 - One module per rule of `rules/rules.md` (a rule may have more than one, e.g. R7 has
-  `Taxes`, `Demands` and `Misses`).
+  `Grace`, `Taxes`, `Demands` and `Misses`).
 - The moduledoc starts with its rule number ("R7, taxes: …") and names no step and no
   position in the week: a rule doesn't know when it is called.
 - Pure functions on plain data (workers, buildings, stocks, numbers) and an explicit

@@ -7,6 +7,9 @@ defmodule MyLiege.Engine.WeeklyReport do
 
   `demand_progress` is a king's project's total at the end of the week, in every week it is
   open (the week it is made and its deadline week included); `nil` otherwise.
+
+  `king_took` is the food and gold the king took that week on a skipped or missed tax and on a
+  refused or missed demand.
   """
 
   alias MyLiege.Engine.{Building, Game, Manameter, Worker}
@@ -29,6 +32,7 @@ defmodule MyLiege.Engine.WeeklyReport do
     demand: nil,
     demand_outcome: nil,
     demand_progress: nil,
+    king_took: %{food: 0, gold: 0},
     spoiled: %{},
     gold_spent_buildings: 0,
     game_over: false
@@ -51,6 +55,7 @@ defmodule MyLiege.Engine.WeeklyReport do
           demand: map() | nil,
           demand_outcome: atom() | nil,
           demand_progress: integer() | nil,
+          king_took: %{food: integer(), gold: integer()},
           spoiled: %{atom() => integer()},
           gold_spent_buildings: integer(),
           game_over: boolean()

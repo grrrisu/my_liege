@@ -35,6 +35,8 @@ defmodule MyLiege.EngineFixtures do
         tax_interval_weeks: 24,
         tax_count_lead_weeks: 4,
         tax_misses_forgiven: 1,
+        # no grace period, so tests about other rules see taxes and demands from week 1
+        grace_weeks: 0,
         training_threshold: 300,
         training_weeks: 4,
         demand_deadline_weeks: 8,

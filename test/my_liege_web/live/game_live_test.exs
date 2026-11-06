@@ -110,13 +110,14 @@ defmodule MyLiegeWeb.GameLiveTest do
     {:ok, view, _html} = live(conn, ~p"/game")
 
     refute has_element?(view, "#tax-due")
-    for _ <- 1..20, do: next_week(view)
+    # the grace period of the CSV (24 weeks) skips the tax due in week 24
+    for _ <- 1..44, do: next_week(view)
 
     assert has_element?(view, "#tax-counted")
-    assert has_element?(view, "#tax-due", "due in week 24")
+    assert has_element?(view, "#tax-due", "due in week 48")
     refute has_element?(view, "#tax-decision")
 
-    for _ <- 21..23, do: next_week(view)
+    for _ <- 45..47, do: next_week(view)
 
     assert has_element?(view, "#tax-decision")
     assert has_element?(view, "#next-week[disabled]")
@@ -126,7 +127,7 @@ defmodule MyLiegeWeb.GameLiveTest do
     refute has_element?(view, "#next-week[disabled]")
     view |> element("#next-week") |> render_click()
 
-    assert has_element?(view, "#week", "Week 24")
+    assert has_element?(view, "#week", "Week 48")
     assert has_element?(view, "#tax-outcome", "skipped")
   end
 
@@ -145,15 +146,15 @@ defmodule MyLiegeWeb.GameLiveTest do
 
   test "an info is shown when the village is counted for taxes", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
-    for _ <- 1..20, do: next_week(view)
+    for _ <- 1..44, do: next_week(view)
 
-    assert has_element?(view, "#flash-info", "gold tax due in week 24")
+    assert has_element?(view, "#flash-info", "gold tax due in week 48")
   end
 
   test "an info is shown when the king makes a demand", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
-    Enum.find(1..24, fn _ ->
+    Enum.find(1..48, fn _ ->
       next_week(view)
       has_element?(view, "#demand-made")
     end)
@@ -163,7 +164,7 @@ defmodule MyLiegeWeb.GameLiveTest do
 
   test "an info is shown exactly when the tax couldn't be paid", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
-    for _ <- 1..23, do: next_week(view)
+    for _ <- 1..47, do: next_week(view)
 
     view |> element("#pay-tax") |> render_click()
     next_week(view)
@@ -171,6 +172,17 @@ defmodule MyLiegeWeb.GameLiveTest do
     # the seed is random, so the tax may or may not have been affordable
     assert has_element?(view, "#tax-outcome", "missed") ==
              has_element?(view, "#flash-info", "couldn't be paid")
+  end
+
+  test "the grace period is shown while it runs, with its last week", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#grace-period", "week 24")
+    for _ <- 1..23, do: next_week(view)
+    assert has_element?(view, "#grace-period")
+
+    next_week(view)
+    refute has_element?(view, "#grace-period")
   end
 
   test "the download button sends the CSV report of all weeks so far", %{conn: conn} do
