@@ -53,8 +53,8 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
 | 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/5` | sites, builders as at the **start** of the week (before step 3) | `progress`, `ready_week`, finished builders `building: nil` with `travel_weeks` |
 | 8 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `building: nil`, `travel_weeks`, `report.trained` |
-| 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax` |
-| 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome` |
+| 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
+| 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
 | 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand`, `report.demand_progress` (0 for a project) |
 | 12 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
 | 13 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `game_over`; `start: nil` |
@@ -100,24 +100,30 @@ Consequences of the order:
   ties in pentagon order. A week without mana leaves it unchanged.
 - **Randomness:** only births draw random numbers, from `game.rand`; the same seed replays
   the same run.
-- **Taxes:** due in weeks `tax_interval_weeks`, 2 × `tax_interval_weeks`, …; counted
+- **Grace period:** `Rules.Grace`: weeks 1 to `grace_weeks` have no due week, no count for
+  one and no demand week. Test configs set `grace_weeks: 0`.
+- **Taxes:** due in weeks `tax_interval_weeks`, 2 × `tax_interval_weeks`, … after the grace
+  period; counted
   `tax_count_lead_weeks` earlier at `tax_per_worker` per head, and the amount is fixed then.
   The player must decide with `decide_tax/2` while the game stands at the week before a due
   week (`pay_tax` is `nil` until then and resets to `nil` after payment). Outcomes:
   `:paid` (full amount), `:skipped` (on purpose), `:missed` (not enough gold); no partial
-  payments. More than `tax_misses_forgiven` misses set `game_over`, which blocks further
+  payments. On `:skipped` and `:missed` the king takes the gold there is, up to the amount
+  (`Rules.Taxes.settle/3` returns it as `taken`). More than `tax_misses_forgiven` misses set `game_over`, which blocks further
   weeks. The count `misses` is shared with the king's demands. `AutoRun` always tries to pay
   and deliver; its runs end at game over.
 - **King's demands:** one per half year (`Game.weeks_per_year/0` ÷ 2), in a week drawn at
-  `Game.new/2` from the seed (`game.demand_weeks`) so the deadline, `demand_deadline_weeks`
-  later, stays in the same half year. The product belongs to the colour ranked 1st (year 1),
+  `Game.new/2` from the seed (`game.demand_weeks`), among the half year's weeks after the
+  grace period, so the deadline, `demand_deadline_weeks` later, stays in the same half year;
+  a half year without such a week has no demand and uses no draw. The product belongs to the colour ranked 1st (year 1),
   3rd (year 2) or 5th (year 3 on) in the Manameter when the demand is made; ties in pentagon
   order. Amount: workers at the start of the demand week (before its birth) ×
   `demand_population_share` (per mille) × base production of that colour's building ×
   `demand_production_weeks`; 0 means no demand. Tests about other rules use
   `EngineFixtures.game_without_demands/2`.
   Outcomes: `:delivered`, `:refused`, `:missed` (stock short); refused and missed count as
-  misses.
+  misses. On a refused or missed food or gold demand the king takes the stock there is, up to
+  the amount; defence and projects leave nothing to take.
 - **Projects:** a demand for knowledge or entertainment has `progress: 0` (others `nil`,
   `Rules.Demands.project?/1`). From the next week's step 1 the product goes into the project
   until `progress` reaches `amount`, the rest to the stock; mana is unchanged, the project
@@ -135,10 +141,11 @@ Consequences of the order:
 ## Report
 
 `%WeeklyReport{week, production, mana, manameter, food_left, newborn, trained, builders,
-travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, spoiled,
+travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, king_took, spoiled,
 gold_spent_buildings,
 game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
 on sites and `travelling` the workers with travel above 0, both at the end of the week;
+`king_took` is `%{food, gold}`, what the king took that week on misses.
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`
 writes one row per report.
 

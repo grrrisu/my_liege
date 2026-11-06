@@ -57,3 +57,4 @@ demand_production_weeks,8
 build_cost_gold,30
 builders_per_building,2
 travel_weeks,1
+grace_weeks,24

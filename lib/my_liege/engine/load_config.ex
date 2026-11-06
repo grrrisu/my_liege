@@ -38,6 +38,7 @@ defmodule MyLiege.Engine.LoadConfig do
       tax_interval_weeks: fetch!(inputs, "tax_interval_weeks"),
       tax_count_lead_weeks: fetch!(inputs, "tax_count_lead_weeks"),
       tax_misses_forgiven: fetch!(inputs, "tax_misses_forgiven"),
+      grace_weeks: fetch!(inputs, "grace_weeks"),
       training_threshold: fetch!(inputs, "training_threshold"),
       training_weeks: fetch!(inputs, "training_weeks"),
       demand_deadline_weeks: fetch!(inputs, "demand_deadline_weeks"),

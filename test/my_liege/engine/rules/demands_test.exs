@@ -20,6 +20,35 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       end
     end
 
+    test "grace period: no draw for a half year inside it", %{config: config} do
+      rand = 7 |> Random.new() |> elem(1)
+      {weeks, _rand} = Demands.schedule(48, %{config | grace_weeks: 24}, rand)
+
+      assert length(weeks) == 5
+
+      for {week, h} <- Enum.with_index(weeks, 1) do
+        assert week in (h * 24 + 1)..(h * 24 + 24 - config.demand_deadline_weeks)
+      end
+    end
+
+    test "grace period: a half year partly inside it draws from the weeks after it",
+         %{config: config} do
+      for seed <- 1..20 do
+        rand = seed |> Random.new() |> elem(1)
+        {[first | _], _rand} = Demands.schedule(48, %{config | grace_weeks: 30}, rand)
+        assert first in 31..40
+      end
+    end
+
+    test "grace period: a half year without room for the deadline after it has no demand",
+         %{config: config} do
+      rand = 7 |> Random.new() |> elem(1)
+      {[first | _] = weeks, _rand} = Demands.schedule(48, %{config | grace_weeks: 41}, rand)
+
+      assert length(weeks) == 4
+      assert first in 49..64
+    end
+
     test "the same seed draws the same weeks", %{config: config} do
       rand = 3 |> Random.new() |> elem(1)
       assert Demands.schedule(48, config, rand) == Demands.schedule(48, config, rand)
@@ -76,18 +105,50 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       project = %{product: :knowledge, amount: 7_000, due_week: 9, progress: 7_000}
       stocks = %{knowledge: 50_000}
 
-      assert Demands.settle(project, stocks, true) == {:delivered, stocks}
-      assert Demands.settle(%{project | progress: 6_999}, stocks, true) == {:missed, stocks}
-      assert Demands.settle(project, stocks, false) == {:refused, stocks}
+      nothing = %{food: 0, gold: 0}
+
+      assert Demands.settle(project, stocks, true) == {:delivered, stocks, nothing}
+
+      assert Demands.settle(%{project | progress: 6_999}, stocks, true) ==
+               {:missed, stocks, nothing}
+
+      assert Demands.settle(project, stocks, false) == {:refused, stocks, nothing}
     end
 
     test "delivered, refused, or missed when the stock is short" do
       demand = %{product: :food, amount: 10_000, due_week: 38}
-      stocks = %{food: 15_000}
 
-      assert Demands.settle(demand, stocks, true) == {:delivered, %{food: 5_000}}
-      assert Demands.settle(demand, stocks, false) == {:refused, stocks}
-      assert Demands.settle(demand, %{food: 5_000}, true) == {:missed, %{food: 5_000}}
+      assert {:delivered, %{food: 5_000}, %{food: 0, gold: 0}} =
+               Demands.settle(demand, %{food: 15_000}, true)
+
+      assert {:refused, _stocks, _taken} = Demands.settle(demand, %{food: 15_000}, false)
+      assert {:missed, _stocks, _taken} = Demands.settle(demand, %{food: 5_000}, true)
+    end
+
+    test "refused or missed food and gold: the king takes the stock there is, up to the amount" do
+      food = %{product: :food, amount: 10_000, due_week: 38}
+      gold = %{product: :gold, amount: 10_000, due_week: 38}
+
+      assert Demands.settle(food, %{food: 5_000}, true) ==
+               {:missed, %{food: 0}, %{food: 5_000, gold: 0}}
+
+      assert Demands.settle(food, %{food: 15_000}, false) ==
+               {:refused, %{food: 5_000}, %{food: 10_000, gold: 0}}
+
+      assert Demands.settle(gold, %{gold: 4_000}, true) ==
+               {:missed, %{gold: 0}, %{food: 0, gold: 4_000}}
+
+      # a short week's -1 food leaves nothing to take
+      assert Demands.settle(food, %{food: -1}, true) ==
+               {:missed, %{food: -1}, %{food: 0, gold: 0}}
+    end
+
+    test "defence leaves nothing to take: a miss only" do
+      defence = %{product: :defence, amount: 10_000, due_week: 38}
+      stocks = %{defence: 4_000}
+
+      assert Demands.settle(defence, stocks, true) == {:missed, stocks, %{food: 0, gold: 0}}
+      assert Demands.settle(defence, stocks, false) == {:refused, stocks, %{food: 0, gold: 0}}
     end
   end
 
@@ -136,6 +197,16 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       assert game.misses == 1
     end
 
+    test "a refusal of a food demand: the king takes the food, up to the amount", %{game: game} do
+      {_reports, game} = EngineFixtures.run_weeks(game, 7)
+      %{amount: amount} = game.demand
+      {:ok, game} = Game.decide_demand(game, false)
+      {:ok, report, _game} = Game.run_week(game)
+
+      # starting food 1000, so there is more than enough
+      assert report.king_took == %{food: amount, gold: 0}
+    end
+
     test "no decision outside the week before a deadline", %{game: game} do
       assert Game.decide_demand(game, true) == {:error, :no_demand_due}
     end
@@ -173,6 +244,7 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       assert List.last(reports).demand_progress == 9_000
       assert List.last(reports).demand_outcome == :missed
       assert game.stocks.knowledge == 50_000
+      assert List.last(reports).king_took == %{food: 0, gold: 0}
       assert game.misses == 1
     end
 

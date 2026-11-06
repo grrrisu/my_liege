@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Building, Config, Fixed, Game, Manameter}
-  alias MyLiege.Engine.Rules.{Construction, Demands, Taxes, Training}
+  alias MyLiege.Engine.Rules.{Construction, Demands, Grace, Taxes, Training}
   alias MyLiege.Reporting
 
   @colour_classes %{
@@ -114,6 +114,7 @@ defmodule MyLiegeWeb.GameLive do
         report.tax_due &&
           "The village was counted: #{units(report.tax_due)} gold tax due in week " <>
             "#{Taxes.next_due_week(report.week, before.config)}.",
+        king_took(report.king_took),
         report.demand &&
           "The king demands #{units(report.demand.amount)} #{report.demand.product} " <>
             "by week #{report.demand.due_week}."
@@ -121,6 +122,17 @@ defmodule MyLiegeWeb.GameLive do
       |> Enum.filter(& &1)
 
     if messages == [], do: socket, else: put_flash(socket, :info, Enum.join(messages, " "))
+  end
+
+  defp king_took(%{gold: 0, food: 0}), do: false
+
+  defp king_took(%{gold: gold, food: food}) do
+    taken =
+      [gold > 0 && "#{units(gold)} gold", food > 0 && "#{units(food)} food"]
+      |> Enum.filter(& &1)
+      |> Enum.join(" and ")
+
+    "The king took #{taken}."
   end
 
   defp missed_reason(demand) do
@@ -223,6 +235,15 @@ defmodule MyLiegeWeb.GameLive do
 
             <section id="taxes">
               <h2 class="mb-2 font-semibold">Taxes</h2>
+              <p
+                :if={Grace.in_grace?(@game.week + 1, @game.config)}
+                id="grace-period"
+                class="mb-2 text-sm font-semibold text-green-700"
+              >
+                Grace period: no taxes and no demands until the end of week {Grace.last_week(
+                  @game.config
+                )}.
+              </p>
               <p :if={@game.game_over} id="game-over" class="mb-2 font-semibold text-red-600">
                 Game over: too many missed payments and demands.
               </p>

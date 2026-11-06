@@ -20,9 +20,43 @@ defmodule MyLiege.Engine.Rules.TaxesTest do
     end
 
     test "paid in full, skipped on purpose, or missed; no partial payments" do
-      assert Taxes.settle(150_000, 120_000, true) == {:paid, 30_000}
-      assert Taxes.settle(150_000, 120_000, false) == {:skipped, 150_000}
-      assert Taxes.settle(100_000, 120_000, true) == {:missed, 100_000}
+      assert {:paid, 30_000, 0} = Taxes.settle(150_000, 120_000, true)
+      assert {:skipped, _gold, _taken} = Taxes.settle(150_000, 120_000, false)
+      assert {:missed, _gold, _taken} = Taxes.settle(100_000, 120_000, true)
+    end
+
+    test "on a skip or a miss the king takes the gold there is, up to the tax" do
+      # tax 120, gold 100: missed, and the 100 gold are taken
+      assert Taxes.settle(100_000, 120_000, true) == {:missed, 0, 100_000}
+      assert Taxes.settle(150_000, 120_000, false) == {:skipped, 30_000, 120_000}
+      assert Taxes.settle(50_000, 120_000, false) == {:skipped, 0, 50_000}
+      assert Taxes.settle(0, 120_000, true) == {:missed, 0, 0}
+    end
+  end
+
+  describe "R7: grace period" do
+    test "no payment and no count inside it; then the regular weeks", %{config: config} do
+      config = %{config | grace_weeks: 24}
+
+      assert Enum.filter(1..144, &Taxes.due_week?(&1, config)) == [48, 72, 96, 120, 144]
+      assert Enum.filter(1..144, &Taxes.count_week?(&1, config)) == [44, 68, 92, 116, 140]
+    end
+
+    test "the first due week is the first regular one after it", %{config: config} do
+      assert Taxes.next_due_week(0, %{config | grace_weeks: 24}) == 48
+      assert Taxes.next_due_week(24, %{config | grace_weeks: 24}) == 48
+      assert Taxes.next_due_week(0, %{config | grace_weeks: 30}) == 48
+      assert Taxes.next_due_week(0, %{config | grace_weeks: 48}) == 72
+      assert Taxes.next_due_week(0, config) == 24
+    end
+
+    test "nothing is counted or collected until week 48", %{config: config} do
+      config = %{config | grace_weeks: 24}
+      game = EngineFixtures.game_without_demands(config, 1)
+      {reports, _game} = EngineFixtures.run_weeks(game, 48)
+
+      assert Enum.filter(reports, & &1.tax_due) |> Enum.map(& &1.week) == [44]
+      assert Enum.filter(reports, & &1.tax) |> Enum.map(&{&1.week, &1.tax}) == [{48, :paid}]
     end
   end
 
@@ -67,7 +101,7 @@ defmodule MyLiege.Engine.Rules.TaxesTest do
       assert game.tax_due == nil
     end
 
-    test "not enough gold: missed, gold kept, first miss forgiven", %{config: config} do
+    test "not enough gold: missed, first miss forgiven", %{config: config} do
       config = %{config | starting_gold: 0}
       game = EngineFixtures.game_without_demands(config, 1)
       {reports, game} = EngineFixtures.run_weeks(game, 24)
@@ -79,14 +113,32 @@ defmodule MyLiege.Engine.Rules.TaxesTest do
       refute week_24.game_over
     end
 
+    test "missed: the king takes the gold there is", %{config: config} do
+      # 5 gold, less than any tax
+      game = EngineFixtures.game_without_demands(%{config | starting_gold: 5}, 1)
+      game = run_weeks(game, 23)
+      gold = game.stocks.gold
+      assert gold == 5_000
+      {[week_24], game} = EngineFixtures.run_weeks(game, 1)
+
+      assert week_24.tax == :missed
+      assert week_24.king_took == %{gold: gold, food: 0}
+      assert week_24.gold == 0
+      assert game.misses == 1
+    end
+
     test "the player can skip a payment on purpose; the decision resets", %{config: config} do
       config = %{config | starting_gold: 1000}
       game = run_weeks(Game.new(config, 1), 23)
+      %{tax_due: due, misses: misses} = game
       {:ok, game} = Game.decide_tax(game, false)
       {:ok, report, game} = Game.run_week(game)
 
+      # skipped with enough gold: a miss, and the king takes the full tax
       assert report.tax == :skipped
-      assert report.gold == 1_000_000
+      assert report.king_took.gold == due
+      assert report.gold == 1_000_000 - due
+      assert game.misses == misses + 1
       assert game.pay_tax == nil
     end
 

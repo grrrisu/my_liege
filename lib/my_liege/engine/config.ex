@@ -32,6 +32,7 @@ defmodule MyLiege.Engine.Config do
     :tax_interval_weeks,
     :tax_count_lead_weeks,
     :tax_misses_forgiven,
+    :grace_weeks,
     :training_threshold,
     :training_weeks,
     :demand_deadline_weeks,
