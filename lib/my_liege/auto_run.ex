@@ -24,6 +24,11 @@ defmodule MyLiege.AutoRun do
     placed as in `:pivot`.
   - `:feed_save_tax` – "Feed, save for tax": places as `:feed`, but orders a building only
     when `tax_safe_to_build?/1` allows it; otherwise the worker waits.
+  - `:feed_defend` – "Feed, defend": as `:feed`, but while bandits are on their way, before
+    anything else, workers move to watchtowers (`defend/1`). Moved workers stay there after
+    the raid; from then on it plays as `:feed` again.
+  - `:feed_invest_defend` – "Feed, invest and defend": as `:feed_defend`, but orders a
+    building only when `invest_allowed?/3` allows it; otherwise the worker waits.
 
   The next tax is `Forecast.tax_amount/1`: the amount fixed at the count, or before the count
   `tax_per_worker` for every current worker.
@@ -62,14 +67,15 @@ defmodule MyLiege.AutoRun do
   """
 
   alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Manameter}
-  alias MyLiege.Engine.Rules.Travel
+  alias MyLiege.Engine.Rules.{Bandits, Production, Travel}
 
   @weeks_per_year Game.weeks_per_year()
 
   # the plan's pivot measure: "how many weeks red needs to gain 20 points"
   @points 200
 
-  @patterns [:stay, :pivot, :feed, :feed_pivot, :feed_save_tax]
+  @patterns [:stay, :pivot, :feed, :feed_pivot, :feed_save_tax, :feed_defend, :feed_invest_defend]
+  @defending [:feed_defend, :feed_invest_defend]
 
   @summary_header [
     "pattern",
@@ -112,6 +118,7 @@ defmodule MyLiege.AutoRun do
         else
           acted =
             g
+            |> defend_if(pattern in @defending)
             |> staff_sites()
             |> place_unplaced(target, may_build?)
             |> always_pay()
@@ -152,8 +159,158 @@ defmodule MyLiege.AutoRun do
     end
   end
 
-  defp may_build?(:feed_save_tax), do: &tax_safe_to_build?/1
-  defp may_build?(_pattern), do: fn _game -> true end
+  # each takes the game, the type to order and the workers waiting for it
+  defp may_build?(:feed_save_tax), do: fn game, _type, _waiting -> tax_safe_to_build?(game) end
+  defp may_build?(:feed_invest_defend), do: &invest_allowed?/3
+  defp may_build?(_pattern), do: fn _game, _type, _waiting -> true end
+
+  @doc """
+  "Feed, invest and defend": whether a building of `type` may be ordered now for the
+  `waiting` workers. A farm always while food is low (as in `:feed`). Otherwise only if the
+  forecast gold for the next tax week (`Forecast.next_tax/1`; in week 0 the gold now) minus
+  the price plus what the building is expected to earn until that week still covers the tax.
+  Only a market earns gold: from its first producing week, ordered now + 1 + 2 ×
+  `travel_weeks` (builders, then workers) + `construction_weeks`, to the tax week, with the
+  waiting workers up to its capacity. With no tax left in the game, always.
+  """
+  def invest_allowed?(%Game{} = game, type, waiting) do
+    if type == :farm and food_low?(game) do
+      true
+    else
+      case Forecast.next_tax(game) do
+        nil ->
+          true
+
+        %{amount: amount, expected_gold: expected, due_week: due_week} ->
+          gold = (expected || game.stocks.gold) - Game.build_cost(game)
+          gold + earnings(game, type, waiting, due_week) >= amount
+      end
+    end
+  end
+
+  defp earnings(game, :market, waiting, due_week) do
+    config = game.config
+    first_week = game.week + 1 + 2 * config.travel_weeks + config.construction_weeks
+    market = %Building{id: 0, type: :market}
+
+    per_week =
+      waiting
+      |> Enum.take(Map.fetch!(config.capacity, :market))
+      |> Enum.sum_by(&Production.worker_output(&1, market, config))
+
+    per_week * max(due_week - first_week + 1, 0)
+  end
+
+  defp earnings(_game, _type, _waiting, _due_week), do: 0
+
+  @doc """
+  "Feed, defend": while bandits are on their way, moves workers to finished watchtowers with
+  room until the protected gold in the raid week (the watchtowers' expected defence
+  production × `bandit_cover_weeks`) covers the gold forecast for the raid week (the gold now
+  plus last week's change for every week left), or no more workers can move. Only workers
+  who arrive before the raid week count, so nobody moves once it is too late.
+
+  First the unplaced workers who have arrived, red ones first. Then workers taken from
+  finished path buildings (not watchtowers, sites or the guildhouse): from the product with
+  the largest stock change last week, as long as that change stays at 0 or more without the
+  worker's output.
+  """
+  def defend(%Game{} = game) do
+    if Bandits.on_their_way?(game.bandits) and arrives_in_time?(game) do
+      gold = raid_gold(game)
+      defence = raid_defence(game)
+      move_defenders(game, defence, gold, surplus(game))
+    else
+      game
+    end
+  end
+
+  defp defend_if(game, true), do: defend(game)
+  defp defend_if(game, false), do: game
+
+  # a worker moved now travels `travel_weeks` and works from the week after
+  defp arrives_in_time?(game),
+    do: game.week + 1 + game.config.travel_weeks <= game.bandits.raid_week
+
+  defp raid_gold(game) do
+    change = with %{change: change} <- Forecast.gold(game), do: change
+    game.stocks.gold + (change || 0) * (game.bandits.raid_week - game.week)
+  end
+
+  # defence produced in the raid week by workers already in watchtowers
+  defp raid_defence(game) do
+    raid_week = game.bandits.raid_week
+    towers = Map.new(watchtowers(game, raid_week), &{&1.id, &1})
+
+    game.workers
+    |> Enum.filter(
+      &(Map.has_key?(towers, &1.building) and game.week + 1 + &1.travel <= raid_week)
+    )
+    |> Enum.sum_by(&Production.worker_output(&1, Map.fetch!(towers, &1.building), game.config))
+  end
+
+  defp watchtowers(game, week),
+    do: Enum.filter(game.buildings, &(&1.type == :watchtower and Building.ready?(&1, week)))
+
+  defp move_defenders(game, defence, gold, surplus) do
+    with true <- Bandits.protected(defence, game.config) < gold,
+         {worker, surplus} <- next_defender(game, surplus),
+         {:ok, game, tower} <- place_in_tower(game, worker) do
+      output = Production.worker_output(worker, tower, game.config)
+      move_defenders(game, defence + output, gold, surplus)
+    else
+      _ -> game
+    end
+  end
+
+  defp next_defender(game, surplus) do
+    case Enum.sort_by(available(game), &(&1.colour != :red)) do
+      [worker | _] -> {worker, surplus}
+      [] -> spare_worker(game, surplus)
+    end
+  end
+
+  # a producing worker whose product keeps a change of 0 or more without it
+  defp spare_worker(game, surplus) do
+    buildings = Map.new(game.buildings, &{&1.id, &1})
+
+    candidates =
+      for worker <- game.workers,
+          building = buildings[worker.building],
+          building != nil,
+          spare_building?(building, game.week),
+          not Travel.travelling?(worker),
+          product = Building.product(building),
+          output = Production.worker_output(worker, building, game.config),
+          Map.fetch!(surplus, product) - output >= 0,
+          do: {worker, product, output}
+
+    case Enum.max_by(candidates, fn {_, product, _} -> Map.fetch!(surplus, product) end, fn ->
+           nil
+         end) do
+      nil -> nil
+      {worker, product, output} -> {worker, Map.update!(surplus, product, &(&1 - output))}
+    end
+  end
+
+  defp spare_building?(building, week),
+    do:
+      building.type not in [:watchtower, :guildhouse] and not Building.site?(building) and
+        Building.ready?(building, week + 1)
+
+  defp surplus(%Game{report: %{stock_change: nil}}), do: Map.new(Building.products(), &{&1, 0})
+  defp surplus(%Game{report: report}), do: report.stock_change
+
+  defp place_in_tower(game, worker) do
+    game
+    |> watchtowers(game.week + 1)
+    |> Enum.find_value(fn tower ->
+      case Game.place_worker(game, worker.id, tower.id) do
+        {:ok, game} -> {:ok, game, tower}
+        {:error, _} -> nil
+      end
+    end)
+  end
 
   @doc """
   Runs every pattern with every seed and returns a CSV: one row per pattern and seed, then
@@ -319,7 +476,8 @@ defmodule MyLiege.AutoRun do
     fn worker, _game -> pivot_type(worker, pivot_week) end
   end
 
-  defp target(:feed_save_tax, pivot_week), do: target(:feed, pivot_week)
+  defp target(pattern, pivot_week) when pattern in [:feed_save_tax | @defending],
+    do: target(:feed, pivot_week)
 
   defp target(:feed, _pivot_week) do
     fn worker, game ->
@@ -394,7 +552,7 @@ defmodule MyLiege.AutoRun do
             {game, waiting}
 
           :none ->
-            waiting = Map.update(waiting, type, 1, &(&1 + 1))
+            waiting = Map.update(waiting, type, [worker], &(&1 ++ [worker]))
             {order_if_needed(game, type, Map.fetch!(waiting, type), may_build?), waiting}
         end
       end)
@@ -413,15 +571,15 @@ defmodule MyLiege.AutoRun do
     end)
   end
 
-  defp order_if_needed(game, type, waiting_count, may_build?) do
+  defp order_if_needed(game, type, waiting, may_build?) do
     room_under_construction =
       game.buildings
       |> Enum.filter(&(&1.type == type and not Building.ready?(&1, game.week + 1)))
       |> Enum.map(&Map.fetch!(game.config.capacity, &1.type))
       |> Enum.sum()
 
-    with true <- waiting_count > room_under_construction,
-         true <- may_build?.(game),
+    with true <- length(waiting) > room_under_construction,
+         true <- may_build?.(game, type, waiting),
          {:ok, game} <- Game.construct(game, type) do
       game
     else

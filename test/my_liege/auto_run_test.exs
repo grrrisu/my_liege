@@ -2,7 +2,7 @@ defmodule MyLiege.AutoRunTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.AutoRun
-  alias MyLiege.Engine.{Building, Game, Manameter}
+  alias MyLiege.Engine.{Building, Game, Manameter, Worker}
   alias MyLiege.EngineFixtures
 
   setup do
@@ -257,6 +257,94 @@ defmodule MyLiege.AutoRunTest do
 
       assert AutoRun.tax_safe_to_build?(Game.new(config, 1))
     end
+  end
+
+  describe "Test A: Feed, defend" do
+    test "while bandits never set out, it plays like Feed", %{config: config} do
+      assert AutoRun.run(:feed_defend, config, 3) == AutoRun.run(:feed, config, 3)
+    end
+
+    test "moves unplaced workers to a watchtower until the raid's gold is protected" do
+      # the soldier protects 3 × 20 = 60 gold; a blue worker adds 2.4 × 20 = 48 > 100 - 60
+      game = on_their_way(EngineFixtures.config(), raid_week: 5)
+
+      game = %{
+        game
+        | workers: game.workers ++ [%Worker{id: 3, colour: :blue}, %Worker{id: 4, colour: :blue}]
+      }
+
+      game = AutoRun.defend(game)
+
+      assert Enum.map(game.workers, & &1.building) == [1, 2, 2, nil]
+    end
+
+    test "moves nobody when the gold is already protected" do
+      game = on_their_way(EngineFixtures.config(starting_gold: 10), raid_week: 5)
+      game = %{game | workers: game.workers ++ [%Worker{id: 3, colour: :red}]}
+
+      assert AutoRun.defend(game) == game
+    end
+
+    test "moves nobody who couldn't arrive before the raid" do
+      game = on_their_way(EngineFixtures.config(travel_weeks: 1), raid_week: 1)
+      game = %{game | workers: game.workers ++ [%Worker{id: 3, colour: :red}]}
+
+      assert AutoRun.defend(game) == game
+    end
+
+    test "takes a worker from a building only while its product keeps a surplus" do
+      game = on_their_way(EngineFixtures.config(), raid_week: 5)
+      # the farmer makes 9 food a week
+      with_surplus = last_change(game, food: 10_000)
+      without = last_change(game, food: 8_000)
+
+      assert hd(AutoRun.defend(with_surplus).workers).building == 2
+      assert hd(AutoRun.defend(without).workers).building == 1
+    end
+  end
+
+  describe "Test A: Feed, invest and defend" do
+    test "with plenty of gold it plays like Feed, defend" do
+      config = EngineFixtures.config(starting_gold: 1_000_000)
+
+      assert AutoRun.run(:feed_invest_defend, config, 2) == AutoRun.run(:feed_defend, config, 2)
+    end
+
+    test "a market's expected gold until the tax week counts" do
+      # 40 gold - 30 for the building leaves 10 for a tax of 20; a yellow worker in a market
+      # earns 3 a week from week 3 to the tax week 24
+      game = Game.new(EngineFixtures.config(starting_gold: 40, tax_per_worker: 10), 1)
+      waiting = [%Worker{id: 3, colour: :yellow}]
+
+      assert AutoRun.invest_allowed?(game, :market, waiting)
+      refute AutoRun.invest_allowed?(game, :monastery, waiting)
+    end
+
+    test "a farm is always allowed while food is low" do
+      game = Game.new(EngineFixtures.config(starting_gold: 0), 1)
+      hungry = %{game | stocks: %{game.stocks | food: -1}}
+
+      assert AutoRun.invest_allowed?(hungry, :farm, [])
+      refute AutoRun.invest_allowed?(game, :farm, [])
+    end
+
+    test "always when no tax is left in the game" do
+      config =
+        EngineFixtures.config(starting_gold: 0, years_per_game: 1, tax_interval_weeks: 100)
+
+      assert AutoRun.invest_allowed?(Game.new(config, 1), :tavern, [])
+    end
+  end
+
+  # a new game (gold 100, a farmer and a soldier) with bandits raiding in `raid_week`
+  defp on_their_way(config, raid_week: raid_week) do
+    game = Game.new(config, 1)
+    %{game | bandits: %{threat: 0, raid_week: raid_week}}
+  end
+
+  defp last_change(game, changes) do
+    change = Map.merge(Map.new(Building.products(), &{&1, 0}), Map.new(changes))
+    %{game | report: %{game.report | stock_change: change}}
   end
 
   describe "Test A: summary" do
