@@ -14,7 +14,7 @@ tax_misses_forgiven,1
 factor_same_untrained,1000
 factor_neighbour_untrained,800
 factor_opposite_untrained,500
-factor_same_trained,1250
+factor_same_trained,1500
 factor_neighbour_trained,600
 factor_opposite_trained,300
 manameter_start_green,200
