@@ -55,7 +55,7 @@ File.write!("run_42.csv", MyLiege.Reporting.to_csv([Game.report(Game.new(config,
 
 ### Test A (auto-run)
 
-Plays a fixed pattern (`:stay`, `:pivot`, `:feed` or `:feed_pivot`) with random births from a seed. The pattern always tries to pay taxes; a run ends early at game over:
+Plays a fixed pattern (`:stay`, `:pivot`, `:feed`, `:feed_pivot` or `:feed_save_tax`) with random births from a seed. The pattern always tries to pay taxes; a run ends early at game over. `:feed_save_tax` ("Feed, save for tax") plays like `:feed` but only orders a building if the forecast gold for the next tax week, minus the price, still covers that tax, and never right after a week in which gold left the stock (tax, the king's takings, a delivered demand, robbery). Add `weeks: 48` to `AutoRun.run/4` to stop a run after 48 weeks:
 
 ```elixir
 alias MyLiege.AutoRun
@@ -82,6 +82,26 @@ Enum.each(0..20, fn seed ->
   File.write!("feed_#{seed}.csv", MyLiege.Reporting.to_csv(runs))
 end)
 ```
+
+Summary of several patterns over the same seeds, e.g. Feed and "Feed, save for tax" with 20 seeds for 48 weeks:
+
+```elixir
+alias MyLiege.AutoRun
+alias MyLiege.Engine.Config
+
+config = Config.from_csv()
+csv = AutoRun.summary_csv([:feed, :feed_save_tax], config, 1..20, weeks: 48)
+File.write!("summary.csv", csv)
+```
+
+One row per pattern and seed, then a `total` row per pattern that sums its seeds. Gold is in whole gold:
+
+- `first_tax_week`: week of the first tax payment (empty if the run ended before it, and in the totals).
+- `first_tax_paid`, `first_tax_missed`: 1 or 0.
+- `first_tax_gold_difference`: gold at the end of the week before the first tax week minus the tax.
+- `buildings_ordered`: buildings ordered while the game stood at weeks 1–48.
+- `weeks_food_below_0`: weeks that ended with food below 0.
+- `gold_robbed`: gold the bandits took in the run.
 
 Units:
 
