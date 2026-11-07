@@ -2,7 +2,7 @@ defmodule MyLiege.AutoRunTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.AutoRun
-  alias MyLiege.Engine.{Building, Manameter}
+  alias MyLiege.Engine.{Building, Game, Manameter}
   alias MyLiege.EngineFixtures
 
   setup do
@@ -193,6 +193,159 @@ defmodule MyLiege.AutoRunTest do
         assert Map.fetch!(buildings, worker.building).type == :watchtower
       end
     end
+  end
+
+  describe "Test A: Feed, save for tax" do
+    test "when gold never leaves the stock and enough is left, it plays like Feed" do
+      # tax 0, no demands, no spoilage and no robbery: nothing takes gold away
+      config =
+        EngineFixtures.config(
+          starting_gold: 1_000_000,
+          tax_per_worker: 0,
+          demand_population_share: 0
+        )
+
+      {reports, _game} = feed = AutoRun.run(:feed, config, 2)
+
+      assert Enum.any?(reports, &(&1.gold_spent_buildings > 0))
+      assert AutoRun.run(:feed_save_tax, config, 2) == feed
+    end
+
+    test "doesn't order a building that would leave too little for the next tax" do
+      # full buildings, so the newborn of week 1 needs a new one; 30 gold covers either the
+      # building or the tax of 3 workers, not both
+      config =
+        EngineFixtures.config(
+          capacity: %{farm: 1, monastery: 1, watchtower: 1, market: 1, tavern: 1, guildhouse: 1},
+          starting_gold: 30,
+          tax_per_worker: 10,
+          demand_population_share: 0
+        )
+
+      {feed, _} = AutoRun.run(:feed, config, 1, weeks: 2)
+      {save, _} = AutoRun.run(:feed_save_tax, config, 1, weeks: 2)
+
+      assert Enum.at(feed, 1).gold_spent_buildings == 30_000
+      assert Enum.at(save, 1).gold_spent_buildings == 0
+    end
+  end
+
+  describe "Test A: tax_safe_to_build?/1" do
+    test "in week 0 the gold now minus the price must cover the next tax" do
+      # 2 workers × 10 = 20 tax, the building costs 30
+      enough = Game.new(EngineFixtures.config(starting_gold: 50, tax_per_worker: 10), 1)
+      short = Game.new(EngineFixtures.config(starting_gold: 49, tax_per_worker: 10), 1)
+
+      assert AutoRun.tax_safe_to_build?(enough)
+      refute AutoRun.tax_safe_to_build?(short)
+    end
+
+    test "not after a week in which gold left the stock, but again in the week after" do
+      config = EngineFixtures.config(starting_gold: 1000, demand_population_share: 0)
+      {_reports, game} = EngineFixtures.run_weeks(Game.new(config, 1), 24)
+
+      assert game.report.tax == :paid
+      refute AutoRun.tax_safe_to_build?(game)
+
+      {_reports, game} = EngineFixtures.run_weeks(game, 1)
+      assert AutoRun.tax_safe_to_build?(game)
+    end
+
+    test "always when no tax is left in the game" do
+      config =
+        EngineFixtures.config(starting_gold: 0, years_per_game: 1, tax_interval_weeks: 100)
+
+      assert AutoRun.tax_safe_to_build?(Game.new(config, 1))
+    end
+  end
+
+  describe "Test A: summary" do
+    test "a run stops after `weeks`", %{config: config} do
+      {reports, game} = AutoRun.run(:feed, config, 1, weeks: 10)
+
+      assert Enum.map(reports, & &1.week) == Enum.to_list(0..10)
+      assert game.week == 10
+    end
+
+    test "one row per pattern and seed, then the totals per pattern", %{config: config} do
+      csv = AutoRun.summary_csv([:feed, :feed_save_tax], config, 1..2, weeks: 30)
+      [header | rows] = csv |> String.split("\n", trim: true) |> Enum.map(&String.split(&1, ","))
+
+      assert header == ~w(pattern seed first_tax_week first_tax_paid first_tax_missed
+                          first_tax_gold_difference buildings_ordered weeks_food_below_0
+                          gold_robbed)
+
+      assert Enum.map(rows, &Enum.take(&1, 2)) == [
+               ["feed", "1"],
+               ["feed", "2"],
+               ["feed", "total"],
+               ["feed_save_tax", "1"],
+               ["feed_save_tax", "2"],
+               ["feed_save_tax", "total"]
+             ]
+
+      for [pattern, seed | _] = row <- rows, seed != "total" do
+        {reports, _game} =
+          AutoRun.run(String.to_existing_atom(pattern), config, String.to_integer(seed),
+            weeks: 30
+          )
+
+        assert parse(row) == expected_row(pattern, seed, reports)
+      end
+
+      for [pattern, "total" | _] = total <- rows do
+        seeds = for [^pattern, seed | _] = row <- rows, seed != "total", do: parse(row)
+        [_, _, first_tax_week | sums] = parse(total)
+
+        # first_tax_week isn't summed
+        assert first_tax_week == nil
+
+        for {sum, column} <- Enum.with_index(sums, 3) do
+          assert sum == seeds |> Enum.map(&Enum.at(&1, column)) |> Enum.sum()
+        end
+      end
+    end
+  end
+
+  # gold columns (5 and 8) are whole gold in the CSV; compared in thousandths
+  defp parse([pattern, seed | values]) do
+    values =
+      values
+      |> Enum.with_index(2)
+      |> Enum.map(fn
+        {"", _} ->
+          nil
+
+        {value, column} when column in [5, 8] ->
+          value |> Float.parse() |> elem(0) |> Kernel.*(1000) |> round()
+
+        {value, _} ->
+          String.to_integer(value)
+      end)
+
+    [pattern, seed | values]
+  end
+
+  # the summary row computed from the reports
+  defp expected_row(pattern, seed, reports) do
+    first_tax = Enum.find(reports, & &1.tax)
+    before = Enum.find(reports, &(&1.week == first_tax.week - 1))
+    counted = reports |> Enum.filter(&(&1.week < first_tax.week and &1.tax_due)) |> List.last()
+
+    ordered =
+      reports |> Enum.filter(&(&1.week in 1..48)) |> Enum.sum_by(& &1.gold_spent_buildings)
+
+    [
+      pattern,
+      seed,
+      first_tax.week,
+      if(first_tax.tax == :paid, do: 1, else: 0),
+      if(first_tax.tax == :missed, do: 1, else: 0),
+      before.gold - counted.tax_due,
+      div(ordered, 30_000),
+      Enum.count(reports, &(&1.food_left < 0)),
+      Enum.sum_by(reports, & &1.gold_robbed)
+    ]
   end
 
   describe "Test A: records" do

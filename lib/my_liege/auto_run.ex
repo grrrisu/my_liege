@@ -22,6 +22,8 @@ defmodule MyLiege.AutoRun do
   - `:feed_pivot` – a newborn goes to a farm when food is low as in `:feed`; workers born
     before `pivot_week` go to a market while gold is low as in `:feed`; otherwise it is
     placed as in `:pivot`.
+  - `:feed_save_tax` – "Feed, save for tax": places as `:feed`, but orders a building only
+    when `tax_safe_to_build?/1` allows it; otherwise the worker waits.
 
   The next tax is `Forecast.tax_amount/1`: the amount fixed at the count, or before the count
   `tax_per_worker` for every current worker.
@@ -52,6 +54,11 @@ defmodule MyLiege.AutoRun do
   Export one run as CSV:
 
       File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
+
+  Summary of Feed and "Feed, save for tax" over 20 seeds, 48 weeks each (see `summary_csv/4`):
+
+      csv = AutoRun.summary_csv([:feed, :feed_save_tax], config, 1..20, weeks: 48)
+      File.write!("summary.csv", csv)
   """
 
   alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Manameter}
@@ -62,37 +69,189 @@ defmodule MyLiege.AutoRun do
   # the plan's pivot measure: "how many weeks red needs to gain 20 points"
   @points 200
 
+  @patterns [:stay, :pivot, :feed, :feed_pivot, :feed_save_tax]
+
+  @summary_header [
+    "pattern",
+    "seed",
+    "first_tax_week",
+    "first_tax_paid",
+    "first_tax_missed",
+    "first_tax_gold_difference",
+    "buildings_ordered",
+    "weeks_food_below_0",
+    "gold_robbed"
+  ]
+
   @doc """
   Runs one game. Returns `{reports, game}`; reports start with week 0. The pattern always
   tries to pay taxes and deliver the king's demands; the run ends early at game over.
-  Option `:pivot_week` defaults to #{@weeks_per_year}.
+  Options: `:pivot_week` defaults to #{@weeks_per_year}; `:weeks` stops the run after that
+  many weeks (default: the whole game).
   """
-  def run(pattern, %Config{} = config, seed, opts \\ [])
-      when pattern in [:stay, :pivot, :feed, :feed_pivot] do
+  def run(pattern, %Config{} = config, seed, opts \\ []) when pattern in @patterns do
+    {reports, game, _orders} = play(pattern, config, seed, opts)
+    {reports, game}
+  end
+
+  # also returns the buildings ordered per week: `%{week => count}`, by the state they were
+  # ordered at
+  defp play(pattern, config, seed, opts) do
     target = target(pattern, Keyword.get(opts, :pivot_week, @weeks_per_year))
+    may_build? = may_build?(pattern)
     start = Game.new(config, seed)
 
-    weeks = 1..Game.last_week(start)
+    last_week = min(Keyword.get(opts, :weeks, Game.last_week(start)), Game.last_week(start))
 
     # a week's report is kept after the pattern has acted on it, so it includes the gold spent
     # on buildings ordered then
-    {reports, game} =
-      Enum.reduce_while(weeks, {[], start}, fn _, {reports, g} ->
+    {reports, orders, game} =
+      Enum.reduce_while(1..last_week//1, {[], %{}, start}, fn _, {reports, orders, g} ->
         if g.game_over do
-          {:halt, {reports, g}}
+          {:halt, {reports, orders, g}}
         else
-          g =
+          acted =
             g
             |> staff_sites()
-            |> place_unplaced(target)
+            |> place_unplaced(target, may_build?)
             |> always_pay()
 
-          {:ok, _report, next} = Game.run_week(g)
-          {:cont, {[Game.report(g) | reports], next}}
+          orders = Map.put(orders, g.week, length(acted.buildings) - length(g.buildings))
+          {:ok, _report, next} = Game.run_week(acted)
+          {:cont, {[Game.report(acted) | reports], orders, next}}
         end
       end)
 
-    {Enum.reverse([Game.report(game) | reports]), game}
+    {Enum.reverse([Game.report(game) | reports]), game, orders}
+  end
+
+  @doc """
+  "Feed, save for tax": whether a building may be ordered now. Not after a week in which gold
+  left the stock other than by spoilage (tax, the king's takings, a delivered demand,
+  robbery), because that week's change would distort the forecast. Otherwise only if the
+  forecast gold for the next tax week (`Forecast.next_tax/1`; in week 0, which has no
+  forecast, the gold now) minus the building's price still covers the tax. With no tax left
+  in the game, always.
+  """
+  def tax_safe_to_build?(%Game{} = game) do
+    not gold_left_last_week?(game) and covers_next_tax?(game)
+  end
+
+  defp gold_left_last_week?(%Game{report: %{stock_change: nil}}), do: false
+
+  defp gold_left_last_week?(%Game{report: report}),
+    do: report.production.gold - report.spoiled.gold - report.stock_change.gold > 0
+
+  defp covers_next_tax?(game) do
+    case Forecast.next_tax(game) do
+      nil ->
+        true
+
+      %{amount: amount, expected_gold: expected} ->
+        (expected || game.stocks.gold) - Game.build_cost(game) >= amount
+    end
+  end
+
+  defp may_build?(:feed_save_tax), do: &tax_safe_to_build?/1
+  defp may_build?(_pattern), do: fn _game -> true end
+
+  @doc """
+  Runs every pattern with every seed and returns a CSV: one row per pattern and seed, then
+  a row per pattern with `seed` = `total` that sums the columns over its seeds. Takes the
+  same options as `run/4`.
+
+  - `first_tax_week`: the week of the first tax payment (empty if the run ended before it;
+    empty in the totals).
+  - `first_tax_paid`, `first_tax_missed`: 1 or 0.
+  - `first_tax_gold_difference`: gold at the end of the week before the first tax week minus
+    the tax amount.
+  - `buildings_ordered`: buildings ordered while the game stood at weeks 1 to
+    #{@weeks_per_year}.
+  - `weeks_food_below_0`: weeks of the run that ended with food below 0.
+  - `gold_robbed`: gold the bandits took in the run.
+
+  Gold is in whole gold, not thousandths.
+  """
+  def summary_csv(patterns, %Config{} = config, seeds, opts \\ []) do
+    rows =
+      Enum.flat_map(patterns, fn pattern ->
+        runs = for seed <- seeds, do: summary(pattern, seed, play(pattern, config, seed, opts))
+        runs ++ [totals(pattern, runs)]
+      end)
+
+    Enum.map_join(
+      [@summary_header | Enum.map(rows, &summary_row/1)],
+      &(Enum.join(&1, ",") <> "\n")
+    )
+  end
+
+  defp summary(pattern, seed, {reports, _game, orders}) do
+    first_tax = Enum.find(reports, &(&1.tax != nil))
+
+    %{
+      pattern: pattern,
+      seed: seed,
+      first_tax_week: first_tax && first_tax.week,
+      first_tax_paid: first_tax && if(first_tax.tax == :paid, do: 1, else: 0),
+      first_tax_missed: first_tax && if(first_tax.tax == :missed, do: 1, else: 0),
+      first_tax_gold_difference: first_tax && gold_difference(reports, first_tax.week),
+      buildings_ordered:
+        orders |> Enum.filter(fn {week, _} -> week in 1..@weeks_per_year end) |> sum_values(),
+      weeks_food_below_0: Enum.count(reports, &(&1.food_left < 0)),
+      gold_robbed: Enum.sum_by(reports, & &1.gold_robbed)
+    }
+  end
+
+  # the amount is fixed in the count week, the last report before the payment with `tax_due`
+  defp gold_difference(reports, due_week) do
+    before = Enum.find(reports, &(&1.week == due_week - 1))
+    counted = reports |> Enum.filter(&(&1.week < due_week and &1.tax_due)) |> List.last()
+    before.gold - counted.tax_due
+  end
+
+  defp totals(pattern, runs) do
+    sum = fn key ->
+      runs |> Enum.map(&Map.fetch!(&1, key)) |> Enum.reject(&is_nil/1) |> sum_or_nil()
+    end
+
+    %{
+      pattern: pattern,
+      seed: "total",
+      first_tax_week: nil,
+      first_tax_paid: sum.(:first_tax_paid),
+      first_tax_missed: sum.(:first_tax_missed),
+      first_tax_gold_difference: sum.(:first_tax_gold_difference),
+      buildings_ordered: sum.(:buildings_ordered),
+      weeks_food_below_0: sum.(:weeks_food_below_0),
+      gold_robbed: sum.(:gold_robbed)
+    }
+  end
+
+  defp sum_values(pairs), do: Enum.sum_by(pairs, &elem(&1, 1))
+
+  defp sum_or_nil([]), do: nil
+  defp sum_or_nil(values), do: Enum.sum(values)
+
+  defp summary_row(summary) do
+    [
+      summary.pattern,
+      summary.seed,
+      summary.first_tax_week,
+      summary.first_tax_paid,
+      summary.first_tax_missed,
+      whole_gold(summary.first_tax_gold_difference),
+      summary.buildings_ordered,
+      summary.weeks_food_below_0,
+      whole_gold(summary.gold_robbed)
+    ]
+  end
+
+  defp whole_gold(nil), do: nil
+
+  defp whole_gold(amount) do
+    if rem(amount, Fixed.scale()) == 0,
+      do: div(amount, Fixed.scale()),
+      else: :erlang.float_to_binary(amount / Fixed.scale(), [:compact, decimals: 3])
   end
 
   @doc """
@@ -160,6 +319,8 @@ defmodule MyLiege.AutoRun do
     fn worker, _game -> pivot_type(worker, pivot_week) end
   end
 
+  defp target(:feed_save_tax, pivot_week), do: target(:feed, pivot_week)
+
   defp target(:feed, _pivot_week) do
     fn worker, game ->
       cond do
@@ -221,7 +382,7 @@ defmodule MyLiege.AutoRun do
   defp available(game),
     do: Enum.filter(game.workers, &(is_nil(&1.building) and not Travel.travelling?(&1)))
 
-  defp place_unplaced(game, target) do
+  defp place_unplaced(game, target, may_build?) do
     {game, _waiting} =
       game
       |> available()
@@ -234,7 +395,7 @@ defmodule MyLiege.AutoRun do
 
           :none ->
             waiting = Map.update(waiting, type, 1, &(&1 + 1))
-            {order_if_needed(game, type, Map.fetch!(waiting, type)), waiting}
+            {order_if_needed(game, type, Map.fetch!(waiting, type), may_build?), waiting}
         end
       end)
 
@@ -252,7 +413,7 @@ defmodule MyLiege.AutoRun do
     end)
   end
 
-  defp order_if_needed(game, type, waiting_count) do
+  defp order_if_needed(game, type, waiting_count, may_build?) do
     room_under_construction =
       game.buildings
       |> Enum.filter(&(&1.type == type and not Building.ready?(&1, game.week + 1)))
@@ -260,6 +421,7 @@ defmodule MyLiege.AutoRun do
       |> Enum.sum()
 
     with true <- waiting_count > room_under_construction,
+         true <- may_build?.(game),
          {:ok, game} <- Game.construct(game, type) do
       game
     else
