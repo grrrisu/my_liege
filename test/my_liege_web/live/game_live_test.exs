@@ -201,6 +201,19 @@ defmodule MyLiegeWeb.GameLiveTest do
     refute has_element?(view, "#grace-period")
   end
 
+  test "happiness of the last week is shown next to the stocks, from week 1", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#happiness")
+    refute has_element?(view, "#happiness-now")
+
+    # no tavern: in the grace period the step is 0, but it would be −3
+    next_week(view)
+    assert has_element?(view, "#happiness-now", "step 0")
+    assert has_element?(view, "#happiness", "would be -3")
+    refute has_element?(view, "#forecast-happiness")
+  end
+
   test "the download button sends the CSV report of all weeks so far", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
     for _ <- 1..2, do: next_week(view)

@@ -45,7 +45,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
 | 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2) | `Production` → `Rules.Production.output/4`, `Rules.Demands.feed/2` | placed workers with travel 0 in buildings ready this week; an open, unrefused project | `report.production`; the project's product into `demand.progress` up to its amount, the rest added to `stocks`; `report.demand_progress` |
+| 1 | Production (R2), happiness (R11) | `Production` → `Rules.Production.output/4`, `Rules.Happiness.assess/4` and `apply_step/3`, `Rules.Demands.feed/2` | placed workers with travel 0 in buildings ready this week; **all** workers at the start of the week (population); an open, unrefused project | `report.production` (food and defence after the happiness step); `report.happiness` (`ratio`, `step`, `step_without_grace`); the project's product into `demand.progress` up to its amount, the rest added to `stocks`; `report.demand_progress` |
 | 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
@@ -68,6 +68,9 @@ Consequences of the order:
   the end of week M, they can be placed again from state M + 1.
 - A newborn is added after eating, so it eats from the following week; it is unplaced.
 - Production and mana use the workers as placed before the week started.
+- Happiness (R11) changes food and defence inside step 1, before anything goes to a stock or a
+  project, so eating and bandits see the changed production; a newborn counts in the
+  population from the following week.
 - Bandits see the gold after taxes and demands: paying the king lowers the pressure, and a
   raid never causes a tax or demand miss.
 - Births, taxes, demands and bandits see the stocks before spoilage; spoilage rounds down and leaves

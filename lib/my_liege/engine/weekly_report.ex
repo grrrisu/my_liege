@@ -17,6 +17,10 @@ defmodule MyLiege.Engine.WeeklyReport do
   the end of the week before), `bandits_weeks_to_raid` (end of week, `nil` if none are on their way),
   `bandit_raid` (`:repelled` or `:robbed` in a raid week) and `gold_robbed`.
 
+  R11 `happiness`: `ratio` (per mille), `step` (applied, 0 in the grace period) and
+  `step_without_grace` (the step the ratio gives); `nil` in week 0.
+  `production` holds food and defence after the step.
+
   For the forecasts (`Forecast`): `stock_change` is every stock at the end of the week minus at
   its start (one-off payments, the king's takings and robbery included; gold spent on buildings
   between weeks is not), `nil` in week 0. `project_change` is what an open king's project gained
@@ -54,6 +58,7 @@ defmodule MyLiege.Engine.WeeklyReport do
     bandits_weeks_to_raid: nil,
     bandit_raid: nil,
     gold_robbed: 0,
+    happiness: nil,
     stock_change: nil,
     project_change: nil,
     game_over: false
@@ -86,6 +91,8 @@ defmodule MyLiege.Engine.WeeklyReport do
           bandits_weeks_to_raid: non_neg_integer() | nil,
           bandit_raid: :repelled | :robbed | nil,
           gold_robbed: integer(),
+          happiness:
+            %{ratio: non_neg_integer(), step: integer(), step_without_grace: integer()} | nil,
           stock_change: %{atom() => integer()} | nil,
           project_change: integer() | nil,
           game_over: boolean()

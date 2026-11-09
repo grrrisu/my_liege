@@ -62,3 +62,13 @@ bandit_threshold,10
 bandit_warning_weeks,4
 bandit_cover_weeks,10
 bandit_floor_step,2
+happiness_culture_per_worker,1000
+happiness_penalty_1_below,750
+happiness_penalty_2_below,500
+happiness_penalty_3_below,250
+happiness_bonus_1_from,1250
+happiness_bonus_2_from,1750
+happiness_bonus_3_from,2500
+happiness_step_1,100
+happiness_step_2,200
+happiness_step_3,300

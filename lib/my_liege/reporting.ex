@@ -21,6 +21,9 @@ defmodule MyLiege.Reporting do
   production, empty in week 0; `bandit_threat` (thousandths) and `bandits_weeks_to_raid` are at
   the end of the week, the latter empty when no bandits are on their way (also in the raid
   week); `gold_robbed` is what the bandits took that week, before spoilage.
+  R11: `happiness_ratio` is the week's entertainment production ÷ what the population needs,
+  in per mille; `happiness_step` (−3 to 3, a plain number) is the step applied to food and
+  defence, 0 in the grace period. Both empty in week 0.
   """
 
   alias MyLiege.Engine.{Building, Manameter}
@@ -41,6 +44,7 @@ defmodule MyLiege.Reporting do
       Enum.map(Building.products(), &"spoiled_#{&1}") ++
       ["gold_spent_buildings"] ++
       ["bandit_pressure", "bandit_threat", "bandits_weeks_to_raid", "gold_robbed"] ++
+      ["happiness_ratio", "happiness_step"] ++
       ["game_over"]
   end
 
@@ -72,6 +76,8 @@ defmodule MyLiege.Reporting do
         report.bandit_threat,
         report.bandits_weeks_to_raid,
         report.gold_robbed,
+        report.happiness && report.happiness.ratio,
+        report.happiness && report.happiness.step,
         report.game_over
       ]
   end

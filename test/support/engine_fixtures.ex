@@ -48,7 +48,13 @@ defmodule MyLiege.EngineFixtures do
         bandit_threshold: 1_000_000,
         bandit_warning_weeks: 1_000_000,
         bandit_cover_weeks: 20,
-        bandit_floor_step: 2
+        bandit_floor_step: 2,
+        # the ratio is computed, but steps of 0 leave production alone, so tests about other
+        # rules keep their food and defence; happiness tests set their own steps
+        happiness_culture_per_worker: 1000,
+        happiness_penalty_below: %{1 => 750, 2 => 500, 3 => 250},
+        happiness_bonus_from: %{1 => 1250, 2 => 1750, 3 => 2500},
+        happiness_steps: %{1 => 0, 2 => 0, 3 => 0}
       },
       overrides
     )

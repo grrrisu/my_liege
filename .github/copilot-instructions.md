@@ -10,7 +10,7 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 ## Numbers
 - All game values come from `priv/balance_inputs.csv` (`key,value`), read by key at compile time with `@external_resource`. The designer exports it; never edit it.
 - Fail at compile time on a missing key or a value that isn't a whole number. No defaults, no rounding.
-- Per mille (800 = 80%): keys starting with `factor_`, `manameter_start_`, `spoilage_rate_`, and `manameter_points_per_week`, `demand_population_share`, `training_threshold`, `plough_threshold_green`, `plough_bonus`.
+- Per mille (800 = 80%): keys starting with `factor_`, `manameter_start_`, `spoilage_rate_`, `happiness_`, and `manameter_points_per_week`, `demand_population_share`, `training_threshold`, `plough_threshold_green`, `plough_bonus`.
 - Only exception: 48 weeks per year, hardcoded.
 - Tests may build their own configuration with explicit values.
 

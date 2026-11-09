@@ -48,7 +48,11 @@ defmodule MyLiege.Engine.LoadConfig do
       bandit_threshold: fetch!(inputs, "bandit_threshold"),
       bandit_warning_weeks: fetch!(inputs, "bandit_warning_weeks"),
       bandit_cover_weeks: fetch!(inputs, "bandit_cover_weeks"),
-      bandit_floor_step: fetch!(inputs, "bandit_floor_step")
+      bandit_floor_step: fetch!(inputs, "bandit_floor_step"),
+      happiness_culture_per_worker: fetch!(inputs, "happiness_culture_per_worker"),
+      happiness_penalty_below: by_level(inputs, "happiness_penalty_~_below"),
+      happiness_bonus_from: by_level(inputs, "happiness_bonus_~_from"),
+      happiness_steps: by_level(inputs, "happiness_step_~")
     }
 
     Logger.info(
@@ -143,6 +147,13 @@ defmodule MyLiege.Engine.LoadConfig do
        Map.new([:same, :neighbour, :opposite], fn relation ->
          {relation, fetch!(inputs, "factor_#{relation}_#{training}")}
        end)}
+    end)
+  end
+
+  # levels 1 to 3; `~` in the pattern is replaced by the level
+  defp by_level(inputs, pattern) do
+    Map.new(1..3, fn level ->
+      {level, fetch!(inputs, String.replace(pattern, "~", Integer.to_string(level)))}
     end)
   end
 
