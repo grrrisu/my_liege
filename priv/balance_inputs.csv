@@ -3,9 +3,9 @@ years_per_game,3
 seconds_per_week,30
 birth_interval_weeks,2
 capacity_farm,4
-wheat_per_farm_worker,12
+wheat_per_farm_worker,15
 wheat_eaten_per_worker,3
-gold_per_market_worker,3
+gold_per_market_worker,6
 starting_gold,100
 tax_per_worker,10
 tax_interval_weeks,24
@@ -35,8 +35,8 @@ starting_food,24
 birth_min_food_left,1
 manameter_points_per_week,30
 base_production_monastery,3
-base_production_watchtower,3
-base_production_tavern,3
+base_production_watchtower,5
+base_production_tavern,5
 capacity_monastery,4
 capacity_watchtower,4
 capacity_market,4
@@ -61,4 +61,4 @@ grace_weeks,24
 bandit_threshold,10
 bandit_warning_weeks,4
 bandit_cover_weeks,10
-bandit_floor_step,3
+bandit_floor_step,2
