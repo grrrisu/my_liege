@@ -1,17 +1,32 @@
 defmodule MyLiege.Engine.SimSteps.Production do
   @moduledoc """
   Step 1 of the week, R2 production: the workers as placed at the start of the week; added to
-  the stocks. R7: while a king's project is open and not refused, its product goes into the
-  project first, up to its amount, and only the rest into the stock.
+  the stocks. R11: the week's entertainment production against every worker at the start of
+  the week sets the happiness step, which changes the food and defence production before
+  anything goes anywhere. R7: then, while a king's project is open and not refused, its
+  product goes into the project first, up to its amount, and only the rest into the stock.
   """
   @behaviour MyLiege.Engine.SimStep
 
-  alias MyLiege.Engine.Rules.{Demands, Production}
+  alias MyLiege.Engine.Rules.{Demands, Happiness, Production}
 
   @impl true
   def run(game, report) do
     production = Production.output(report.start.workers, game.buildings, game.week, game.config)
-    {game, report, to_stock} = feed_project(game, %{report | production: production}, production)
+
+    happiness =
+      Happiness.assess(
+        production.entertainment,
+        length(report.start.workers),
+        game.week,
+        game.config
+      )
+
+    production = Happiness.apply_step(production, happiness.step, game.config)
+
+    report = %{report | production: production, happiness: happiness}
+
+    {game, report, to_stock} = feed_project(game, report, production)
     stocks = Map.merge(game.stocks, to_stock, fn _product, stock, made -> stock + made end)
     {%{game | stocks: stocks}, report}
   end

@@ -261,6 +261,7 @@ defmodule MyLiegeWeb.GameLive do
                   </td>
                 </tr>
               </table>
+              <.happiness happiness={@report.happiness} />
             </section>
 
             <.bandits game={@game} report={@report} forecast={@forecast.bandits} />
@@ -743,6 +744,47 @@ defmodule MyLiegeWeb.GameLive do
 
   defp weeks(1), do: "1 week"
   defp weeks(n), do: "#{n} weeks"
+
+  attr :happiness, :map, default: nil
+
+  defp happiness(assigns) do
+    ~H"""
+    <p id="happiness" class="mt-2 text-sm tabular-nums">
+      <span class="pr-4">happiness</span>
+      <%= if @happiness do %>
+        <span
+          id="happiness-now"
+          class={["font-semibold", step_class(@happiness.step)]}
+          title="last week's entertainment production against what every worker needs; changes food and defence production"
+        >
+          step {signed_step(@happiness.step)}
+        </span>
+        <span class="opacity-70">
+          ratio {per_mille(@happiness.ratio)}<.without_grace happiness={@happiness} />
+        </span>
+      <% else %>
+        <span class="opacity-60">from week 1</span>
+      <% end %>
+    </p>
+    """
+  end
+
+  attr :happiness, :map, required: true
+
+  defp without_grace(assigns) do
+    ~H"""
+    <span :if={@happiness.step != @happiness.step_without_grace}>
+      , grace period: would be {signed_step(@happiness.step_without_grace)}
+    </span>
+    """
+  end
+
+  defp signed_step(step) when step > 0, do: "+#{step}"
+  defp signed_step(step), do: Integer.to_string(step)
+
+  defp step_class(step) when step > 0, do: "text-green-700"
+  defp step_class(step) when step < 0, do: "text-red-600"
+  defp step_class(_step), do: "opacity-60"
 
   attr :game, Game, required: true
   attr :report, :map, required: true

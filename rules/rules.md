@@ -5,6 +5,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-09: R11 (new), happiness: each week the entertainment production against the population sets a step from −3 to +3 that changes the week's food and defence production (0 in the grace period); computed and applied in step 1, so eating and bandits (R10) use the changed values; UI shows the last week's step and ratio (no forecast); export columns `happiness_ratio`, `happiness_step`. New CSV keys `happiness_*`.
 - 2026-11-06: Forecasts (T77, UI only, no rule change): food, gold, next tax, open demand or project and bandits each show what happens if the last week's change repeats; computed in the engine, used by the UI and the AutoRun bots (their results unchanged). No new CSV keys or export columns.
 - 2026-11-06: R10, the threat never falls on its own: it rises by pressure − 1000 only if that is positive, otherwise it stays; it still drops to the floor after a raid. CSV: `bandit_floor_step` and `bandit_cover_weeks` changed.
 - 2026-11-06: R10, UI: the threat's direction and the protected gold both describe the last week run, matching the production shown (3 defence → 60 protected); the protected gold was next week's, which could contradict the direction.
@@ -26,7 +27,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Weekly order
 0. Tax count (R7), count weeks only
-1. Production (R2); an open project (R7) takes its good first
+1. Production (R2), changed by happiness (R11); an open project (R7) then takes its good first
 2. Mana (R3)
 3. Travel (R2): every travelling worker's travel goes down by 1
 4. Manameter update (R4)
@@ -125,6 +126,16 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 - A raid is not a miss (R7) and the king takes nothing for it.
 - UI: the threat and its direction (rising or steady: its change in the last week run; falling only in a raid week) are always visible, and the protected gold next to the gold stock (the last week's defence production, as shown with the production, × `bandit_cover_weeks`). Both describe the same week as the production shown. Bandits on their way are shown with the raid week and the weeks left instead of the direction; setting out and the raid's outcome are reported when the week runs.
 
+## R11 Happiness
+- Every week from week 1: ratio = this week's entertainment production ÷ (population × `happiness_culture_per_worker`), per mille, rounded down.
+  - Entertainment production counts whether it goes to the stock or into a project (R7). The entertainment stock plays no part.
+  - Population: every worker at the start of the week (placed, unplaced, builders, trainees, travelling); a newborn counts from the following week. A population of 0 is an error.
+- Step from the ratio: below `happiness_penalty_3_below` −3, below `happiness_penalty_2_below` −2, below `happiness_penalty_1_below` −1; from `happiness_bonus_3_from` +3, from `happiness_bonus_2_from` +2, from `happiness_bonus_1_from` +1; otherwise 0.
+- Effect: this week's food and defence production change by ± `happiness_step_1`, `_2` or `_3` per mille (step −2: production × (1000 − `happiness_step_2`) ÷ 1000). Applied once to each product's total, after the colour factors (R2), rounded down. Nothing else changes: gold, knowledge, entertainment, mana and births stay as they are.
+- Grace period (R7): the step applied is 0; the ratio and the step it would have are still computed and shown.
+- Everything after production uses the changed values: eating (R8) and the defence production that protects gold (R10).
+- UI: next to the stocks, the step applied in the last week run and its ratio; in the grace period also the step it would have. No forecast: next week's entertainment production depends on the placement.
+
 ## Forecasts
 UI only: forecasts change nothing in the game. Each one repeats the change of the last week run (its end minus its start) unchanged for every week ahead. The change is raw: taxes paid, demands delivered, what the king took and robbery in that week count in it; gold spent on buildings between weeks doesn't. No forecasts in week 0 (no week before it); the next tax's amount and week are shown from week 0. The AutoRun bots use the same forecasts (food balance, next tax).
 - Food: the stock's change per week, rising, falling or steady; if falling, the week it goes below 0.
@@ -135,5 +146,5 @@ UI only: forecasts change nothing in the game. Each one repeats the change of th
 
 ## Export
 - Weekly CSV, one row per week. Header states units (values ×1000). Keep the column names already in use; the list below describes content, not exact names.
-- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, builders (arrived, at the end of the week), travelling (workers with travel above 0, at the end of the week), demand_progress (a project's total at the end of every week it is open, the week it is made and its deadline week included; empty for food, gold and defence demands and when no project is open), king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise), gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold), bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0), bandit_threat (end of the week, ×1000), bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week), gold_robbed (what the bandits took that week, before spoilage; 0 otherwise), game_over.
+- Columns: week, population, food_eaten, food_left, gold, stock_defence, stock_entertainment, stock_knowledge, spoiled_food, spoiled_gold, spoiled_defence, spoiled_entertainment, spoiled_knowledge, Manameter share per colour, workers per building and colour, off_colour_workers, trainees, trained_total, builders (arrived, at the end of the week), travelling (workers with travel above 0, at the end of the week), demand_progress (a project's total at the end of every week it is open, the week it is made and its deadline week included; empty for food, gold and defence demands and when no project is open), king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise), gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold), bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0), bandit_threat (end of the week, ×1000), bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week), gold_robbed (what the bandits took that week, before spoilage; 0 otherwise), happiness_ratio (per mille; empty in week 0), happiness_step (the step applied, −3 to +3, not ×1000; 0 in the grace period; empty in week 0), game_over.
 - Separate decision log, one row per decision: week, worker colour, trained or not, from building, to building, on- or off-colour, rating (easy / some thought / torn).

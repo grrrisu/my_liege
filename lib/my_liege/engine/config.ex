@@ -42,7 +42,11 @@ defmodule MyLiege.Engine.Config do
     :bandit_threshold,
     :bandit_warning_weeks,
     :bandit_cover_weeks,
-    :bandit_floor_step
+    :bandit_floor_step,
+    :happiness_culture_per_worker,
+    :happiness_penalty_below,
+    :happiness_bonus_from,
+    :happiness_steps
   ]
   defstruct @enforce_keys
 
