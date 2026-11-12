@@ -30,6 +30,7 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 
 ## Engine structure
 - `Game` runs the week as a pipeline of `SimSteps.*` (when); each step calls `Rules.*` (what).
+- Player actions live in `Actions.*` and are called only through `Game`.
 - Rules are pure functions on plain data and `%Config{}`; they never reference `Game`,
   `WeeklyReport` or `SimSteps`.
 - Refactors must not change `test/fixtures/regression_seed_42.csv`.

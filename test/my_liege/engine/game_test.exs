@@ -107,8 +107,8 @@ defmodule MyLiege.Engine.GameTest do
       assert game.manameter == %Manameter{green: 799, blue: 50, red: 101, yellow: 50, violet: 0}
       # 24 + 9 produced - 2 workers × 3 eaten
       assert report.food_left == 27_000
-      assert %Worker{trained: false, building: nil} = report.newborn
-      assert length(game.workers) == 3
+      assert %Worker{id: 3, trained: false, building: nil} = report.newborn
+      assert Enum.map(game.workers, & &1.id) == [1, 2, 3]
       assert game.week == 1
     end
 
@@ -157,6 +157,16 @@ defmodule MyLiege.Engine.GameTest do
     test "the same seed replays the same run", %{config: config} do
       assert run_weeks(Game.new(config, 5), 20) ==
                run_weeks(Game.new(config, 5), 20)
+    end
+  end
+
+  describe "building price" do
+    test "every building costs build_cost_gold; the stock must cover it" do
+      game = Game.new(EngineFixtures.config(), 1)
+
+      assert Game.build_cost(game) == 30_000
+      assert Game.can_afford_building?(%{game | stocks: %{game.stocks | gold: 30_000}})
+      refute Game.can_afford_building?(%{game | stocks: %{game.stocks | gold: 29_999}})
     end
   end
 
