@@ -6,15 +6,15 @@ defmodule MyLiege.Engine.SimSteps.Construction do
 
   @impl true
   def run(game, report) do
-    {buildings, workers, _finished} =
+    {places, workers, _finished} =
       Construction.advance_sites(
-        game.buildings,
+        game.places,
         report.start.workers,
         game.workers,
         game.week,
         game.config
       )
 
-    {%{game | buildings: buildings, workers: workers}, report}
+    {%{game | places: places, workers: workers}, report}
   end
 end

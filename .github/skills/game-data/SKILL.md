@@ -1,6 +1,6 @@
 ---
 name: game-data
-description: 'The game data of My Liege: every value, its shape and unit, where it comes from (the CSV config, a hardcoded constant, or state that changes during a game) and which modules read or write it. Use when: looking for where a number comes from; adding, renaming or removing a CSV key or Config field; adding a field to Game, Worker, Building or WeeklyReport; checking hard rule 2 (no game value outside the config); deciding whether a value belongs in the CSV; tracing who changes a piece of state.'
+description: 'The game data of My Liege: every value, its shape and unit, where it comes from (the CSV config, a hardcoded constant, or state that changes during a game) and which modules read or write it. Use when: looking for where a number comes from; adding, renaming or removing a CSV key or Config field; adding a field to Game, Worker, a place (Place.Building, Place.Blueprint) or WeeklyReport; checking hard rule 2 (no game value outside the config); deciding whether a value belongs in the CSV; tracing who changes a piece of state.'
 ---
 
 # Game data
@@ -11,7 +11,7 @@ All game data falls into four kinds:
 |------|-------|---------|
 | **Config**: balance values | `priv/balance_inputs.csv` → `LoadConfig` → `%Config{}` | never during a game; fixed at `Game.new/2`, kept in `game.config` |
 | **Hardcoded**: structure and constants | module attributes in the engine | never; changing one is a code change |
-| **State**: the village now | `%Game{}` and its `%Worker{}`, `%Building{}`, `%Manameter{}` | every week (steps) and between weeks (player actions) |
+| **State**: the village now | `%Game{}` and its `%Worker{}`, `%Place.Building{}`, `%Manameter{}` | every week (steps) and between weeks (player actions) |
 | **Report**: what one week did | `%WeeklyReport{}` in `game.report` | rebuilt each week; history kept by callers |
 
 `Forecast` is read-only and derived from state and the last report. Elixir app config
@@ -60,7 +60,7 @@ is left out when a group has only one thing (`travel.weeks`).
 - **Group**, the system: `game`, `start`, `birth`, `place`, `good`, `efficiency`, `mana`,
   `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness` (v2 later: `way`,
   `book`, `trade`, `expedition`, `suspicion`).
-- **Item**, a name the code already uses: building type, good, colour, training level,
+- **Item**, a name the code already uses: place type, good, colour, training level,
   relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
 - **Unit** from the ending: `_permille`, `_weeks`, otherwise a whole amount.
 - **Config field**: the key with its dots as underscores and `_permille` dropped
@@ -79,7 +79,7 @@ is left out when a group has only one thing (`travel.weeks`).
 | `manameter_start` | `%Manameter{}` | `manameter.<colour>.start_permille` ×5 | `Game.new/2` |
 | `place_output_per_worker` | `%{farm, market, monastery, watchtower, tavern}` | `place.<type>.output_per_worker` ×5 | `Rules.Production.worker_output/3`, `Rules.Demands.make/5` |
 | `efficiency` | `%{untrained \| trained => %{same \| neighbour \| opposite => ‰}}` | `efficiency.<training>.<relation>_permille` ×6 | `Rules.Production.worker_output/3` |
-| `place_capacity` | `%{type => int}`, guildhouse included | `place.<type>.capacity` ×6 | `Building.capacity/2`, `has_room?/3`, `AutoRun` (ordering), GameLive |
+| `place_capacity` | `%{type => int}`, guildhouse included | `place.<type>.capacity` ×6 | `Rules.Placement.capacity/2` and `check_enter/3`, `AutoRun` (ordering), GameLive |
 | `mana` | `%{untrained \| trained => %{place_colour, worker_colour}}` | `mana.<training>.place_colour`, `mana.<training>.worker_colour` | `Rules.Mana.worker_mana/3` |
 | `manameter_points_per_week` | ‰ | `manameter.points_per_week_permille` | `Rules.ManameterUpdate.update/3` |
 | `birth_interval_weeks` | int | `birth.interval_weeks` | `Rules.Births.birth_week?/2` |
@@ -87,7 +87,7 @@ is left out when a group has only one thing (`travel.weeks`).
 | `good_food_eaten_per_worker` | int | `good.food.eaten_per_worker` | `Rules.Food.eat/3`, `AutoRun` (`food_low?`) |
 | `build_weeks` | int | `build.weeks` | `Rules.Construction`, GameLive |
 | `build_cost_gold` | int | `build.cost_gold` | `Game.build_cost/1`, `Game.construct/2`, GameLive |
-| `build_builders` | int | `build.builders` | `Building.capacity/2` (sites), `Rules.Construction`, GameLive |
+| `build_builders` | int | `build.builders` | `Rules.Placement.capacity/2` (sites), `Rules.Construction`, GameLive |
 | `travel_weeks` | int | `travel.weeks` | `Rules.Travel.depart/3`, `Rules.Training.first_week/2` |
 | `training_min_share` | ‰ | `training.min_share_permille` | `Rules.Training.check/3` |
 | `training_weeks` | int | `training.weeks` | `Rules.Training.last_week/2` |
@@ -109,12 +109,11 @@ is left out when a group has only one thing (`travel.weeks`).
 | `happiness_bonus_from` | `%{level1..level3 => ‰}` | `happiness.level<n>.bonus_from_permille` ×3 | `Rules.Happiness.step_for/2` |
 | `happiness_change` | `%{level1..level3 => ‰}` | `happiness.level<n>.change_permille` ×3 | `Rules.Happiness.apply_step/3` |
 
-The lists of building types,
-goods and trainings in `LoadConfig` are written out there, not taken from `Building` or
-`Worker`, because those depend on `Config` at compile time. `config_test.exs` checks they
-equal `Building.types/0`, `Building.products/0` and `Worker.trainings/0`. Colours and
-relations come from `Pentagon.colours/0` and `Pentagon.relations/0`, which don't depend on
-`Config`.
+`LoadConfig` takes the place types and goods from `Place.Blueprint.types/0` and `goods/0`,
+and colours and relations from `Pentagon.colours/0` and `Pentagon.relations/0`; none of
+them depends on `Config`. The list of trainings is written out in `LoadConfig`, not taken
+from `Worker`, which depends on `Config` at compile time; `config_test.exs` checks it equals
+`Worker.trainings/0`, and that every blueprint type has its `place.<type>.*` keys.
 
 ## 2. Hardcoded values
 
@@ -129,8 +128,8 @@ you add one, ask the designer whether it should be a CSV key.
 | Colours in pentagon order `green, yellow, blue, red, violet` (Growth, Wealth, Wisdom, Strength, Culture) | `Pentagon` `@colours`, `colours/0` | everything that iterates colours, the `Manameter` struct keys, `LoadConfig`, `Reporting` |
 | Manameter total 1000 | `Manameter.total_shares/0` | `LoadConfig` (validation) |
 | Same / neighbour / opposite from pentagon distance | `Pentagon.relation/2` | `Rules.Production` |
-| Building type → colour, type → product; guildhouse neutral | `Building` `@colours`, `@products`, `types/0`, `products/0` | everything that iterates types or products |
-| Starting buildings: farm (id 1) and watchtower (id 2), both ready | `Building.starting/0` | `Game.new/2` |
+| Place type → colour, type → good; guildhouse neutral | `Place.Blueprint` catalogue, `types/0`, `goods/0`, `home_type/1` | everything that iterates types or goods |
+| Starting buildings: farm (id 1) and watchtower (id 2), both ready | `Place.Building.starting/0` | `Game.new/2` |
 | Starting workers: green on the farm, red in the tower | `Worker.starting/2` (the counts come from the config) | `Game.new/2` |
 | Starting stocks of knowledge, defence and culture are 0 | `Game` `starting_stocks/1` | `Game.new/2` |
 | Fixed scale 1000 | `Fixed` `@scale` | all amounts |
@@ -156,7 +155,7 @@ you add one, ask the designer whether it should be a CSV key.
 | `week` | int, last week run | 0 | `run_week/1` (+1) |
 | `demand_weeks` | `[week]`, one per half year at most | `Demands.schedule/3` in `new/2` | never (tests: `EngineFixtures.game_without_demands/2` sets `[]`) |
 | `workers` | `[%Worker{}]` | `Worker.starting/2` | `place_worker/3`, `unplace_worker/2` (between weeks); steps `Travel`, `Birth` (appends), `Construction` and `TrainingEnd` (release) |
-| `buildings` | `[%Building{}]` | `Building.starting/0` | `construct/2` (appends a site, between weeks), `place/unplace` (resets site progress), `Construction` step |
+| `places` | `[%Place.Building{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Place.Building.add_site/2`, between weeks), `place/unplace` (`Rules.Placement.leave/1` resets site progress), `Construction` step |
 | `manameter` | `%Manameter{}` ‰ | `config.manameter_start` | `ManameterUpdate` step |
 | `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2` (gold); steps `Production` (+), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
 | `report` | `%WeeklyReport{}` | week-0 report | `run_week/1`; `construct/2` adds to `gold_spent_buildings` |
@@ -171,14 +170,14 @@ you add one, ask the designer whether it should be a CSV key.
 ### `%Worker{}` ([worker.ex](../../../lib/my_liege/engine/worker.ex))
 
 `id` and `colour` never change after birth. `born_week` is set by the `Birth` step (nil for
-starting workers). `trained` is set by `TrainingEnd` and never reset. `building` (id \| nil)
+starting workers). `trained` is set by `TrainingEnd` and never reset. `place` (id \| nil)
 and `travel` change with every placement (`Rules.Travel.depart/3`), and the `Travel` step
 counts `travel` down. `training_started` is set when the worker is placed in a finished
 guildhouse (`Rules.Training.first_week/2`) and cleared on a move or at the end of training.
 
-### `%Building{}` ([building.ex](../../../lib/my_liege/engine/building.ex))
+### `%Place.Building{}` ([place/building.ex](../../../lib/my_liege/engine/place/building.ex))
 
-`id` and `type` never change. A site has `ready_week: nil` and a `progress` count. The
+`id` and `blueprint` (from `Place.Blueprint`, giving type, colour and good) never change. A site has `ready_week: nil` and a `progress` count. The
 `Construction` step advances `progress` and sets `ready_week`, and moving a builder off a
 site resets `progress` to 0. Once `ready_week` is set the building is finished for good.
 
@@ -217,9 +216,9 @@ The export format is fixed. Ask before changing a column (hard rule 5).
 
 | Module | Reads | Writes |
 |---|---|---|
-| `MyLiegeWeb.GameLive` | `Config.from_csv/0`, game fields, config fields (see the tables), `Forecast`, `Rules.Bandits`, `Rules.Construction`, `Building`, `Manameter`, `Fixed.scale/0` | only through `Game` actions and `run_week/1` |
-| `MyLiege.AutoRun` | the config it is given, `Forecast`, `Building`, `game.workers`, `game.buildings`, `game.stocks` | only through `Game` actions |
-| `MyLiege.Reporting` | `WeeklyReport` fields, `Building.products/0`, `Pentagon.colours/0` | none |
+| `MyLiegeWeb.GameLive` | `Config.from_csv/0`, game fields, config fields (see the tables), `Forecast`, `Rules.Bandits`, `Rules.Construction`, `Rules.Placement`, `Place`, `Place.Blueprint`, `Manameter`, `Fixed.scale/0` | only through `Game` actions and `run_week/1` |
+| `MyLiege.AutoRun` | the config it is given, `Forecast`, `Place`, `Place.Blueprint`, `game.workers`, `game.places`, `game.stocks` | only through `Game` actions |
+| `MyLiege.Reporting` | `WeeklyReport` fields, `Place.Blueprint.goods/0`, `Pentagon.colours/0` | none |
 | `EngineFixtures` (tests) | builds its own `%Config{}` | none |
 
 ## Changing the data

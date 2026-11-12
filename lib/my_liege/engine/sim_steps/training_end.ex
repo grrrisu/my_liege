@@ -6,7 +6,7 @@ defmodule MyLiege.Engine.SimSteps.TrainingEnd do
 
   @impl true
   def run(game, report) do
-    {workers, trained} = Training.finish(game.workers, game.buildings, game.week, game.config)
+    {workers, trained} = Training.finish(game.workers, game.places, game.week, game.config)
     {%{game | workers: workers}, %{report | trained: trained}}
   end
 end

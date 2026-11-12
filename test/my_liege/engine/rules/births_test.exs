@@ -1,7 +1,8 @@
 defmodule MyLiege.Engine.Rules.BirthsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Fixed, Pentagon, Random, Worker}
+  alias MyLiege.Engine.{Fixed, Pentagon, Random, Worker}
+  alias MyLiege.Engine.Place.Building
   alias MyLiege.Engine.Rules.Births
   alias MyLiege.EngineFixtures
 
@@ -18,9 +19,9 @@ defmodule MyLiege.Engine.Rules.BirthsTest do
       [farm, tower] = Building.starting()
 
       assert Worker.starting([farm, tower], config) == [
-               %Worker{id: 1, colour: :green, building: farm.id},
-               %Worker{id: 2, colour: :green, building: farm.id},
-               %Worker{id: 3, colour: :red, building: tower.id}
+               %Worker{id: 1, colour: :green, place: farm.id},
+               %Worker{id: 2, colour: :green, place: farm.id},
+               %Worker{id: 3, colour: :red, place: tower.id}
              ]
     end
 
@@ -54,7 +55,7 @@ defmodule MyLiege.Engine.Rules.BirthsTest do
     test "a newborn is untrained and unplaced", %{config: config, manameter: manameter} do
       food_left = Fixed.from(24)
       {newborn, _} = Births.attempt(1, food_left, manameter, config, seeded_rand(1))
-      assert %Worker{trained: false, building: nil} = newborn
+      assert %Worker{trained: false, place: nil} = newborn
       assert newborn.colour in Pentagon.colours()
     end
 

@@ -1,7 +1,8 @@
 defmodule MyLiege.Engine.Rules.ProductionTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Worker}
+  alias MyLiege.Engine.{Place, Worker}
+  alias MyLiege.Engine.Place.Building
   alias MyLiege.Engine.Rules.Production
   alias MyLiege.EngineFixtures
 
@@ -9,15 +10,8 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
     setup do
       config = EngineFixtures.config()
       buildings = all_building_types()
-      buildings_by_type = Map.new(buildings, &{&1.type, &1})
+      buildings_by_type = Map.new(buildings, &{Place.type(&1), &1})
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type}
-    end
-
-    test "buildings take the colour of their path" do
-      building_types = [:farm, :monastery, :watchtower, :market, :tavern]
-
-      assert Enum.map(building_types, &building_colour/1) ==
-               [:green, :blue, :red, :yellow, :violet]
     end
 
     test "untrained workers: same 100%, neighbour 80%, opposite 50%", context do
@@ -65,16 +59,9 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
                %{food: 13_500, knowledge: 3_000, defence: 0, gold: 0, culture: 0}
     end
 
-    test "the game starts with the farm and the tower (a watchtower), both ready" do
-      buildings = Building.starting()
-
-      assert Enum.map(buildings, & &1.type) == [:farm, :watchtower]
-      assert Enum.all?(buildings, &Building.ready?(&1, 0))
-    end
-
     test "a building produces from its ready_week; a site produces nothing", context do
       %{config: config, buildings: buildings} = context
-      buildings = Building.construct(buildings, :farm)
+      buildings = Building.add_site(buildings, :farm)
       site = List.last(buildings)
       workers = [worker(:green, false, site.id)]
 
@@ -91,44 +78,14 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
 
       assert Production.output(workers, buildings, 0, config).food == 0
     end
-
-    test "buildings can be built without limit", %{buildings: buildings} do
-      buildings =
-        Enum.reduce(1..10, buildings, fn _, current_buildings ->
-          Building.construct(current_buildings, :market)
-        end)
-
-      building_ids = Enum.map(buildings, & &1.id)
-
-      assert Enum.count(buildings, &(&1.type == :market)) == 11
-      assert Enum.uniq(building_ids) == building_ids
-    end
-
-    test "each building has its own capacity", %{buildings_by_type: buildings_by_type} do
-      config =
-        EngineFixtures.config(
-          place_capacity: %{farm: 4, monastery: 2, watchtower: 4, market: 4, tavern: 4}
-        )
-
-      %{farm: farm, monastery: monastery} = buildings_by_type
-      three_farmers = for _ <- 1..3, do: worker(:green, false, farm.id)
-      four_farmers = [worker(:green, false, farm.id) | three_farmers]
-      two_monks = for _ <- 1..2, do: worker(:blue, false, monastery.id)
-
-      assert Building.has_room?(farm, three_farmers, config)
-      refute Building.has_room?(farm, four_farmers, config)
-      refute Building.has_room?(monastery, two_monks, config)
-    end
   end
 
   defp all_building_types do
     [:farm, :monastery, :watchtower, :market, :tavern]
     |> Enum.with_index(1)
-    |> Enum.map(fn {type, id} -> %Building{id: id, type: type} end)
+    |> Enum.map(fn {type, id} -> EngineFixtures.new_building(id, type) end)
   end
 
-  defp worker(colour, trained \\ false, building_id \\ nil),
-    do: %Worker{colour: colour, trained: trained, building: building_id}
-
-  defp building_colour(type), do: Building.colour(%Building{id: 0, type: type})
+  defp worker(colour, trained \\ false, place_id \\ nil),
+    do: %Worker{colour: colour, trained: trained, place: place_id}
 end

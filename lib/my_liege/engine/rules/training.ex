@@ -8,7 +8,8 @@ defmodule MyLiege.Engine.Rules.Training do
   still eats and counts for taxes.
   """
 
-  alias MyLiege.Engine.{Building, Config, Manameter, Worker}
+  alias MyLiege.Engine.{Config, Manameter, Place, Worker}
+  alias MyLiege.Engine.Place.Building
   alias MyLiege.Engine.Rules.Travel
 
   @doc "Whether `worker` may start training now. Returns `:ok` or `{:error, reason}`."
@@ -39,16 +40,17 @@ defmodule MyLiege.Engine.Rules.Training do
   with `travel_weeks` of travel.
   Returns `{workers, newly_trained}`.
   """
-  def finish(workers, buildings, week, %Config{} = config) do
+  def finish(workers, places, week, %Config{} = config) do
     # workers on a guildhouse site are builders, not trainees
     guildhouses =
-      for %Building{type: :guildhouse, id: id} = building <- buildings,
-          not Building.site?(building),
+      for %Building{id: id} = place <- places,
+          Place.type(place) == :guildhouse,
+          not Building.site?(place),
           into: MapSet.new(),
           do: id
 
     Enum.map_reduce(workers, [], fn worker, trained ->
-      if MapSet.member?(guildhouses, worker.building) and
+      if MapSet.member?(guildhouses, worker.place) and
            last_week(worker.training_started, config) <= week do
         done = Travel.depart(%{worker | trained: true, training_started: nil}, nil, config)
         {done, trained ++ [done]}

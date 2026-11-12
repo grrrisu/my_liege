@@ -41,7 +41,7 @@ defmodule MyLiege.Engine.Rules.TravelTest do
       %{game: game} = context
       {:ok, game} = Game.place_worker(game, 1, 2)
 
-      assert %Worker{building: 2, travel: 1} = find(game, 1)
+      assert %Worker{place: 2, travel: 1} = find(game, 1)
     end
 
     test "moving a travelling worker starts its travel again", context do
@@ -59,7 +59,7 @@ defmodule MyLiege.Engine.Rules.TravelTest do
       %{game: game} = context
       {:ok, game} = Game.unplace_worker(game, 1)
 
-      assert %Worker{building: nil, travel: 1} = find(game, 1)
+      assert %Worker{place: nil, travel: 1} = find(game, 1)
       assert Game.place_worker(game, 1, 1) == {:error, :travelling}
 
       {_reports, game} = EngineFixtures.run_weeks(game, 1)

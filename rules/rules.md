@@ -24,6 +24,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 - Relation of a worker's colour to a building's colour: same; neighbour (adjacent on the pentagon); opposite (not adjacent).
 - Buildings and their output: farm → food, monastery → knowledge, watchtower → defence, market → gold, tavern → culture. Guildhouse: neutral, trains workers, produces nothing.
 - The concept says "wisdom" for knowledge.
+- place: anything a worker is placed at (a building, later a project or trade); in v1 every place is a building.
 - Week: one simulation step. 48 weeks per year (hardcoded); game length `game.years`.
 
 ## Weekly order

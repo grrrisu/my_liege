@@ -1,7 +1,7 @@
 defmodule MyLiege.ReportingTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Game, Worker}
+  alias MyLiege.Engine.{Game, Place, Worker}
   alias MyLiege.EngineFixtures
   alias MyLiege.Reporting
 
@@ -75,13 +75,13 @@ defmodule MyLiege.ReportingTest do
 
   test "demand_progress shows a project's total in every week it is open" do
     game = EngineFixtures.game_without_demands(EngineFixtures.config(), 1)
-    monastery = %Building{id: 3, type: :monastery}
-    monk = %Worker{id: 3, colour: :blue, building: 3}
+    monastery = EngineFixtures.new_building(3, :monastery)
+    monk = %Worker{id: 3, colour: :blue, place: 3}
     project = %{product: :knowledge, amount: 9_000, due_week: 2, progress: 0}
 
     game = %{
       game
-      | buildings: game.buildings ++ [monastery],
+      | places: game.places ++ [monastery],
         workers: game.workers ++ [monk],
         demand: project
     }
@@ -102,7 +102,7 @@ defmodule MyLiege.ReportingTest do
     config = EngineFixtures.config()
     {:ok, game} = config |> Game.new(1) |> Game.construct(:guildhouse)
     {_reports, game} = EngineFixtures.run_weeks(game, 2)
-    guildhouse = Enum.find(game.buildings, &(&1.type == :guildhouse))
+    guildhouse = Enum.find(game.places, &(Place.type(&1) == :guildhouse))
     {:ok, game} = Game.place_worker(game, 1, guildhouse.id)
     {reports, _game} = EngineFixtures.run_weeks(game, 4)
 
@@ -132,7 +132,7 @@ defmodule MyLiege.ReportingTest do
   test "the builders and travelling columns count arrived builders and travelling workers" do
     config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
     {:ok, game} = config |> Game.new(1) |> Game.construct(:market)
-    site = List.last(game.buildings)
+    site = List.last(game.places)
     {:ok, game} = Game.place_worker(game, 1, site.id)
     {:ok, game} = Game.place_worker(game, 2, site.id)
     {reports, _game} = EngineFixtures.run_weeks(game, 4)

@@ -6,7 +6,7 @@ defmodule MyLiege.Engine.SimSteps.Mana do
 
   @impl true
   def run(game, report) do
-    mana = Mana.produced(report.start.workers, game.buildings, game.week, game.config)
+    mana = Mana.produced(report.start.workers, game.places, game.week, game.config)
     {game, %{report | mana: mana}}
   end
 end

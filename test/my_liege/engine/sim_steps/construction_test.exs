@@ -9,8 +9,8 @@ defmodule MyLiege.Engine.SimSteps.ConstructionTest do
   setup do
     config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
     {:ok, game} = config |> EngineFixtures.game_without_demands(1) |> Game.construct(:market)
-    site = List.last(game.buildings)
-    workers = Enum.map(game.workers, &%{&1 | building: site.id})
+    site = List.last(game.places)
+    workers = Enum.map(game.workers, &%{&1 | place: site.id})
     %{game: %{game | workers: workers}, site: site}
   end
 
@@ -33,5 +33,5 @@ defmodule MyLiege.Engine.SimSteps.ConstructionTest do
     assert find(game, site.id).progress == 1
   end
 
-  defp find(game, id), do: Enum.find(game.buildings, &(&1.id == id))
+  defp find(game, id), do: Enum.find(game.places, &(&1.id == id))
 end

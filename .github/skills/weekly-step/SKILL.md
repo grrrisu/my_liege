@@ -47,14 +47,14 @@ rules vs. steps) is in the `engine-architecture` skill.
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
 | 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2), happiness (R11) | `Production` → `Rules.Production.output/4`, `Rules.Happiness.assess/4` and `apply_step/3`, `Rules.Demands.feed/2` | placed workers with travel 0 in buildings ready this week; **all** workers at the start of the week (population); an open, unrefused project | `report.production` (food and defence after the happiness step); `report.happiness` (`ratio`, `step`, `step_without_grace`); the project's product into `demand.progress` up to its amount, the rest added to `stocks`; `report.demand_progress` |
+| 1 | Production (R2), happiness (R11) | `Production` → `Rules.Production.output/4`, `Rules.Happiness.assess/4` and `apply_step/3`, `Rules.Demands.feed/2` | placed workers with travel 0 at places ready this week (`Rules.Staffing.working/3`); **all** workers at the start of the week (population); an open, unrefused project | `report.production` (food and defence after the happiness step); `report.happiness` (`ratio`, `step`, `step_without_grace`); the project's product into `demand.progress` up to its amount, the rest added to `stocks`; `report.demand_progress` |
 | 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
 | 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
 | 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
-| 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/5` | sites, builders as at the **start** of the week (before step 3) | `progress`, `ready_week`, finished builders `building: nil` with `travel_weeks` |
-| 8 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `building: nil`, `travel_weeks`, `report.trained` |
+| 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/5` | sites, builders as at the **start** of the week (before step 3) | `progress`, `ready_week`, finished builders `place: nil` with `travel_weeks` |
+| 8 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
 | 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
 | 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
 | 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand`, `report.demand_progress` (0 for a project) |
@@ -85,12 +85,12 @@ Consequences of the order:
   unplaced worker that has arrived). It advances in each week in which all builders were on
   it with travel 0 at the start of the week; when `progress` reaches `build_weeks` at
   the end of week M, `ready_week = M + 1`. A builder leaving (moved or unplaced) resets
-  `progress` to 0. Placement in a finished building needs `ready?(building, game.week + 1)`
-  and room.
+  `progress` to 0 (`Rules.Placement.leave/1`). Placement in a finished building needs
+  `ready?(place, game.week + 1)` and room (`Rules.Placement.check_enter/3`).
 - **Travel:** `Rules.Travel.depart/3` sets `travel = travel_weeks` on every place, move, unplace and
   release. Unplaced workers with travel above 0 can't be placed (`{:error, :travelling}`).
-  `Building.staffed/3` leaves travelling workers out.
-- **Training:** the guildhouse is neutral (no colour, product or mana; `Building.staffed/3`
+  `Rules.Staffing.working/3` leaves travelling workers out.
+- **Training:** the guildhouse is neutral (no colour, product or mana; `Rules.Staffing.working/3`
   leaves it out). Placing an untrained worker in a finished guildhouse needs its colour's share ≥
   `training_min_share`, checked once; `training_started = game.week + 1 + travel_weeks`
   (`Rules.Training.first_week/2`). At the end of week `training_started + training_weeks - 1` the

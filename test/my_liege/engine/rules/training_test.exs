@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.TrainingTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Game, Manameter, Worker}
+  alias MyLiege.Engine.{Game, Manameter, Place, Worker}
   alias MyLiege.EngineFixtures
 
   # green farmer (id 1) at 80% green; red soldier (id 2) at 10% red
@@ -14,7 +14,7 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
   describe "R5: training in the guildhouse" do
     test "the guildhouse can be built and is neutral", %{guildhouse: guildhouse} do
       assert guildhouse.ready_week == 3
-      assert Building.colour(guildhouse) == nil
+      assert Place.colour(guildhouse) == nil
     end
 
     test "a worker trains for 4 weeks, then returns unplaced and trained", context do
@@ -23,7 +23,7 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
       {reports, game} = EngineFixtures.run_weeks(game, 4)
 
       assert Enum.map(reports, &Enum.map(&1.trained, fn w -> w.id end)) == [[], [], [], [1]]
-      assert %Worker{trained: true, building: nil, colour: :green} = find(game, 1)
+      assert %Worker{trained: true, place: nil, colour: :green} = find(game, 1)
     end
 
     test "a trainee produces nothing and makes no mana, but eats", context do
@@ -83,7 +83,7 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
       {reports, game} = EngineFixtures.run_weeks(game, 5)
 
       assert Enum.map(reports, &Enum.map(&1.trained, fn w -> w.id end)) == [[], [], [], [], [1]]
-      assert %Worker{trained: true, building: nil, travel: 1} = find(game, 1)
+      assert %Worker{trained: true, place: nil, travel: 1} = find(game, 1)
       assert Game.place_worker(game, 1, 1) == {:error, :travelling}
     end
   end
@@ -93,7 +93,7 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
     game |> EngineFixtures.run_weeks(2) |> elem(1)
   end
 
-  defp guildhouse(game), do: Enum.find(game.buildings, &(&1.type == :guildhouse))
+  defp guildhouse(game), do: Enum.find(game.places, &(Place.type(&1) == :guildhouse))
 
   defp find(game, id), do: Enum.find(game.workers, &(&1.id == id))
 end

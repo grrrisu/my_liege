@@ -15,7 +15,7 @@ defmodule MyLiege.Engine.SimSteps.EndOfWeek do
       | manameter: game.manameter,
         food_left: game.stocks.food,
         gold: game.stocks.gold,
-        builders: Construction.arrived_builders(game.workers, game.buildings),
+        builders: Construction.arrived_builders(game.workers, game.places),
         travelling: Enum.count(game.workers, &Travel.travelling?/1),
         bandit_threat: game.bandits.threat,
         bandits_weeks_to_raid: Bandits.weeks_to_raid(game.bandits, game.week),

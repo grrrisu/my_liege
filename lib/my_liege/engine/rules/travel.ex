@@ -8,9 +8,9 @@ defmodule MyLiege.Engine.Rules.Travel do
 
   alias MyLiege.Engine.{Config, Worker}
 
-  @doc "Sends `worker` to `building_id` (`nil` for unplaced), starting its travel."
-  def depart(%Worker{} = worker, building_id, %Config{} = config),
-    do: %{worker | building: building_id, travel: config.travel_weeks}
+  @doc "Sends `worker` to `place_id` (`nil` for unplaced), starting its travel."
+  def depart(%Worker{} = worker, place_id, %Config{} = config),
+    do: %{worker | place: place_id, travel: config.travel_weeks}
 
   def travelling?(%Worker{travel: travel}), do: travel > 0
 

@@ -12,7 +12,7 @@ defmodule MyLiege.Engine.SimSteps.Production do
 
   @impl true
   def run(game, report) do
-    production = Production.output(report.start.workers, game.buildings, game.week, game.config)
+    production = Production.output(report.start.workers, game.places, game.week, game.config)
 
     happiness =
       Happiness.assess(
