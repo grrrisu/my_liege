@@ -5,7 +5,7 @@ defmodule MyLiege.Engine.Building do
 
   An ordered building is a site until it is finished: `ready_week` is `nil` and `progress`
   counts its weeks of construction (see `Construction`). Workers placed on a site are its
-  builders, at most `builders_per_building`.
+  builders, at most `build_builders`.
   """
 
   alias MyLiege.Engine.{Config, Manameter, Worker}
@@ -19,7 +19,7 @@ defmodule MyLiege.Engine.Building do
     monastery: :knowledge,
     watchtower: :defence,
     market: :gold,
-    tavern: :entertainment
+    tavern: :culture
   }
   # path building types in pentagon order, from the order in `Manameter.colours/0`
   @path_types Enum.map(Manameter.colours(), fn colour ->
@@ -63,11 +63,11 @@ defmodule MyLiege.Engine.Building do
     buildings ++ [%__MODULE__{id: last_id + 1, type: type, ready_week: nil, progress: 0}]
   end
 
-  @doc "How many workers the building takes: `builders_per_building` on a site, else its capacity."
+  @doc "How many workers the building takes: `build_builders` on a site, else its capacity."
   def capacity(%__MODULE__{} = building, %Config{} = config) do
     if site?(building),
-      do: config.builders_per_building,
-      else: Map.fetch!(config.capacity, building.type)
+      do: config.build_builders,
+      else: Map.fetch!(config.place_capacity, building.type)
   end
 
   def has_room?(%__MODULE__{id: id} = building, workers, %Config{} = config) do

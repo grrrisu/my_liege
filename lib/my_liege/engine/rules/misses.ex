@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.Misses do
   @moduledoc """
   R7, misses: missed taxes, refused and missed demands share one count; more than
-  `tax_misses_forgiven` misses end the game.
+  `king_misses_forgiven` misses end the game.
   """
 
   alias MyLiege.Engine.Config
@@ -12,6 +12,6 @@ defmodule MyLiege.Engine.Rules.Misses do
     {misses, game_over?(misses, config)}
   end
 
-  @doc "Whether `misses` exceeds `tax_misses_forgiven`."
-  def game_over?(misses, %Config{} = config), do: misses > config.tax_misses_forgiven
+  @doc "Whether `misses` exceeds `king_misses_forgiven`."
+  def game_over?(misses, %Config{} = config), do: misses > config.king_misses_forgiven
 end

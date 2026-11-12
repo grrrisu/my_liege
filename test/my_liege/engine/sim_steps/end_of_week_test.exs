@@ -6,8 +6,8 @@ defmodule MyLiege.Engine.SimSteps.EndOfWeekTest do
   alias MyLiege.EngineFixtures
 
   test "food and gold are the values after spoilage; start is cleared" do
-    rates = %{food: 500, knowledge: 0, defence: 0, gold: 100, entertainment: 0}
-    start = Game.new(EngineFixtures.config(spoilage_rates: rates), 1)
+    rates = %{food: 500, knowledge: 0, defence: 0, gold: 100, culture: 0}
+    start = Game.new(EngineFixtures.config(good_spoilage: rates), 1)
     now = %{start | week: 1}
 
     {game, report} = Spoilage.run(now, WeeklyReport.new(1, start))

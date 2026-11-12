@@ -10,7 +10,7 @@ defmodule MyLiege.Engine.Rules.ManameterUpdateTest do
   describe "R4: Manameter update" do
     setup do
       config = EngineFixtures.config()
-      %{config: config, manameter: config.starting_manameter}
+      %{config: config, manameter: config.manameter_start}
     end
 
     test "3 points: removed by current shares, added by the week's mana", context do

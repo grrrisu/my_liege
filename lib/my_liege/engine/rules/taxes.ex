@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.Taxes do
   @moduledoc """
   R7, taxes: twice a year, per head. The village is counted in the count week,
-  `tax_count_lead_weeks` before each payment, and the amount is fixed then. No payment is due
+  `king_tax_count_lead_weeks` before each payment, and the amount is fixed then. No payment is due
   inside the grace period (`Grace`); the first is the first regular due week after it. In the
   due week the player pays in full or the payment is missed; no partial payments. A skipped or
   missed payment is a miss (`Misses`), and the king takes the gold there is, up to the amount
@@ -14,25 +14,27 @@ defmodule MyLiege.Engine.Rules.Taxes do
   alias MyLiege.Engine.Rules.Grace
 
   @doc """
-  Payments are due in weeks `tax_interval_weeks`, 2 × `tax_interval_weeks`, …, except inside
+  Payments are due in weeks `king_tax_interval_weeks`, 2 × `king_tax_interval_weeks`, …, except inside
   the grace period.
   """
   def due_week?(week, %Config{} = config),
     do:
-      week > 0 and rem(week, config.tax_interval_weeks) == 0 and not Grace.in_grace?(week, config)
+      week > 0 and rem(week, config.king_tax_interval_weeks) == 0 and
+        not Grace.in_grace?(week, config)
 
   @doc "The first due week after `week`."
   def next_due_week(week, %Config{} = config) do
-    next = (div(week, config.tax_interval_weeks) + 1) * config.tax_interval_weeks
+    next = (div(week, config.king_tax_interval_weeks) + 1) * config.king_tax_interval_weeks
     if due_week?(next, config), do: next, else: next_due_week(next, config)
   end
 
-  @doc "The village is counted `tax_count_lead_weeks` before each due week."
+  @doc "The village is counted `king_tax_count_lead_weeks` before each due week."
   def count_week?(week, %Config{} = config),
-    do: due_week?(week + config.tax_count_lead_weeks, config)
+    do: due_week?(week + config.king_tax_count_lead_weeks, config)
 
-  @doc "The amount fixed at the count: `tax_per_worker` for every worker."
-  def assess(workers, %Config{} = config), do: Fixed.from(config.tax_per_worker * length(workers))
+  @doc "The amount fixed at the count: `king_tax_per_worker` for every worker."
+  def assess(workers, %Config{} = config),
+    do: Fixed.from(config.king_tax_per_worker * length(workers))
 
   @doc """
   Settles a due payment. Returns `{outcome, gold, taken}`: `:paid` takes the full amount,

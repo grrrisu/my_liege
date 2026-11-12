@@ -10,11 +10,11 @@ defmodule MyLiege.Engine.Rules.BirthsTest do
   describe "R1: birth of a new worker" do
     setup do
       config = EngineFixtures.config()
-      %{config: config, manameter: config.starting_manameter}
+      %{config: config, manameter: config.manameter_start}
     end
 
     test "the game starts with green farmers on the farm and red soldiers in the tower" do
-      config = EngineFixtures.config(starting_farmers: 2, starting_soldiers: 1)
+      config = EngineFixtures.config(start_farmers: 2, start_soldiers: 1)
       [farm, tower] = Building.starting()
 
       assert Worker.starting([farm, tower], config) == [

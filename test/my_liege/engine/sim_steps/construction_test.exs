@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.SimSteps.ConstructionTest do
 
   # workers 1 and 2 are the builders of a market site
   setup do
-    config = EngineFixtures.config(builders_per_building: 2, travel_weeks: 1)
+    config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
     {:ok, game} = config |> EngineFixtures.game_without_demands(1) |> Game.construct(:market)
     site = List.last(game.buildings)
     workers = Enum.map(game.workers, &%{&1 | building: site.id})

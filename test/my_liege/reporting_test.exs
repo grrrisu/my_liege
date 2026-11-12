@@ -16,13 +16,13 @@ defmodule MyLiege.ReportingTest do
 
     assert header ==
              "week,production_food,production_gold,production_knowledge," <>
-               "production_defence,production_entertainment," <>
+               "production_defence,production_culture," <>
                "mana_green,mana_yellow,mana_blue,mana_red,mana_violet," <>
                "manameter_green,manameter_yellow,manameter_blue,manameter_red,manameter_violet," <>
                "food_left,newborn,trained,builders,travelling,gold,tax_due,tax," <>
                "demand_product,demand_amount,demand_outcome,demand_progress," <>
                "king_took_gold,king_took_food," <>
-               "spoiled_food,spoiled_gold,spoiled_knowledge,spoiled_defence,spoiled_entertainment," <>
+               "spoiled_food,spoiled_gold,spoiled_knowledge,spoiled_defence,spoiled_culture," <>
                "gold_spent_buildings,bandit_pressure,bandit_threat,bandits_weeks_to_raid," <>
                "gold_robbed,happiness_ratio,happiness_step,game_over"
 
@@ -40,7 +40,7 @@ defmodule MyLiege.ReportingTest do
 
   test "the spoiled columns show what each stock lost; food_left and gold are after spoilage" do
     config =
-      EngineFixtures.config(spoilage_rates: Map.merge(no_spoilage(), %{food: 50, gold: 10}))
+      EngineFixtures.config(good_spoilage: Map.merge(no_spoilage(), %{food: 50, gold: 10}))
 
     {:ok, report, _game} = config |> Game.new(1) |> Game.run_week()
 
@@ -53,10 +53,10 @@ defmodule MyLiege.ReportingTest do
     assert Enum.slice(columns, 30..34) == ["1350", "1000", "0", "0", "0"]
   end
 
-  defp no_spoilage, do: EngineFixtures.config().spoilage_rates
+  defp no_spoilage, do: EngineFixtures.config().good_spoilage
 
   test "the demand columns show the demand when made and its outcome at the deadline" do
-    config = EngineFixtures.config(starting_food: 1000)
+    config = EngineFixtures.config(start_food: 1000)
     game = Game.new(config, 1)
     [first | _] = game.demand_weeks
     {reports, _game} = EngineFixtures.run_weeks(game, first + 8)
@@ -130,7 +130,7 @@ defmodule MyLiege.ReportingTest do
   end
 
   test "the builders and travelling columns count arrived builders and travelling workers" do
-    config = EngineFixtures.config(builders_per_building: 2, travel_weeks: 1)
+    config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
     {:ok, game} = config |> Game.new(1) |> Game.construct(:market)
     site = List.last(game.buildings)
     {:ok, game} = Game.place_worker(game, 1, site.id)
@@ -152,7 +152,7 @@ defmodule MyLiege.ReportingTest do
   end
 
   test "king_took_gold and king_took_food show what the king took that week" do
-    config = EngineFixtures.config(starting_gold: 1000)
+    config = EngineFixtures.config(start_gold: 1000)
     game = EngineFixtures.game_without_demands(config, 1)
     {_reports, game} = EngineFixtures.run_weeks(game, 23)
     due = game.tax_due

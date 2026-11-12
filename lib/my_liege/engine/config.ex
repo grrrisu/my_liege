@@ -2,9 +2,12 @@ defmodule MyLiege.Engine.Config do
   @moduledoc """
   The single source of every game value. The config is fixed for a game when `Game.new/2` is
   called; tests can pass a modified copy to `Game.new/2`. `from_csv/0` is built at compile
-  time from `priv/balance_inputs.csv`; a missing key or non-whole value fails the build.
+  time from `priv/balance_inputs.csv`; a missing or unread key or a non-whole value fails the build.
 
-  Shares and factors are in per mille (`800` = 80%).
+  Each field is named after its CSV key: dots become underscores and `_permille` is dropped
+  (`king.tax.per_worker` → `king_tax_per_worker`); keys that differ only by item are one map
+  keyed by the item (`place.<type>.capacity` → `place_capacity`). Shares and factors are in
+  per mille (`800` = 80%).
   """
 
   alias MyLiege.Engine.LoadConfig
@@ -12,41 +15,41 @@ defmodule MyLiege.Engine.Config do
   @enforce_keys [
     :birth_interval_weeks,
     :birth_min_food_left,
-    :starting_manameter,
-    :starting_farmers,
-    :starting_soldiers,
-    :base_production,
-    :capacity,
-    :colour_factors,
-    :construction_weeks,
+    :manameter_start,
+    :start_farmers,
+    :start_soldiers,
+    :place_output_per_worker,
+    :place_capacity,
+    :efficiency,
+    :build_weeks,
     :build_cost_gold,
-    :builders_per_building,
+    :build_builders,
     :travel_weeks,
-    :mana_per_worker,
+    :mana,
     :manameter_points_per_week,
-    :starting_food,
-    :starting_gold,
-    :food_eaten_per_worker,
-    :years_per_game,
-    :tax_per_worker,
-    :tax_interval_weeks,
-    :tax_count_lead_weeks,
-    :tax_misses_forgiven,
-    :grace_weeks,
-    :training_threshold,
+    :start_food,
+    :start_gold,
+    :good_food_eaten_per_worker,
+    :game_years,
+    :king_tax_per_worker,
+    :king_tax_interval_weeks,
+    :king_tax_count_lead_weeks,
+    :king_misses_forgiven,
+    :king_grace_weeks,
+    :training_min_share,
     :training_weeks,
-    :demand_deadline_weeks,
-    :demand_population_share,
-    :demand_production_weeks,
-    :spoilage_rates,
+    :king_demand_deadline_weeks,
+    :king_demand_population_share,
+    :king_demand_production_weeks,
+    :good_spoilage,
     :bandit_threshold,
     :bandit_warning_weeks,
     :bandit_cover_weeks,
     :bandit_floor_step,
-    :happiness_culture_per_worker,
+    :happiness_need_per_worker,
     :happiness_penalty_below,
     :happiness_bonus_from,
-    :happiness_steps
+    :happiness_change
   ]
   defstruct @enforce_keys
 

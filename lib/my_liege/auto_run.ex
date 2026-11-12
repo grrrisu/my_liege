@@ -16,7 +16,7 @@ defmodule MyLiege.AutoRun do
     Workers already placed stay where they are.
   - `:feed` – as `:stay`, but a newborn goes to a farm, whatever their colour, when last
     week's food balance (`Forecast.food/1`: the change in the food stock in the last week)
-    can't feed one more worker (< `food_eaten_per_worker`), or when the food stock is below 0.
+    can't feed one more worker (< `good_food_eaten_per_worker`), or when the food stock is below 0.
     Otherwise, while
     gold is below the next tax, it goes to a market.
   - `:feed_pivot` – a newborn goes to a farm when food is low as in `:feed`; workers born
@@ -31,7 +31,7 @@ defmodule MyLiege.AutoRun do
     building only when `invest_allowed?/3` allows it; otherwise the worker waits.
 
   The next tax is `Forecast.tax_amount/1`: the amount fixed at the count, or before the count
-  `tax_per_worker` for every current worker.
+  `king_tax_per_worker` for every current worker.
 
   ## Running the test cases
 
@@ -170,7 +170,7 @@ defmodule MyLiege.AutoRun do
   forecast gold for the next tax week (`Forecast.next_tax/1`; in week 0 the gold now) minus
   the price plus what the building is expected to earn until that week still covers the tax.
   Only a market earns gold: from its first producing week, ordered now + 1 + 2 ×
-  `travel_weeks` (builders, then workers) + `construction_weeks`, to the tax week, with the
+  `travel_weeks` (builders, then workers) + `build_weeks`, to the tax week, with the
   waiting workers up to its capacity. With no tax left in the game, always.
   """
   def invest_allowed?(%Game{} = game, type, waiting) do
@@ -190,12 +190,12 @@ defmodule MyLiege.AutoRun do
 
   defp earnings(game, :market, waiting, due_week) do
     config = game.config
-    first_week = game.week + 1 + 2 * config.travel_weeks + config.construction_weeks
+    first_week = game.week + 1 + 2 * config.travel_weeks + config.build_weeks
     market = %Building{id: 0, type: :market}
 
     per_week =
       waiting
-      |> Enum.take(Map.fetch!(config.capacity, :market))
+      |> Enum.take(Map.fetch!(config.place_capacity, :market))
       |> Enum.sum_by(&Production.worker_output(&1, market, config))
 
     per_week * max(due_week - first_week + 1, 0)
@@ -416,7 +416,7 @@ defmodule MyLiege.AutoRun do
   `[{week, colour, share}]`.
   """
   def leading(reports, %Config{} = config) do
-    for year <- 1..config.years_per_game,
+    for year <- 1..config.game_years,
         week = year * @weeks_per_year,
         report = Enum.find(reports, &(&1.week == week)) do
       colour = Enum.max_by(Manameter.colours(), &Map.fetch!(report.manameter, &1))
@@ -511,7 +511,7 @@ defmodule MyLiege.AutoRun do
   defp gold_low?(game), do: game.stocks.gold < Forecast.tax_amount(game)
 
   defp food_low?(game) do
-    one_more = Fixed.from(game.config.food_eaten_per_worker)
+    one_more = Fixed.from(game.config.good_food_eaten_per_worker)
 
     case Forecast.food(game) do
       nil -> game.stocks.food < 0
@@ -575,7 +575,7 @@ defmodule MyLiege.AutoRun do
     room_under_construction =
       game.buildings
       |> Enum.filter(&(&1.type == type and not Building.ready?(&1, game.week + 1)))
-      |> Enum.map(&Map.fetch!(game.config.capacity, &1.type))
+      |> Enum.map(&Map.fetch!(game.config.place_capacity, &1.type))
       |> Enum.sum()
 
     with true <- length(waiting) > room_under_construction,

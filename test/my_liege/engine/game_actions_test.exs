@@ -42,7 +42,7 @@ defmodule MyLiege.Engine.GameActionsTest do
       game =
         after_week_1(
           EngineFixtures.config(
-            capacity: %{farm: 1, monastery: 4, watchtower: 4, market: 4, tavern: 4}
+            place_capacity: %{farm: 1, monastery: 4, watchtower: 4, market: 4, tavern: 4}
           )
         )
 
@@ -53,7 +53,7 @@ defmodule MyLiege.Engine.GameActionsTest do
       game =
         after_week_1(
           EngineFixtures.config(
-            capacity: %{farm: 1, monastery: 4, watchtower: 4, market: 4, tavern: 4}
+            place_capacity: %{farm: 1, monastery: 4, watchtower: 4, market: 4, tavern: 4}
           )
         )
 

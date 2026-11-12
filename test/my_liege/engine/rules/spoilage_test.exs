@@ -7,18 +7,17 @@ defmodule MyLiege.Engine.Rules.SpoilageTest do
 
   defp config(rates, overrides \\ []) do
     EngineFixtures.config(
-      [spoilage_rates: Map.merge(EngineFixtures.config().spoilage_rates, Map.new(rates))] ++
+      [good_spoilage: Map.merge(EngineFixtures.config().good_spoilage, Map.new(rates))] ++
         overrides
     )
   end
 
   defp stocks(values),
-    do:
-      Map.merge(%{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0}, Map.new(values))
+    do: Map.merge(%{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0}, Map.new(values))
 
   describe "spoilage" do
     test "every stock loses its rate (per mille) of itself" do
-      config = config(food: 50, gold: 10, defence: 250, knowledge: 250, entertainment: 250)
+      config = config(food: 50, gold: 10, defence: 250, knowledge: 250, culture: 250)
 
       stock =
         stocks(
@@ -26,7 +25,7 @@ defmodule MyLiege.Engine.Rules.SpoilageTest do
           gold: 100_000,
           defence: 4_000,
           knowledge: 8_000,
-          entertainment: 12_000
+          culture: 12_000
         )
 
       {left, spoiled} = Spoilage.spoil(stock, config)
@@ -37,7 +36,7 @@ defmodule MyLiege.Engine.Rules.SpoilageTest do
                  gold: 1_000,
                  defence: 1_000,
                  knowledge: 2_000,
-                 entertainment: 3_000
+                 culture: 3_000
                )
 
       assert left ==
@@ -46,7 +45,7 @@ defmodule MyLiege.Engine.Rules.SpoilageTest do
                  gold: 99_000,
                  defence: 3_000,
                  knowledge: 6_000,
-                 entertainment: 9_000
+                 culture: 9_000
                )
     end
 
@@ -81,10 +80,10 @@ defmodule MyLiege.Engine.Rules.SpoilageTest do
     end
 
     test "comes after the tax payment, so the tax is paid from the unspoiled gold" do
-      config = config([gold: 10], starting_gold: 1_000, starting_food: 1_000)
+      config = config([gold: 10], start_gold: 1_000, start_food: 1_000)
 
       game = EngineFixtures.game_without_demands(config, 1)
-      {reports, _game} = EngineFixtures.run_weeks(game, config.tax_interval_weeks)
+      {reports, _game} = EngineFixtures.run_weeks(game, config.king_tax_interval_weeks)
       due = List.last(reports)
       before = Enum.at(reports, -2)
       tax = Enum.at(reports, -5).tax_due

@@ -61,8 +61,8 @@ defmodule MyLiege.Engine.Game do
 
   def weeks_per_year, do: @weeks_per_year
 
-  @doc "The last week of the game: the end of year `years_per_game` of the game's config."
-  def last_week(%__MODULE__{config: config}), do: @weeks_per_year * config.years_per_game
+  @doc "The last week of the game: the end of year `game_years` of the game's config."
+  def last_week(%__MODULE__{config: config}), do: @weeks_per_year * config.game_years
 
   @doc "Whether the player reached the end of the last year without the game being over."
   def won?(%__MODULE__{} = game),
@@ -85,7 +85,7 @@ defmodule MyLiege.Engine.Game do
       demand_weeks: demand_weeks,
       workers: Worker.starting(buildings, config),
       buildings: buildings,
-      manameter: config.starting_manameter,
+      manameter: config.manameter_start,
       stocks: starting_stocks(config),
       report: nil
     }
@@ -181,7 +181,7 @@ defmodule MyLiege.Engine.Game do
   Places or moves a worker. It takes its place at once but travels `travel_weeks` first
   (see `Travel`), also when it was still travelling. An unplaced worker can only be placed
   once it has arrived. A finished building must have room; a site takes up to
-  `builders_per_building` builders. In the guildhouse the worker starts training after its
+  `build_builders` builders. In the guildhouse the worker starts training after its
   travel (see `Training.check/3`). Moving a trainee out loses its progress; moving a builder
   off a site resets the site's progress to 0.
   """
@@ -307,7 +307,7 @@ defmodule MyLiege.Engine.Game do
     |> Map.new(&{&1, 0})
     |> Map.merge(%{
       food: Food.starting(config),
-      gold: Fixed.from(config.starting_gold)
+      gold: Fixed.from(config.start_gold)
     })
   end
 end

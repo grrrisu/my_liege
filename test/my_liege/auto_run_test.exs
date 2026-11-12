@@ -12,7 +12,7 @@ defmodule MyLiege.AutoRunTest do
   describe "Test A: Stay" do
     test "reports every week from 0 to the last week of the game", %{config: config} do
       # enough gold and no king's demands, so nothing ends the run early
-      config = %{config | starting_gold: 1_000_000, demand_population_share: 0}
+      config = %{config | start_gold: 1_000_000, king_demand_population_share: 0}
       {reports, _game} = AutoRun.run(:stay, config, 1)
 
       assert Enum.map(reports, & &1.week) == Enum.to_list(0..144)
@@ -20,7 +20,7 @@ defmodule MyLiege.AutoRunTest do
 
     test "always tries to pay; the run ends at game over", %{config: config} do
       # free buildings, so the missing gold only affects taxes
-      config = %{config | starting_gold: 0, build_cost_gold: 0}
+      config = %{config | start_gold: 0, build_cost_gold: 0}
       {reports, game} = AutoRun.run(:stay, config, 1)
 
       assert Enum.map(reports, & &1.tax) |> Enum.reject(&is_nil/1) == [:missed, :missed]
@@ -29,7 +29,7 @@ defmodule MyLiege.AutoRunTest do
     end
 
     test "without gold for a building, workers wait unplaced", %{config: config} do
-      config = %{config | starting_gold: 0, demand_population_share: 0}
+      config = %{config | start_gold: 0, king_demand_population_share: 0}
       {reports, game} = AutoRun.run(:stay, config, 1)
 
       assert Enum.map(game.buildings, & &1.type) == [:farm, :watchtower]
@@ -38,7 +38,7 @@ defmodule MyLiege.AutoRunTest do
     end
 
     test "reports the gold spent on buildings in the week they were ordered", %{config: config} do
-      config = %{config | starting_gold: 1_000_000, demand_population_share: 0}
+      config = %{config | start_gold: 1_000_000, king_demand_population_share: 0}
       {reports, game} = AutoRun.run(:stay, config, 1)
       ordered = length(game.buildings) - 2
 
@@ -57,14 +57,14 @@ defmodule MyLiege.AutoRunTest do
 
     test "orders only as many buildings as the workers need", %{config: config} do
       # enough gold, so what the king takes on a miss never stops an order
-      config = %{config | starting_gold: 1_000_000}
+      config = %{config | start_gold: 1_000_000}
       {_reports, game} = AutoRun.run(:stay, config, 1)
 
       for type <- Building.types() do
         workers = Enum.count(game.workers, &(Building.type_of_colour(&1.colour) == type))
         buildings = Enum.count(game.buildings, &(&1.type == type))
 
-        assert buildings == max(ceil(workers / config.capacity[type]), starting(type)),
+        assert buildings == max(ceil(workers / config.place_capacity[type]), starting(type)),
                "#{type}: #{workers} workers, #{buildings} buildings"
       end
     end
@@ -102,8 +102,8 @@ defmodule MyLiege.AutoRunTest do
       # 1 farmer makes 3, 2 workers eat 6: food is short from week 1 on
       config =
         EngineFixtures.config(
-          starting_food: 0,
-          base_production: %{farm: 3, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+          start_food: 0,
+          place_output_per_worker: %{farm: 3, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
       {_reports, game} = AutoRun.run(:feed, config, 1)
@@ -118,8 +118,8 @@ defmodule MyLiege.AutoRunTest do
       # 1 farmer makes 4, 2 workers eat 6: the balance is -2 although the stock is large
       config =
         EngineFixtures.config(
-          starting_food: 1000,
-          base_production: %{farm: 4, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+          start_food: 1000,
+          place_output_per_worker: %{farm: 4, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
       {_reports, game} = AutoRun.run(:feed, config, 1)
@@ -133,8 +133,14 @@ defmodule MyLiege.AutoRunTest do
     test "with a large food surplus and enough gold it plays like Stay" do
       config =
         EngineFixtures.config(
-          starting_gold: 1_000_000,
-          base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+          start_gold: 1_000_000,
+          place_output_per_worker: %{
+            farm: 1000,
+            monastery: 3,
+            watchtower: 3,
+            market: 3,
+            tavern: 3
+          }
         )
 
       assert AutoRun.run(:feed, config, 2) == AutoRun.run(:stay, config, 2)
@@ -143,10 +149,16 @@ defmodule MyLiege.AutoRunTest do
     test "with enough food, newborns go to a market while gold is below the next tax" do
       config =
         EngineFixtures.config(
-          starting_gold: 0,
+          start_gold: 0,
           # free buildings, so a market can be built without gold
           build_cost_gold: 0,
-          base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+          place_output_per_worker: %{
+            farm: 1000,
+            monastery: 3,
+            watchtower: 3,
+            market: 3,
+            tavern: 3
+          }
         )
 
       {_reports, game} = AutoRun.run(:feed, config, 1)
@@ -161,8 +173,8 @@ defmodule MyLiege.AutoRunTest do
     test "while food is short, newborns go to a farm, even after the pivot week" do
       config =
         EngineFixtures.config(
-          starting_food: 0,
-          base_production: %{farm: 3, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+          start_food: 0,
+          place_output_per_worker: %{farm: 3, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
       assert AutoRun.run(:feed_pivot, config, 1) == AutoRun.run(:feed, config, 1)
@@ -171,8 +183,14 @@ defmodule MyLiege.AutoRunTest do
     test "with a large food surplus and enough gold it plays like Pivot" do
       config =
         EngineFixtures.config(
-          starting_gold: 1_000_000,
-          base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+          start_gold: 1_000_000,
+          place_output_per_worker: %{
+            farm: 1000,
+            monastery: 3,
+            watchtower: 3,
+            market: 3,
+            tavern: 3
+          }
         )
 
       assert AutoRun.run(:feed_pivot, config, 2) == AutoRun.run(:pivot, config, 2)
@@ -183,7 +201,13 @@ defmodule MyLiege.AutoRunTest do
         EngineFixtures.config(
           # free buildings, so new watchtowers can be built while gold is low
           build_cost_gold: 0,
-          base_production: %{farm: 1000, monastery: 3, watchtower: 3, market: 3, tavern: 3}
+          place_output_per_worker: %{
+            farm: 1000,
+            monastery: 3,
+            watchtower: 3,
+            market: 3,
+            tavern: 3
+          }
         )
 
       {_reports, game} = AutoRun.run(:feed_pivot, config, 1, pivot_week: 1)
@@ -200,9 +224,9 @@ defmodule MyLiege.AutoRunTest do
       # tax 0, no demands, no spoilage and no robbery: nothing takes gold away
       config =
         EngineFixtures.config(
-          starting_gold: 1_000_000,
-          tax_per_worker: 0,
-          demand_population_share: 0
+          start_gold: 1_000_000,
+          king_tax_per_worker: 0,
+          king_demand_population_share: 0
         )
 
       {reports, _game} = feed = AutoRun.run(:feed, config, 2)
@@ -216,10 +240,17 @@ defmodule MyLiege.AutoRunTest do
       # building or the tax of 3 workers, not both
       config =
         EngineFixtures.config(
-          capacity: %{farm: 1, monastery: 1, watchtower: 1, market: 1, tavern: 1, guildhouse: 1},
-          starting_gold: 30,
-          tax_per_worker: 10,
-          demand_population_share: 0
+          place_capacity: %{
+            farm: 1,
+            monastery: 1,
+            watchtower: 1,
+            market: 1,
+            tavern: 1,
+            guildhouse: 1
+          },
+          start_gold: 30,
+          king_tax_per_worker: 10,
+          king_demand_population_share: 0
         )
 
       {feed, _} = AutoRun.run(:feed, config, 1, weeks: 2)
@@ -233,15 +264,15 @@ defmodule MyLiege.AutoRunTest do
   describe "Test A: tax_safe_to_build?/1" do
     test "in week 0 the gold now minus the price must cover the next tax" do
       # 2 workers × 10 = 20 tax, the building costs 30
-      enough = Game.new(EngineFixtures.config(starting_gold: 50, tax_per_worker: 10), 1)
-      short = Game.new(EngineFixtures.config(starting_gold: 49, tax_per_worker: 10), 1)
+      enough = Game.new(EngineFixtures.config(start_gold: 50, king_tax_per_worker: 10), 1)
+      short = Game.new(EngineFixtures.config(start_gold: 49, king_tax_per_worker: 10), 1)
 
       assert AutoRun.tax_safe_to_build?(enough)
       refute AutoRun.tax_safe_to_build?(short)
     end
 
     test "not after a week in which gold left the stock, but again in the week after" do
-      config = EngineFixtures.config(starting_gold: 1000, demand_population_share: 0)
+      config = EngineFixtures.config(start_gold: 1000, king_demand_population_share: 0)
       {_reports, game} = EngineFixtures.run_weeks(Game.new(config, 1), 24)
 
       assert game.report.tax == :paid
@@ -253,7 +284,7 @@ defmodule MyLiege.AutoRunTest do
 
     test "always when no tax is left in the game" do
       config =
-        EngineFixtures.config(starting_gold: 0, years_per_game: 1, tax_interval_weeks: 100)
+        EngineFixtures.config(start_gold: 0, game_years: 1, king_tax_interval_weeks: 100)
 
       assert AutoRun.tax_safe_to_build?(Game.new(config, 1))
     end
@@ -279,7 +310,7 @@ defmodule MyLiege.AutoRunTest do
     end
 
     test "moves nobody when the gold is already protected" do
-      game = on_their_way(EngineFixtures.config(starting_gold: 10), raid_week: 5)
+      game = on_their_way(EngineFixtures.config(start_gold: 10), raid_week: 5)
       game = %{game | workers: game.workers ++ [%Worker{id: 3, colour: :red}]}
 
       assert AutoRun.defend(game) == game
@@ -305,7 +336,7 @@ defmodule MyLiege.AutoRunTest do
 
   describe "Test A: Feed, invest and defend" do
     test "with plenty of gold it plays like Feed, defend" do
-      config = EngineFixtures.config(starting_gold: 1_000_000)
+      config = EngineFixtures.config(start_gold: 1_000_000)
 
       assert AutoRun.run(:feed_invest_defend, config, 2) == AutoRun.run(:feed_defend, config, 2)
     end
@@ -313,7 +344,7 @@ defmodule MyLiege.AutoRunTest do
     test "a market's expected gold until the tax week counts" do
       # 40 gold - 30 for the building leaves 10 for a tax of 20; a yellow worker in a market
       # earns 3 a week from week 3 to the tax week 24
-      game = Game.new(EngineFixtures.config(starting_gold: 40, tax_per_worker: 10), 1)
+      game = Game.new(EngineFixtures.config(start_gold: 40, king_tax_per_worker: 10), 1)
       waiting = [%Worker{id: 3, colour: :yellow}]
 
       assert AutoRun.invest_allowed?(game, :market, waiting)
@@ -321,7 +352,7 @@ defmodule MyLiege.AutoRunTest do
     end
 
     test "a farm is always allowed while food is low" do
-      game = Game.new(EngineFixtures.config(starting_gold: 0), 1)
+      game = Game.new(EngineFixtures.config(start_gold: 0), 1)
       hungry = %{game | stocks: %{game.stocks | food: -1}}
 
       assert AutoRun.invest_allowed?(hungry, :farm, [])
@@ -330,7 +361,7 @@ defmodule MyLiege.AutoRunTest do
 
     test "always when no tax is left in the game" do
       config =
-        EngineFixtures.config(starting_gold: 0, years_per_game: 1, tax_interval_weeks: 100)
+        EngineFixtures.config(start_gold: 0, game_years: 1, king_tax_interval_weeks: 100)
 
       assert AutoRun.invest_allowed?(Game.new(config, 1), :tavern, [])
     end

@@ -1,8 +1,8 @@
 defmodule MyLiege.Engine.Rules.Construction do
   @moduledoc """
-  R2, builders: a site needs `builders_per_building` builders. It advances one week in every
+  R2, builders: a site needs `build_builders` builders. It advances one week in every
   week in which all of them are on it and had arrived (travel 0) in `start_workers`, and is
-  finished after `construction_weeks` such weeks: it produces from the next week and its
+  finished after `build_weeks` such weeks: it produces from the next week and its
   builders return unplaced, travelling. A builder leaving early resets the progress to 0.
   """
 
@@ -55,7 +55,7 @@ defmodule MyLiege.Engine.Rules.Construction do
       not Building.site?(building) or not working?(building, start_workers, config) ->
         {:as_is, building}
 
-      building.progress + 1 >= config.construction_weeks ->
+      building.progress + 1 >= config.build_weeks ->
         {:finished, %{building | progress: building.progress + 1, ready_week: week + 1}}
 
       true ->
@@ -64,5 +64,5 @@ defmodule MyLiege.Engine.Rules.Construction do
   end
 
   defp working?(building, start_workers, config),
-    do: length(arrived(start_workers, building.id)) == config.builders_per_building
+    do: length(arrived(start_workers, building.id)) == config.build_builders
 end

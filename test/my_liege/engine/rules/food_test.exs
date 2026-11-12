@@ -10,7 +10,7 @@ defmodule MyLiege.Engine.Rules.FoodTest do
       %{config: EngineFixtures.config()}
     end
 
-    test "the game starts with starting_food in stock", %{config: config} do
+    test "the game starts with start_food in stock", %{config: config} do
       assert Food.starting(config) == 24_000
     end
 
@@ -42,7 +42,7 @@ defmodule MyLiege.Engine.Rules.FoodTest do
       rand = 1 |> Random.new() |> elem(1)
 
       assert {nil, _} =
-               Births.attempt(0, food_left, config.starting_manameter, config, rand)
+               Births.attempt(0, food_left, config.manameter_start, config, rand)
     end
   end
 

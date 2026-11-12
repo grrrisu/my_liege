@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.Training do
   @moduledoc """
   R5, training in the guildhouse: an untrained worker can start training only while its
-  colour has at least `training_threshold` of the Manameter (checked once, when placed).
+  colour has at least `training_min_share` of the Manameter (checked once, when placed).
   Training starts once it has arrived (`first_week/2`); after `training_weeks` in the
   guildhouse it is trained and returns unplaced, travelling. The colour never changes;
   training costs nothing but the worker's time. A trainee produces no goods and no mana, but
@@ -17,7 +17,7 @@ defmodule MyLiege.Engine.Rules.Training do
       worker.trained ->
         {:error, :already_trained}
 
-      Map.fetch!(manameter, worker.colour) < config.training_threshold ->
+      Map.fetch!(manameter, worker.colour) < config.training_min_share ->
         {:error, :below_threshold}
 
       true ->

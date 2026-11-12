@@ -13,10 +13,10 @@ defmodule MyLiege.Engine.GameTest do
       assert game.week == 0
       assert Enum.map(game.buildings, & &1.type) == [:farm, :watchtower]
       assert Enum.map(game.workers, & &1.colour) == [:green, :red]
-      assert game.manameter == config.starting_manameter
+      assert game.manameter == config.manameter_start
 
       assert game.stocks ==
-               %{food: 24_000, gold: 100_000, knowledge: 0, defence: 0, entertainment: 0}
+               %{food: 24_000, gold: 100_000, knowledge: 0, defence: 0, culture: 0}
     end
 
     test "its report shows week 0 as the starting state" do
@@ -24,9 +24,9 @@ defmodule MyLiege.Engine.GameTest do
 
       assert Game.report(Game.new(config, 1)) == %WeeklyReport{
                week: 0,
-               production: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
+               production: %{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0},
                mana: %{green: 0, blue: 0, red: 0, yellow: 0, violet: 0},
-               manameter: config.starting_manameter,
+               manameter: config.manameter_start,
                food_left: 24_000,
                newborn: nil,
                trained: [],
@@ -37,7 +37,7 @@ defmodule MyLiege.Engine.GameTest do
                tax: nil,
                demand: nil,
                demand_outcome: nil,
-               spoiled: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
+               spoiled: %{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0},
                gold_spent_buildings: 0,
                bandit_threat: 0,
                game_over: false
@@ -132,8 +132,8 @@ defmodule MyLiege.Engine.GameTest do
       config =
         EngineFixtures.config(
           birth_interval_weeks: 1,
-          starting_farmers: 0,
-          starting_manameter: %Manameter{green: 1000, blue: 0, red: 0, yellow: 0, violet: 0},
+          start_farmers: 0,
+          manameter_start: %Manameter{green: 1000, blue: 0, red: 0, yellow: 0, violet: 0},
           manameter_points_per_week: 1000
         )
 
@@ -145,7 +145,7 @@ defmodule MyLiege.Engine.GameTest do
 
     test "no birth in a short week" do
       config =
-        EngineFixtures.config(birth_interval_weeks: 1, starting_farmers: 0, starting_food: 0)
+        EngineFixtures.config(birth_interval_weeks: 1, start_farmers: 0, start_food: 0)
 
       {:ok, report, game} = config |> Game.new(1) |> Game.run_week()
 
@@ -161,15 +161,15 @@ defmodule MyLiege.Engine.GameTest do
   end
 
   describe "end of the game" do
-    test "the last week is the end of year years_per_game" do
+    test "the last week is the end of year game_years" do
       assert Game.last_week(Game.new(EngineFixtures.config())) == 144
-      assert Game.last_week(Game.new(EngineFixtures.config(years_per_game: 1))) == 48
+      assert Game.last_week(Game.new(EngineFixtures.config(game_years: 1))) == 48
     end
 
     test "the game keeps the config it was created with" do
       # enough gold and food to pay every tax and deliver every demand
-      config = EngineFixtures.config(starting_gold: 1000, starting_food: 10_000)
-      game = Game.new(%{config | years_per_game: 1}, 1)
+      config = EngineFixtures.config(start_gold: 1000, start_food: 10_000)
+      game = Game.new(%{config | game_years: 1}, 1)
 
       assert Game.last_week(game) == 48
 
@@ -180,7 +180,7 @@ defmodule MyLiege.Engine.GameTest do
     end
 
     test "reaching the last week without game over wins; no week runs after it" do
-      config = EngineFixtures.config(years_per_game: 1, starting_gold: 1000)
+      config = EngineFixtures.config(game_years: 1, start_gold: 1000)
       game = run_weeks(EngineFixtures.game_without_demands(config, 1), 48)
 
       assert Game.won?(game)
@@ -188,14 +188,14 @@ defmodule MyLiege.Engine.GameTest do
     end
 
     test "not won before the last week" do
-      config = EngineFixtures.config(years_per_game: 1, starting_gold: 1000)
+      config = EngineFixtures.config(game_years: 1, start_gold: 1000)
       game = run_weeks(EngineFixtures.game_without_demands(config, 1), 47)
 
       refute Game.won?(game)
     end
 
     test "game over in the last week is not a win" do
-      config = EngineFixtures.config(years_per_game: 1, starting_gold: 0)
+      config = EngineFixtures.config(game_years: 1, start_gold: 0)
       game = run_weeks(EngineFixtures.game_without_demands(config, 1), 48)
 
       assert game.game_over
