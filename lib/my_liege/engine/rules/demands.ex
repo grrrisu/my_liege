@@ -25,7 +25,7 @@ defmodule MyLiege.Engine.Rules.Demands do
   missed taxes in `Misses`.
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Manameter}
+  alias MyLiege.Engine.{Building, Config, Fixed, Manameter, Pentagon}
   alias MyLiege.Engine.Rules.Grace
 
   @half_years_per_year 2
@@ -62,7 +62,7 @@ defmodule MyLiege.Engine.Rules.Demands do
   def colour(%Manameter{} = manameter, year) do
     rank = Enum.at(@ranks, min(year, length(@ranks)) - 1)
 
-    Manameter.colours()
+    Pentagon.colours()
     |> Enum.sort_by(&(-Map.fetch!(manameter, &1)))
     |> Enum.at(rank)
   end

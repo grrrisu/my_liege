@@ -1,17 +1,17 @@
 defmodule MyLiege.Engine.PentagonTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Manameter, Pentagon}
+  alias MyLiege.Engine.Pentagon
 
   @neighbours [green: :yellow, yellow: :blue, blue: :red, red: :violet, violet: :green]
   @opposites [green: :blue, green: :red, yellow: :red, yellow: :violet, blue: :violet]
 
   test "pentagon order: Growth – Wealth – Wisdom – Strength – Culture" do
-    assert Manameter.colours() == [:green, :yellow, :blue, :red, :violet]
+    assert Pentagon.colours() == [:green, :yellow, :blue, :red, :violet]
   end
 
   test "a colour is the same as itself" do
-    for colour <- Manameter.colours(), do: assert(Pentagon.relation(colour, colour) == :same)
+    for colour <- Pentagon.colours(), do: assert(Pentagon.relation(colour, colour) == :same)
   end
 
   test "all ten pairs are neighbours or opposites, in both directions" do

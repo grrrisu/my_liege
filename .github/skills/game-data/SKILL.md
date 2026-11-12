@@ -110,10 +110,11 @@ is left out when a group has only one thing (`travel.weeks`).
 | `happiness_change` | `%{level1..level3 => ‰}` | `happiness.level<n>.change_permille` ×3 | `Rules.Happiness.apply_step/3` |
 
 The lists of building types,
-goods, trainings and relations in `LoadConfig` are written out there, not taken from
-`Building`, `Worker` or `Pentagon`, because those depend on `Config` at compile time.
-`config_test.exs` checks they equal `Building.types/0`, `Building.products/0`,
-`Worker.trainings/0` and `Pentagon.relations/0`. Colours come from `Manameter.colours/0`.
+goods and trainings in `LoadConfig` are written out there, not taken from `Building` or
+`Worker`, because those depend on `Config` at compile time. `config_test.exs` checks they
+equal `Building.types/0`, `Building.products/0` and `Worker.trainings/0`. Colours and
+relations come from `Pentagon.colours/0` and `Pentagon.relations/0`, which don't depend on
+`Config`.
 
 ## 2. Hardcoded values
 
@@ -125,7 +126,7 @@ you add one, ask the designer whether it should be a CSV key.
 |---|---|---|
 | 48 weeks per year (the designer's only sanctioned exception) | `Game` `@weeks_per_year`, `Game.weeks_per_year/0` | `Game.last_week/1`, `Demands`, `Bandits`, AutoRun |
 | The order of the pipeline steps | `Game` `@pipeline` | `run_week/1` |
-| Colours in pentagon order `green, yellow, blue, red, violet` (Growth, Wealth, Wisdom, Strength, Culture) | `Manameter` `@enforce_keys`, `colours/0` | everything that iterates colours, `Pentagon`, `LoadConfig`, `Reporting` |
+| Colours in pentagon order `green, yellow, blue, red, violet` (Growth, Wealth, Wisdom, Strength, Culture) | `Pentagon` `@colours`, `colours/0` | everything that iterates colours, the `Manameter` struct keys, `LoadConfig`, `Reporting` |
 | Manameter total 1000 | `Manameter.total_shares/0` | `LoadConfig` (validation) |
 | Same / neighbour / opposite from pentagon distance | `Pentagon.relation/2` | `Rules.Production` |
 | Building type → colour, type → product; guildhouse neutral | `Building` `@colours`, `@products`, `types/0`, `products/0` | everything that iterates types or products |
@@ -218,7 +219,7 @@ The export format is fixed. Ask before changing a column (hard rule 5).
 |---|---|---|
 | `MyLiegeWeb.GameLive` | `Config.from_csv/0`, game fields, config fields (see the tables), `Forecast`, `Rules.Bandits`, `Rules.Construction`, `Building`, `Manameter`, `Fixed.scale/0` | only through `Game` actions and `run_week/1` |
 | `MyLiege.AutoRun` | the config it is given, `Forecast`, `Building`, `game.workers`, `game.buildings`, `game.stocks` | only through `Game` actions |
-| `MyLiege.Reporting` | `WeeklyReport` fields, `Building.products/0`, `Manameter.colours/0` | none |
+| `MyLiege.Reporting` | `WeeklyReport` fields, `Building.products/0`, `Pentagon.colours/0` | none |
 | `EngineFixtures` (tests) | builds its own `%Config{}` | none |
 
 ## Changing the data

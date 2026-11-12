@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.Rules.Mana do
   trained: 1 and 2. Same colour gives 3 of that colour. Unplaced workers make no mana.
   """
 
-  alias MyLiege.Engine.{Building, Config, Manameter, Worker}
+  alias MyLiege.Engine.{Building, Config, Pentagon, Worker}
 
   @doc "One worker's mana per week in the given building, per colour."
   def worker_mana(%Worker{} = worker, %Building{} = building, %Config{} = config) do
@@ -17,7 +17,7 @@ defmodule MyLiege.Engine.Rules.Mana do
 
   @doc "Total mana per colour in `week`, from placed workers in ready buildings."
   def produced(workers, buildings, week, %Config{} = config) do
-    totals = Map.new(Manameter.colours(), &{&1, 0})
+    totals = Map.new(Pentagon.colours(), &{&1, 0})
 
     workers
     |> Building.staffed(buildings, week)

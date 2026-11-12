@@ -8,7 +8,7 @@ defmodule MyLiege.Engine.Building do
   builders, at most `build_builders`.
   """
 
-  alias MyLiege.Engine.{Config, Manameter, Worker}
+  alias MyLiege.Engine.{Config, Pentagon, Worker}
 
   @enforce_keys [:id, :type]
   defstruct id: nil, type: nil, ready_week: 0, progress: 0
@@ -21,8 +21,8 @@ defmodule MyLiege.Engine.Building do
     market: :gold,
     tavern: :culture
   }
-  # path building types in pentagon order, from the order in `Manameter.colours/0`
-  @path_types Enum.map(Manameter.colours(), fn colour ->
+  # path building types in pentagon order, from the order in `Pentagon.colours/0`
+  @path_types Enum.map(Pentagon.colours(), fn colour ->
                 Enum.find(Map.keys(@colours), &(Map.fetch!(@colours, &1) == colour))
               end)
   @types @path_types ++ [:guildhouse]

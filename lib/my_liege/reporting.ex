@@ -26,7 +26,7 @@ defmodule MyLiege.Reporting do
   defence, 0 in the grace period. Both empty in week 0.
   """
 
-  alias MyLiege.Engine.{Building, Manameter}
+  alias MyLiege.Engine.{Building, Pentagon}
 
   @doc "Returns the reports as CSV text with a header row."
   def to_csv(reports) do
@@ -36,8 +36,8 @@ defmodule MyLiege.Reporting do
   defp header do
     ["week"] ++
       Enum.map(Building.products(), &"production_#{&1}") ++
-      Enum.map(Manameter.colours(), &"mana_#{&1}") ++
-      Enum.map(Manameter.colours(), &"manameter_#{&1}") ++
+      Enum.map(Pentagon.colours(), &"mana_#{&1}") ++
+      Enum.map(Pentagon.colours(), &"manameter_#{&1}") ++
       ["food_left", "newborn", "trained", "builders", "travelling", "gold", "tax_due", "tax"] ++
       ["demand_product", "demand_amount", "demand_outcome", "demand_progress"] ++
       ["king_took_gold", "king_took_food"] ++
@@ -51,8 +51,8 @@ defmodule MyLiege.Reporting do
   defp row(report) do
     [report.week] ++
       Enum.map(Building.products(), &Map.fetch!(report.production, &1)) ++
-      Enum.map(Manameter.colours(), &Map.fetch!(report.mana, &1)) ++
-      Enum.map(Manameter.colours(), &Map.fetch!(report.manameter, &1)) ++
+      Enum.map(Pentagon.colours(), &Map.fetch!(report.mana, &1)) ++
+      Enum.map(Pentagon.colours(), &Map.fetch!(report.manameter, &1)) ++
       [
         report.food_left,
         newborn(report.newborn),

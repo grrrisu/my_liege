@@ -2,7 +2,7 @@ defmodule MyLiegeWeb.GameLive do
   @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Manameter}
+  alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Pentagon}
   alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Taxes, Training}
   alias MyLiege.Reporting
 
@@ -233,7 +233,7 @@ defmodule MyLiegeWeb.GameLive do
             <section id="manameter">
               <h2 class="mb-2 font-semibold">Manameter</h2>
               <div class="flex gap-4">
-                <div :for={colour <- Manameter.colours()} id={"share-#{colour}"} class="text-center">
+                <div :for={colour <- Pentagon.colours()} id={"share-#{colour}"} class="text-center">
                   <div class={["mx-auto h-8 w-8 rounded", colour_class(colour)]}></div>
                   <div class="mt-1 text-sm tabular-nums">
                     {per_mille(Map.fetch!(@game.manameter, colour))}
@@ -455,7 +455,7 @@ defmodule MyLiegeWeb.GameLive do
                   <td class="pr-4">mana</td>
                   <td>
                     <span
-                      :for={colour <- Manameter.colours()}
+                      :for={colour <- Pentagon.colours()}
                       class="mr-3 inline-flex items-center gap-1"
                     >
                       <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>

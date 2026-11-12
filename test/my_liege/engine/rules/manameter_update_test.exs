@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.ManameterUpdateTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.Manameter
+  alias MyLiege.Engine.{Manameter, Pentagon}
   alias MyLiege.Engine.Rules.ManameterUpdate
   alias MyLiege.EngineFixtures
 
@@ -80,7 +80,7 @@ defmodule MyLiege.Engine.Rules.ManameterUpdateTest do
       |> Enum.take(144)
       |> Enum.reduce(manameter, fn mana, current_manameter ->
         current_manameter = ManameterUpdate.update(current_manameter, mana, config)
-        shares = Enum.map(Manameter.colours(), &Map.fetch!(current_manameter, &1))
+        shares = Enum.map(Pentagon.colours(), &Map.fetch!(current_manameter, &1))
 
         assert Enum.sum(shares) == Manameter.total_shares()
         assert Enum.all?(shares, &(&1 >= 0))
