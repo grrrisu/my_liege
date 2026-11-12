@@ -1,7 +1,7 @@
-defmodule MyLiege.AutoRunTest do
+defmodule MyLiege.BotTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.AutoRun
+  alias MyLiege.Bot
   alias MyLiege.Engine.{Game, Manameter, Place, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Building}
   alias MyLiege.EngineFixtures
@@ -14,7 +14,7 @@ defmodule MyLiege.AutoRunTest do
     test "reports every week from 0 to the last week of the game", %{config: config} do
       # enough gold and no king's demands, so nothing ends the run early
       config = %{config | start_gold: 1_000_000, king_demand_population_share: 0}
-      {reports, _game} = AutoRun.run(:stay, config, 1)
+      {reports, _game} = Bot.run(:stay, config, 1)
 
       assert Enum.map(reports, & &1.week) == Enum.to_list(0..144)
     end
@@ -22,7 +22,7 @@ defmodule MyLiege.AutoRunTest do
     test "always tries to pay; the run ends at game over", %{config: config} do
       # free buildings, so the missing gold only affects taxes
       config = %{config | start_gold: 0, build_cost_gold: 0}
-      {reports, game} = AutoRun.run(:stay, config, 1)
+      {reports, game} = Bot.run(:stay, config, 1)
 
       assert Enum.map(reports, & &1.tax) |> Enum.reject(&is_nil/1) == [:missed, :missed]
       assert List.last(reports).week == 48
@@ -31,7 +31,7 @@ defmodule MyLiege.AutoRunTest do
 
     test "without gold for a building, workers wait unplaced", %{config: config} do
       config = %{config | start_gold: 0, king_demand_population_share: 0}
-      {reports, game} = AutoRun.run(:stay, config, 1)
+      {reports, game} = Bot.run(:stay, config, 1)
 
       assert Enum.map(game.places, &Place.type/1) == [:farm, :watchtower]
       assert Enum.all?(reports, &(&1.gold_spent_buildings == 0))
@@ -40,7 +40,7 @@ defmodule MyLiege.AutoRunTest do
 
     test "reports the gold spent on buildings in the week they were ordered", %{config: config} do
       config = %{config | start_gold: 1_000_000, king_demand_population_share: 0}
-      {reports, game} = AutoRun.run(:stay, config, 1)
+      {reports, game} = Bot.run(:stay, config, 1)
       ordered = length(game.places) - 2
 
       assert ordered > 0
@@ -48,18 +48,18 @@ defmodule MyLiege.AutoRunTest do
     end
 
     test "every placed worker is in a building of their own colour", %{config: config} do
-      {_reports, game} = AutoRun.run(:stay, config, 1)
+      {_reports, game} = Bot.run(:stay, config, 1)
       buildings = Map.new(game.places, &{&1.id, &1})
 
       for worker <- game.workers, worker.place do
-        assert Place.colour(Map.fetch!(buildings, worker.place)) == worker.colour
+        assert buildings |> Map.fetch!(worker.place) |> Place.colour() == worker.colour
       end
     end
 
     test "orders only as many buildings as the workers need", %{config: config} do
       # enough gold, so what the king takes on a miss never stops an order
       config = %{config | start_gold: 1_000_000}
-      {_reports, game} = AutoRun.run(:stay, config, 1)
+      {_reports, game} = Bot.run(:stay, config, 1)
 
       for type <- Blueprint.types() do
         workers = Enum.count(game.workers, &(Blueprint.home_type(&1.colour) == type))
@@ -70,14 +70,64 @@ defmodule MyLiege.AutoRunTest do
       end
     end
 
+    test "takes workers of the project's colour out of buildings for a king's demand project; it is delivered",
+         %{config: config} do
+      # blue leads, so the year-1 demand is for knowledge; with plenty of gold every blue
+      # newborn gets a monastery. Food runs out after week 7, so no worker is born after
+      # it: when the demand opens in week 12, every blue worker is in the monastery, and
+      # DemandProject moves as many of them to the project as it needs
+      config = %{
+        config
+        | game_years: 1,
+          start_gold: 1_000_000,
+          manameter_start: %Manameter{green: 50, yellow: 50, blue: 800, red: 50, violet: 50}
+      }
+
+      {reports, _game} = Bot.run(:stay, config, 1, weeks: 24)
+
+      assert [%{product: :knowledge, due_week: due_week, project_id: id}] =
+               reports |> Enum.map(& &1.demand) |> Enum.reject(&is_nil/1)
+
+      assert id != nil
+
+      progress = for %{demand_progress: p} <- reports, p, do: p
+      assert progress == Enum.sort(progress) and List.last(progress) > 0
+
+      delivered = Enum.find(reports, &(&1.demand_outcome == :delivered))
+      assert delivered.week <= due_week
+    end
+
+    test "unplaced workers of the project's colour go to a king's demand project; it is delivered",
+         %{config: config} do
+      # as above, but without gold no monastery is built: the blue newborns wait unplaced,
+      # so when the knowledge demand opens they go to its project
+      config = %{
+        config
+        | game_years: 1,
+          start_gold: 0,
+          manameter_start: %Manameter{green: 50, yellow: 50, blue: 800, red: 50, violet: 50}
+      }
+
+      {reports, _game} = Bot.run(:stay, config, 1, weeks: 24)
+
+      assert [%{product: :knowledge, due_week: due_week}] =
+               reports |> Enum.map(& &1.demand) |> Enum.reject(&is_nil/1)
+
+      progress = for %{demand_progress: p} <- reports, p, do: p
+      assert progress == Enum.sort(progress) and List.last(progress) > 0
+
+      delivered = Enum.find(reports, &(&1.demand_outcome == :delivered))
+      assert delivered.week <= due_week
+    end
+
     test "the same seed replays the same run", %{config: config} do
-      assert AutoRun.run(:stay, config, 7) == AutoRun.run(:stay, config, 7)
+      assert Bot.run(:stay, config, 7) == Bot.run(:stay, config, 7)
     end
   end
 
   describe "Test A: Pivot" do
     test "workers born from the pivot week go to a watchtower", %{config: config} do
-      {_reports, game} = AutoRun.run(:pivot, config, 1)
+      {_reports, game} = Bot.run(:pivot, config, 1)
       buildings = Map.new(game.places, &{&1.id, &1})
 
       for worker <- game.workers, worker.place do
@@ -86,13 +136,13 @@ defmodule MyLiege.AutoRunTest do
             do: :red,
             else: worker.colour
 
-        assert Place.colour(Map.fetch!(buildings, worker.place)) == expected
+        assert buildings |> Map.fetch!(worker.place) |> Place.colour() == expected
       end
     end
 
     test "before the pivot week it plays like Stay", %{config: config} do
-      {stay, _} = AutoRun.run(:stay, config, 3)
-      {pivot, _} = AutoRun.run(:pivot, config, 3)
+      {stay, _} = Bot.run(:stay, config, 3)
+      {pivot, _} = Bot.run(:pivot, config, 3)
 
       assert Enum.take(stay, 48) == Enum.take(pivot, 48)
     end
@@ -107,7 +157,7 @@ defmodule MyLiege.AutoRunTest do
           place_output_per_worker: %{farm: 3, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
-      {_reports, game} = AutoRun.run(:feed, config, 1)
+      {_reports, game} = Bot.run(:feed, config, 1)
       farm_ids = for b <- game.places, Place.type(b) == :farm, do: b.id
 
       for worker <- game.workers, worker.born_week do
@@ -123,7 +173,7 @@ defmodule MyLiege.AutoRunTest do
           place_output_per_worker: %{farm: 4, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
-      {_reports, game} = AutoRun.run(:feed, config, 1)
+      {_reports, game} = Bot.run(:feed, config, 1)
       first_newborn = Enum.find(game.workers, &(&1.born_week == 1))
       farm_ids = for b <- game.places, Place.type(b) == :farm, do: b.id
 
@@ -144,7 +194,7 @@ defmodule MyLiege.AutoRunTest do
           }
         )
 
-      assert AutoRun.run(:feed, config, 2) == AutoRun.run(:stay, config, 2)
+      assert Bot.run(:feed, config, 2) == Bot.run(:stay, config, 2)
     end
 
     test "with enough food, newborns go to a market while gold is below the next tax" do
@@ -162,7 +212,7 @@ defmodule MyLiege.AutoRunTest do
           }
         )
 
-      {_reports, game} = AutoRun.run(:feed, config, 1)
+      {_reports, game} = Bot.run(:feed, config, 1)
       first_newborn = Enum.find(game.workers, &(&1.born_week == 1))
       market_ids = for b <- game.places, Place.type(b) == :market, do: b.id
 
@@ -178,7 +228,7 @@ defmodule MyLiege.AutoRunTest do
           place_output_per_worker: %{farm: 3, monastery: 3, watchtower: 3, market: 3, tavern: 3}
         )
 
-      assert AutoRun.run(:feed_pivot, config, 1) == AutoRun.run(:feed, config, 1)
+      assert Bot.run(:feed_pivot, config, 1) == Bot.run(:feed, config, 1)
     end
 
     test "with a large food surplus and enough gold it plays like Pivot" do
@@ -194,7 +244,7 @@ defmodule MyLiege.AutoRunTest do
           }
         )
 
-      assert AutoRun.run(:feed_pivot, config, 2) == AutoRun.run(:pivot, config, 2)
+      assert Bot.run(:feed_pivot, config, 2) == Bot.run(:pivot, config, 2)
     end
 
     test "after the pivot week, newborns go to a watchtower even while gold is low" do
@@ -211,11 +261,11 @@ defmodule MyLiege.AutoRunTest do
           }
         )
 
-      {_reports, game} = AutoRun.run(:feed_pivot, config, 1, pivot_week: 1)
+      {_reports, game} = Bot.run(:feed_pivot, config, 1, pivot_week: 1)
       buildings = Map.new(game.places, &{&1.id, &1})
 
       for worker <- game.workers, worker.born_week, worker.place do
-        assert Place.type(Map.fetch!(buildings, worker.place)) == :watchtower
+        assert buildings |> Map.fetch!(worker.place) |> Place.type() == :watchtower
       end
     end
   end
@@ -230,10 +280,10 @@ defmodule MyLiege.AutoRunTest do
           king_demand_population_share: 0
         )
 
-      {reports, _game} = feed = AutoRun.run(:feed, config, 2)
+      {reports, _game} = feed = Bot.run(:feed, config, 2)
 
       assert Enum.any?(reports, &(&1.gold_spent_buildings > 0))
-      assert AutoRun.run(:feed_save_tax, config, 2) == feed
+      assert Bot.run(:feed_save_tax, config, 2) == feed
     end
 
     test "doesn't order a building that would leave too little for the next tax" do
@@ -254,8 +304,8 @@ defmodule MyLiege.AutoRunTest do
           king_demand_population_share: 0
         )
 
-      {feed, _} = AutoRun.run(:feed, config, 1, weeks: 2)
-      {save, _} = AutoRun.run(:feed_save_tax, config, 1, weeks: 2)
+      {feed, _} = Bot.run(:feed, config, 1, weeks: 2)
+      {save, _} = Bot.run(:feed_save_tax, config, 1, weeks: 2)
 
       assert Enum.at(feed, 1).gold_spent_buildings == 30_000
       assert Enum.at(save, 1).gold_spent_buildings == 0
@@ -268,32 +318,32 @@ defmodule MyLiege.AutoRunTest do
       enough = Game.new(EngineFixtures.config(start_gold: 50, king_tax_per_worker: 10), 1)
       short = Game.new(EngineFixtures.config(start_gold: 49, king_tax_per_worker: 10), 1)
 
-      assert AutoRun.tax_safe_to_build?(enough)
-      refute AutoRun.tax_safe_to_build?(short)
+      assert Bot.tax_safe_to_build?(enough)
+      refute Bot.tax_safe_to_build?(short)
     end
 
     test "not after a week in which gold left the stock, but again in the week after" do
       config = EngineFixtures.config(start_gold: 1000, king_demand_population_share: 0)
-      {_reports, game} = EngineFixtures.run_weeks(Game.new(config, 1), 24)
+      {_reports, game} = config |> Game.new(1) |> EngineFixtures.run_weeks(24)
 
       assert game.report.tax == :paid
-      refute AutoRun.tax_safe_to_build?(game)
+      refute Bot.tax_safe_to_build?(game)
 
       {_reports, game} = EngineFixtures.run_weeks(game, 1)
-      assert AutoRun.tax_safe_to_build?(game)
+      assert Bot.tax_safe_to_build?(game)
     end
 
     test "always when no tax is left in the game" do
       config =
         EngineFixtures.config(start_gold: 0, game_years: 1, king_tax_interval_weeks: 100)
 
-      assert AutoRun.tax_safe_to_build?(Game.new(config, 1))
+      assert config |> Game.new(1) |> Bot.tax_safe_to_build?()
     end
   end
 
   describe "Test A: Feed, defend" do
     test "while bandits never set out, it plays like Feed", %{config: config} do
-      assert AutoRun.run(:feed_defend, config, 3) == AutoRun.run(:feed, config, 3)
+      assert Bot.run(:feed_defend, config, 3) == Bot.run(:feed, config, 3)
     end
 
     test "moves unplaced workers to a watchtower until the raid's gold is protected" do
@@ -305,7 +355,7 @@ defmodule MyLiege.AutoRunTest do
         | workers: game.workers ++ [%Worker{id: 3, colour: :blue}, %Worker{id: 4, colour: :blue}]
       }
 
-      game = AutoRun.defend(game)
+      game = Bot.defend(game)
 
       assert Enum.map(game.workers, & &1.place) == [1, 2, 2, nil]
     end
@@ -314,14 +364,14 @@ defmodule MyLiege.AutoRunTest do
       game = on_their_way(EngineFixtures.config(start_gold: 10), raid_week: 5)
       game = %{game | workers: game.workers ++ [%Worker{id: 3, colour: :red}]}
 
-      assert AutoRun.defend(game) == game
+      assert Bot.defend(game) == game
     end
 
     test "moves nobody who couldn't arrive before the raid" do
       game = on_their_way(EngineFixtures.config(travel_weeks: 1), raid_week: 1)
       game = %{game | workers: game.workers ++ [%Worker{id: 3, colour: :red}]}
 
-      assert AutoRun.defend(game) == game
+      assert Bot.defend(game) == game
     end
 
     test "takes a worker from a building only while its product keeps a surplus" do
@@ -330,8 +380,8 @@ defmodule MyLiege.AutoRunTest do
       with_surplus = last_change(game, food: 10_000)
       without = last_change(game, food: 8_000)
 
-      assert hd(AutoRun.defend(with_surplus).workers).place == 2
-      assert hd(AutoRun.defend(without).workers).place == 1
+      assert hd(Bot.defend(with_surplus).workers).place == 2
+      assert hd(Bot.defend(without).workers).place == 1
     end
   end
 
@@ -339,7 +389,7 @@ defmodule MyLiege.AutoRunTest do
     test "with plenty of gold it plays like Feed, defend" do
       config = EngineFixtures.config(start_gold: 1_000_000)
 
-      assert AutoRun.run(:feed_invest_defend, config, 2) == AutoRun.run(:feed_defend, config, 2)
+      assert Bot.run(:feed_invest_defend, config, 2) == Bot.run(:feed_defend, config, 2)
     end
 
     test "a market's expected gold until the tax week counts" do
@@ -348,23 +398,23 @@ defmodule MyLiege.AutoRunTest do
       game = Game.new(EngineFixtures.config(start_gold: 40, king_tax_per_worker: 10), 1)
       waiting = [%Worker{id: 3, colour: :yellow}]
 
-      assert AutoRun.invest_allowed?(game, :market, waiting)
-      refute AutoRun.invest_allowed?(game, :monastery, waiting)
+      assert Bot.invest_allowed?(game, :market, waiting)
+      refute Bot.invest_allowed?(game, :monastery, waiting)
     end
 
     test "a farm is always allowed while food is low" do
       game = Game.new(EngineFixtures.config(start_gold: 0), 1)
       hungry = %{game | stocks: %{game.stocks | food: -1}}
 
-      assert AutoRun.invest_allowed?(hungry, :farm, [])
-      refute AutoRun.invest_allowed?(game, :farm, [])
+      assert Bot.invest_allowed?(hungry, :farm, [])
+      refute Bot.invest_allowed?(game, :farm, [])
     end
 
     test "always when no tax is left in the game" do
       config =
         EngineFixtures.config(start_gold: 0, game_years: 1, king_tax_interval_weeks: 100)
 
-      assert AutoRun.invest_allowed?(Game.new(config, 1), :tavern, [])
+      assert config |> Game.new(1) |> Bot.invest_allowed?(:tavern, [])
     end
   end
 
@@ -381,14 +431,14 @@ defmodule MyLiege.AutoRunTest do
 
   describe "Test A: summary" do
     test "a run stops after `weeks`", %{config: config} do
-      {reports, game} = AutoRun.run(:feed, config, 1, weeks: 10)
+      {reports, game} = Bot.run(:feed, config, 1, weeks: 10)
 
       assert Enum.map(reports, & &1.week) == Enum.to_list(0..10)
       assert game.week == 10
     end
 
     test "one row per pattern and seed, then the totals per pattern", %{config: config} do
-      csv = AutoRun.summary_csv([:feed, :feed_save_tax], config, 1..2, weeks: 30)
+      csv = Bot.summary_csv([:feed, :feed_save_tax], config, 1..2, weeks: 30)
       [header | rows] = csv |> String.split("\n", trim: true) |> Enum.map(&String.split(&1, ","))
 
       assert header == ~w(pattern seed first_tax_week first_tax_paid first_tax_missed
@@ -406,9 +456,9 @@ defmodule MyLiege.AutoRunTest do
 
       for [pattern, seed | _] = row <- rows, seed != "total" do
         {reports, _game} =
-          AutoRun.run(String.to_existing_atom(pattern), config, String.to_integer(seed),
-            weeks: 30
-          )
+          pattern
+          |> String.to_existing_atom()
+          |> Bot.run(config, String.to_integer(seed), weeks: 30)
 
         assert parse(row) == expected_row(pattern, seed, reports)
       end
@@ -472,7 +522,7 @@ defmodule MyLiege.AutoRunTest do
     test "leading colour and share at the end of each year", %{config: config} do
       reports = for week <- 0..144, do: report(week, if(week >= 96, do: 300, else: 100))
 
-      assert AutoRun.leading(reports, config) ==
+      assert Bot.leading(reports, config) ==
                [{48, :green, 900}, {96, :green, 700}, {144, :green, 700}]
     end
 
@@ -480,19 +530,19 @@ defmodule MyLiege.AutoRunTest do
       # red is 100 up to week 47, then gains 10 a week
       reports = for week <- 0..144, do: report(week, 100 + max(week - 47, 0) * 10)
 
-      assert AutoRun.pivot_weeks(reports) == 20
+      assert Bot.pivot_weeks(reports) == 20
     end
 
     test "no pivot result when red never gains 20 points" do
       reports = for week <- 0..144, do: report(week, 100)
 
-      assert AutoRun.pivot_weeks(reports) == nil
+      assert Bot.pivot_weeks(reports) == nil
     end
 
     test "spread between runs per colour" do
       runs = [[report(48, 100)], [report(48, 250)]]
 
-      assert AutoRun.spread(runs, 48) == %{
+      assert Bot.spread(runs, 48) == %{
                green: {750, 900},
                blue: {0, 0},
                red: {100, 250},

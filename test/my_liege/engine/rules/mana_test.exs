@@ -48,6 +48,43 @@ defmodule MyLiege.Engine.Rules.ManaTest do
     end
   end
 
+  describe "R7: mana on a king's demand project" do
+    test "the same mana as in a building of the project's colour; none on a site" do
+      config = EngineFixtures.config()
+      tavern = EngineFixtures.new_building(1, :tavern)
+      project = EngineFixtures.new_demand_project(2, :culture)
+
+      for worker <- [worker(:violet), worker(:red), worker(:green, true)] do
+        assert Mana.worker_mana(worker, project, config) ==
+                 Mana.worker_mana(worker, tavern, config)
+      end
+
+      assert Mana.worker_mana(worker(:red), project, config) == %{violet: 2, red: 1}
+
+      on_project = %{worker(:red) | place: 2}
+      on_site = %{worker(:red) | place: 3}
+      site = EngineFixtures.new_site(3, :farm)
+
+      assert Mana.produced([on_project, on_site], [project, site], 1, config) ==
+               %{green: 0, yellow: 0, blue: 0, red: 1, violet: 2}
+    end
+  end
+
+  describe "R12: mana on a book" do
+    test "the same mana as in a blue building, whatever the book's colour" do
+      config = EngineFixtures.config()
+      monastery = EngineFixtures.new_building(1, :monastery)
+      book = EngineFixtures.new_book(2, :red)
+
+      for worker <- [worker(:blue), worker(:green), worker(:red, true)] do
+        assert Mana.worker_mana(worker, book, config) ==
+                 Mana.worker_mana(worker, monastery, config)
+      end
+
+      assert Mana.worker_mana(worker(:green), book, config) == %{blue: 2, green: 1}
+    end
+  end
+
   defp worker(colour, trained \\ false, place_id \\ nil),
     do: %Worker{colour: colour, trained: trained, place: place_id}
 end

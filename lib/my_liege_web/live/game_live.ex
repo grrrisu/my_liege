@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
-  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Place.{Blueprint, Project}
   alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Placement, Taxes, Training}
   alias MyLiege.Reporting
 
@@ -74,6 +74,11 @@ defmodule MyLiegeWeb.GameLive do
     type = Enum.find(Blueprint.types(), &(Atom.to_string(&1) == type))
     result = Game.construct(socket.assigns.game, type)
     {:noreply, apply_result(socket, result)}
+  end
+
+  def handle_event("start_book", %{"colour" => colour}, socket) do
+    colour = Enum.find(Pentagon.colours(), &(Atom.to_string(&1) == colour))
+    {:noreply, apply_result(socket, Game.start_book(socket.assigns.game, colour))}
   end
 
   def handle_event("decide_tax", %{"pay" => pay}, socket) do
@@ -156,10 +161,10 @@ defmodule MyLiegeWeb.GameLive do
 
   defp error_message(:no_project), do: "There is no open project to refuse."
   defp error_message(:full), do: "That building is full."
-  defp error_message(:not_ready), do: "That building is not finished yet."
   defp error_message(:unknown_worker), do: "Select a worker first."
   defp error_message(:unknown_place), do: "Unknown place."
   defp error_message(:unknown_type), do: "Unknown building type."
+  defp error_message(:unknown_colour), do: "Unknown colour."
   defp error_message(:not_enough_gold), do: "Not enough gold to build."
   defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
   defp error_message(:game_over), do: "The game is over."
@@ -197,6 +202,7 @@ defmodule MyLiegeWeb.GameLive do
     |> assign(:tax_decision_due?, decision_due?)
     |> assign(:demand_decision_due?, demand_due?)
     |> assign(:project_refusable?, Game.project_refusable?(game))
+    |> assign(:project, Demands.project(game.demand, game.places))
     |> assign(:won?, Game.won?(game))
     |> assign(
       :blocked?,
@@ -237,7 +243,7 @@ defmodule MyLiegeWeb.GameLive do
                 <div :for={colour <- Pentagon.colours()} id={"share-#{colour}"} class="text-center">
                   <div class={["mx-auto h-8 w-8 rounded", colour_class(colour)]}></div>
                   <div class="mt-1 text-sm tabular-nums">
-                    {per_mille(Map.fetch!(@game.manameter, colour))}
+                    {@game.manameter |> Map.fetch!(colour) |> per_mille()}
                   </div>
                 </div>
               </div>
@@ -248,7 +254,7 @@ defmodule MyLiegeWeb.GameLive do
               <table class="text-sm tabular-nums">
                 <tr :for={product <- Blueprint.goods()} id={"stock-#{product}"}>
                   <td class="pr-4">{product}</td>
-                  <td class="text-right">{units(Map.fetch!(@game.stocks, product))}</td>
+                  <td class="text-right">{@game.stocks |> Map.fetch!(product) |> units()}</td>
                   <td :if={product == :gold} id="protected-gold" class="pl-4 opacity-70">
                     protected {units(@report.bandit_protected)}
                   </td>
@@ -262,6 +268,17 @@ defmodule MyLiegeWeb.GameLive do
                   </td>
                 </tr>
               </table>
+              <p id="books-held" class="mt-2 flex flex-wrap items-center gap-3 text-sm tabular-nums">
+                <span>books</span>
+                <span
+                  :for={colour <- Pentagon.colours()}
+                  id={"books-#{colour}"}
+                  class="inline-flex items-center gap-1"
+                >
+                  <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>
+                  {Map.fetch!(@game.books, colour)}
+                </span>
+              </p>
               <.happiness happiness={@report.happiness} />
             </section>
 
@@ -355,15 +372,13 @@ defmodule MyLiegeWeb.GameLive do
                 id="project"
                 class="flex flex-wrap items-center gap-3 text-sm"
               >
-                <span class="tabular-nums">
-                  Project: {units(@game.demand.progress)}/{units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}
+                <span :if={@project} class="tabular-nums">
+                  Project: {units(@project.progress)}/{units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}, {@game.workers
+                  |> Place.workers_at(@project.id)
+                  |> length()} worker(s) on it
                 </span>
-                <span
-                  :if={@game.demand.progress >= @game.demand.amount}
-                  id="project-reached"
-                  class="font-semibold text-green-700"
-                >
-                  target reached
+                <span :if={!@project} class="tabular-nums">
+                  Project: {units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}
                 </span>
                 <button
                   :if={@project_refusable?}
@@ -448,7 +463,7 @@ defmodule MyLiegeWeb.GameLive do
                   <td class="pr-4">production</td>
                   <td>
                     <span :for={product <- Blueprint.goods()} class="mr-3">
-                      {product} {units(Map.fetch!(@report.production, product))}
+                      {product} {@report.production |> Map.fetch!(product) |> units()}
                     </span>
                   </td>
                 </tr>
@@ -551,15 +566,12 @@ defmodule MyLiegeWeb.GameLive do
           id={"building-#{place.id}"}
           class="flex flex-wrap items-center gap-3"
         >
-          <div class={["h-4 w-4 rounded-sm", colour_class(Place.colour(place))]}></div>
-          <span class="w-24 text-sm">
-            {Place.type(place)}<span :if={Building.site?(place)} class="opacity-60"> site</span>
+          <div class={["h-4 w-4 rounded-sm", place |> card_colour() |> colour_class()]}></div>
+          <span class="min-w-24 text-sm">
+            {place_name(place)}<span :if={site?(place)} class="opacity-60"> site</span>
           </span>
           <span class="w-10 text-sm tabular-nums">
-            {length(Place.workers_at(@game.workers, place.id))}/{Placement.capacity(
-              place,
-              @game.config
-            )}
+            {workers_label(@game, place)}
           </span>
           <.worker
             :for={worker <- Place.workers_at(@game.workers, place.id)}
@@ -567,20 +579,26 @@ defmodule MyLiegeWeb.GameLive do
             selected={@selected == worker.id}
           />
           <span
-            :if={feeds_project?(@game, place)}
-            id={"feeds-project-#{place.id}"}
-            class="rounded bg-amber-100 px-1.5 text-xs text-amber-900"
-            title="this building's production goes into the king's project"
+            :if={book?(place)}
+            id={"book-#{place.id}"}
+            class="text-sm tabular-nums opacity-60"
           >
-            → project
+            progress {units(place.progress)}/{units(place.target)} knowledge
           </span>
           <span
-            :if={Building.site?(place)}
+            :if={demand_project?(place)}
+            id={"demand-project-#{place.id}"}
+            class="text-sm tabular-nums opacity-60"
+          >
+            progress {units(place.progress)}/{units(place.target)}, by week {elem(place.gives, 1)}
+          </span>
+          <span
+            :if={site?(place)}
             id={"site-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            builders arrived {length(Construction.arrived(@game.workers, place.id))}/{@game.config.build_builders},
-            progress {place.progress}/{@game.config.build_weeks} weeks
+            builders arrived {@game.workers |> Construction.arrived(place.id) |> length()}/{@game.config.build_capacity},
+            progress {place.progress}/{@game.config.build_work}
           </span>
           <span
             :for={worker <- Place.workers_at(@game.workers, place.id)}
@@ -603,7 +621,7 @@ defmodule MyLiegeWeb.GameLive do
         <div id="unplaced" class="flex flex-wrap items-center gap-3">
           <div class="h-4 w-4"></div>
           <span class="w-24 text-sm">unplaced</span>
-          <span class="w-10 text-sm tabular-nums">{length(Place.workers_at(@game.workers, nil))}</span>
+          <span class="w-10 text-sm tabular-nums">{@game.workers |> Place.workers_at(nil) |> length()}</span>
           <.worker
             :for={worker <- Place.workers_at(@game.workers, nil)}
             worker={worker}
@@ -640,7 +658,7 @@ defmodule MyLiegeWeb.GameLive do
     <section id="build">
       <h2 class="mb-2 font-semibold">Build</h2>
       <p id="build-cost" class="mb-2 text-sm opacity-60">
-        Every building costs {units(Game.build_cost(@game))} gold.
+        Every building costs {@game |> Game.build_cost() |> units()} gold.
       </p>
       <div class="flex flex-wrap gap-2">
         <button
@@ -651,8 +669,22 @@ defmodule MyLiegeWeb.GameLive do
           disabled={!@affordable?}
           class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
-          <span class={["inline-block h-3 w-3 rounded-sm", colour_class(type_colour(type))]}></span>
+          <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
           {type}
+        </button>
+      </div>
+      <h2 class="mt-4 mb-2 font-semibold">Write a book</h2>
+      <p class="mb-2 text-sm opacity-60">Free; one writer per book.</p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          :for={colour <- Pentagon.colours()}
+          id={"start-book-#{colour}"}
+          phx-click="start_book"
+          phx-value-colour={colour}
+          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100"
+        >
+          <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>
+          write a {colour} book
         </button>
       </div>
     </section>
@@ -700,14 +732,32 @@ defmodule MyLiegeWeb.GameLive do
     |> Enum.join(", ")
   end
 
-  # the next week's production of this place goes into the open project
-  defp feeds_project?(game, place) do
-    project = game.demand
+  defp site?(place), do: match?(%Project{gives: {:building, _}}, place)
+  defp demand_project?(place), do: match?(%Project{gives: {:demand, _}}, place)
+  defp book?(place), do: match?(%Project{gives: {:book, _}}, place)
 
-    Demands.project?(project) and game.deliver_demand != false and
-      project.progress < project.amount and not Place.neutral?(place) and
-      not Building.site?(place) and
-      Place.good(place) == project.product
+  # a book shows its own colour, not its blue method
+  defp card_colour(%Project{gives: {:book, colour}}), do: colour
+  defp card_colour(place), do: Place.colour(place)
+
+  # a site is named after the building it gives, a demand project after its good
+  defp place_name(%Project{gives: {:building, type}}), do: type
+
+  defp place_name(%Project{gives: {:demand, _}} = project),
+    do: "king's demand: #{Place.good(project)}"
+
+  defp place_name(%Project{gives: {:book, colour}}), do: "#{colour} book"
+
+  defp place_name(place), do: Place.type(place)
+
+  # workers / capacity; a demand project takes any number
+  defp workers_label(game, place) do
+    count = game.workers |> Place.workers_at(place.id) |> length()
+
+    case Placement.capacity(place, game.config) do
+      :unlimited -> "#{count}"
+      capacity -> "#{count}/#{capacity}"
+    end
   end
 
   defp type_colour(type), do: Blueprint.fetch!(type).colour
@@ -849,7 +899,7 @@ defmodule MyLiegeWeb.GameLive do
 
   defp units(amount) do
     if rem(amount, Fixed.scale()) == 0 do
-      Integer.to_string(div(amount, Fixed.scale()))
+      amount |> div(Fixed.scale()) |> Integer.to_string()
     else
       :erlang.float_to_binary(amount / Fixed.scale(), [:compact, decimals: 3])
     end

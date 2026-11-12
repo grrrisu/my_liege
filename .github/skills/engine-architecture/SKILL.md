@@ -1,6 +1,6 @@
 ---
 name: engine-architecture
-description: 'How the My Liege engine is structured: layers (Game → SimSteps → Rules), places (blueprint, building), where a function goes (model, rule, orchestration), the SimStep contract, rules on plain data, config, and the regression test. Use when: adding, moving or renaming engine modules; deciding where new code goes; refactoring; calling engine code from GameLive or AutoRun; reviewing a change for structure.'
+description: 'How the My Liege engine is structured: layers (Game → SimSteps → Rules), places (blueprint, building), where a function goes (model, rule, orchestration), the SimStep contract, rules on plain data, config, and the regression test. Use when: adding, moving or renaming engine modules; deciding where new code goes; refactoring; calling engine code from GameLive or the bots; reviewing a change for structure.'
 ---
 
 # Engine architecture
@@ -19,32 +19,45 @@ lib/my_liege/engine/
   load_config.ex     infrastructure: reads priv/balance_inputs.csv at compile time
   fixed.ex           infrastructure: thousandths
   random.ex          infrastructure: seeded random state
-  place.ex           model: what all kinds of place share (colour, good, type, workers_at)
+  place.ex           model: what all kinds of place share (colour, good, type, next_id, workers_at)
   place/
     blueprint.ex     model: the catalogue, one blueprint per type of place
-    building.ex      model: a building in the game (a site until finished)
+    building.ex      model: a building that stands in the game, always finished
+    project.ex       model: a project, collects progress to a target, then gives something once
   worker.ex          data
   manameter.ex       data
   pentagon.ex        data
   rules/             what happens: MyLiege.Engine.Rules.*
-    placement.ex     R2: who may enter a place, its capacity, what leaving does
+    placement.ex     R2: who may enter a place, its capacity, releasing its workers
+    books.ex         R12: books, their experience factor, finishing
     staffing.ex      R2: which workers work in a week
     …
   sim_steps/         when it happens: MyLiege.Engine.SimSteps.*
   actions/           player actions between weeks: MyLiege.Engine.Actions.*
 ```
 
+Outside the engine, in `lib/my_liege/`: `bot.ex` and `bot/` (the bots, `MyLiege.Bot.*`),
+`reporting.ex` (CSV export); the UI is `MyLiegeWeb.GameLive`.
+
 Dependencies: `Game → SimSteps → Rules` and `Game → Actions → Rules`. Actions never call
 `SimSteps`, and rules never reference `Actions`. Rules depend only on data and infrastructure
-modules. `GameLive` and `AutoRun` call `Game` and `Rules` (e.g. `Rules.Taxes`, `Rules.Training`
+modules. `GameLive` and the bots (`MyLiege.Bot`) call `Game` and `Rules` (e.g. `Rules.Taxes`, `Rules.Training`
 for display or decisions), never `SimSteps` or `Actions.*`.
+
+## Clients
+
+`GameLive` and the bots (`MyLiege.Bot`, in `lib/my_liege/bot/`) are clients outside the
+engine: they decide like a player and change the game only through `Game`. The three kinds
+below (model, rule, orchestration) apply only inside the engine. The bots are described in
+the `bots` skill.
 
 ## Where a function goes
 
 Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 
-- **Model** (`Place`, `Place.Building`, `Place.Blueprint`, `Worker`, …): only reads stored
-  data (`site?`, `ready?`, `colour`, `workers_at`). No `%Config{}`, no decision.
+- **Model** (`Place`, `Place.Building`, `Place.Project`, `Place.Blueprint`, `Worker`, …):
+  only reads stored data (`done?`, `colour`, `workers_at`). No `%Config{}`, no decision.
+  Creating a site is a rule (`Rules.Construction.new_site/3`), as its target is a config value.
 - **Rule** (`Rules.*`): decides (may this worker enter, how many fit, what is produced). Pure
   functions on plain data and an explicit `%Config{}`.
 - **Orchestration** (`Actions.*`, `SimSteps.*`): fetch what is needed, ask the rules, apply
@@ -57,11 +70,37 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 
 - A **blueprint** (`Place.Blueprint`) describes a type of place: its colour, the good it
   makes and which kind of place it becomes (`engine`). The catalogue has the five home
-  places in pentagon order, then the guildhouse. It depends on nothing but `Pentagon`, so
-  `LoadConfig` reads the types from it at compile time.
-- A **place** is one that exists in the game. There is one struct per kind of place; today
-  only `Place.Building` (a site until finished), later `Place.Project` and `Place.Trade`.
-  Each holds its `id` and its `blueprint`.
+  places in pentagon order, then the guildhouse; its test checks that order against
+  `Pentagon.colours/0`. It depends on no other module, so `LoadConfig` reads the types from
+  it at compile time.
+- A **place** is one that exists in the game. There is one struct per kind of place:
+  `Place.Building` (always finished) and `Place.Project`, later `Place.Trade`. Each holds
+  its `id` and its `blueprint`; `Place.next_id/1` gives the next free id over all places.
+- A **project** (`Place.Project`: `id`, `blueprint`, `target`, `gives`, `progress`) collects
+  progress until `done?/1` (`progress >= target`), then gives `gives` once and leaves
+  `game.places`. Its blueprint is not in the catalogue (which lists only types that can stand
+  and be ordered, with config keys): a project builds its own. Projects are told apart by
+  `gives`, and rules match on it (`%Project{gives: {:building, _}}`):
+  - a **construction site** gives `{:building, type}`: blueprint `type: :site`, no colour,
+    no good; target `build_work`; up to `build_capacity` builders, who produce nothing. Once
+    done it is replaced by a `%Building{}` with a new id (`Rules.Construction`).
+  - a **king's demand project** gives `{:demand, due_week}`: blueprint `type: :demand`, the
+    colour of the good's home place (`Blueprint.home_colour/1`) and the good; target the
+    demand's amount; any number of workers, who produce and make mana as in a building of
+    that colour and good (`Rules.Production.project_output/4`), into the project. Opened by
+    `Rules.Demands.open_project/2`; removed when the demand is settled or refused.
+  - a **book** (R12) gives `{:book, colour}`: `Project.book_blueprint/0` (`type: :book`,
+    blue, knowledge — the method is blue, the book's own colour is in `gives`); target
+    `book_work` knowledge; one writer, who produces and makes mana as in a blue building,
+    his output scaled by the experience factor of the book's colour (its Manameter share ÷
+    200, `Rules.Books.written/3`). Started by `Actions.StartBook`; once done, step 8
+    (`Rules.Books.finish/4`) adds it to `game.books` (colour => count) and removes the
+    project.
+- The **demand** (`game.demand`, `%{product, amount, due_week, project_id}`) is the king's
+  obligation, not a place; `project_id` points to its project (`Demands.project/2`), `nil`
+  for a demand from the stock.
+- When a place ends, its workers leave with `Rules.Placement.release/3` (unplaced,
+  travelling): a finished site, a settled or refused demand project, a finished book.
 - `game.places` is one list of all places, whatever their kind. Workers point to their place
   by id (`worker.place`, `nil` when unplaced).
 - `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,
@@ -107,7 +146,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 - Contract: `@behaviour MyLiege.Engine.SimStep`, `run(game, report) :: {game, report}`.
 - A step is a thin adapter: it picks the inputs, calls a rule and writes the results to the
   game and the report. The rule itself stays in `rules/`.
-- The moduledoc names its place in the week and its rule ("Step 9 of the week, R7 tax
+- The moduledoc names its place in the week and its rule ("Step 10 of the week, R7 tax
   payment: …").
 - A step decides itself whether it applies this week, and otherwise returns `{game, report}`
   unchanged. Steps can't fail.
@@ -129,7 +168,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 - `Game.new/2` builds the week-0 report by passing `WeeklyReport.new(0, game)` through
   `EndOfWeek`.
 - `game.report` is the last report only; the history of weeks is kept by the callers
-  (`GameLive`, `AutoRun`, `EngineFixtures.run_weeks/2`).
+  (`GameLive`, `Bot.run/4`, `EngineFixtures.run_weeks/2`).
 - `report.start` is `nil` in every report that leaves `run_week/1` and is never exported
   (`Reporting` doesn't read it).
 
@@ -148,7 +187,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 [regression_seed_42.csv](../../../test/fixtures/regression_seed_42.csv)
 
 - One year with a fixed test config and seed 42 must export exactly the fixture. It uses
-  `EngineFixtures.config/1`, never `Config.from_csv/0`, and no AutoRun.
+  `EngineFixtures.config/1`, never `Config.from_csv/0`, and no bot run.
 - A refactor never changes the fixture: if the test fails, the refactor is wrong.
 - Re-record it only in a commit that deliberately changes a rule, and give the reason in the
   commit message.

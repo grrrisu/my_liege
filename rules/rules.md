@@ -5,9 +5,12 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-13: R12 (new), books: the player writes books of any colour as projects (capacity 1); a worker writes as in a blue building × the colour's Manameter share ÷ 200; finished books are held, with no effect yet; new key `book.work`; export columns `books_<colour>`.
+- 2026-11-13: R7, knowledge and culture demands are worker projects: workers placed on them produce into them as in a building; delivered when the target is reached at or before the deadline; workers released when the project ends or is refused; production no longer flows in automatically.
+- 2026-11-13: R2, construction sites are projects: progress counts work (one per arrived builder and week) up to `build.work`; any number of builders up to `build.capacity`; leaving keeps the progress; a finished site becomes a new building.
 - 2026-11-12: Config keys renamed to `group.item.attribute` (units: `_permille`, `_weeks`, else whole amounts); no rule or value changes. Unused keys removed and R6 (improved plough) dropped from this file. Entertainment renamed culture, also in the export (`production_culture`, `spoiled_culture`, demand product `culture`). Export lists only the columns exported today.
 - 2026-11-09: R11 (new), happiness: each week the entertainment production against the population sets a step from −3 to +3 that changes the week's food and defence production (0 in the grace period); computed and applied in step 1, so eating and bandits (R10) use the changed values; UI shows the last week's step and ratio (no forecast); export columns `happiness_ratio`, `happiness_step`. New CSV keys `happiness_*`.
-- 2026-11-06: Forecasts (T77, UI only, no rule change): food, gold, next tax, open demand or project and bandits each show what happens if the last week's change repeats; computed in the engine, used by the UI and the AutoRun bots (their results unchanged). No new CSV keys or export columns.
+- 2026-11-06: Forecasts (T77, UI only, no rule change): food, gold, next tax, open demand or project and bandits each show what happens if the last week's change repeats; computed in the engine, used by the UI and the bots (their results unchanged). No new CSV keys or export columns.
 - 2026-11-06: R10, the threat never falls on its own: it rises by pressure − 1000 only if that is positive, otherwise it stays; it still drops to the floor after a raid. CSV: `bandit_floor_step` and `bandit_cover_weeks` changed.
 - 2026-11-06: R10, UI: the threat's direction and the protected gold both describe the last week run, matching the production shown (3 defence → 60 protected); the protected gold was next week's, which could contradict the direction.
 - 2026-11-06: R10 (new), bandits, robbery only: weekly pressure (gold ÷ protected gold) drives a threat with a rising floor; at `bandit_threshold` bandits set out and raid `bandit_warning_weeks` later, taking the gold above the protected gold; new weekly step 12 after taxes and demands, before spoilage; export columns `bandit_pressure`, `bandit_threat`, `bandits_weeks_to_raid`, `gold_robbed`. R1: `starting_gold` lowered in the CSV.
@@ -29,19 +32,20 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Weekly order
 0. Tax count (R7), count weeks only
-1. Production (R2), changed by happiness (R11); an open project (R7) then takes its good first
+1. Production (R2), changed by happiness (R11): buildings into the stock, workers on a project (R7) into the project; a worker on a book writes into it (R12)
 2. Mana (R3)
 3. Travel (R2): every travelling worker's travel goes down by 1
 4. Manameter update (R4)
 5. Eating (R8)
 6. Birth (R1), drawn from the Manameter updated in step 4
 7. Construction (R2): sites advance; finished buildings release their builders
-8. Training ends (R5)
-9. Tax payment (R7), due weeks only
-10. Demand delivery (R7), deadline weeks only; a project refused before the week is settled then
-11. Demand made (R7), demand weeks only
-12. Bandits (R10): threat, setting out, raid; every week from week 1
-13. Spoilage (R9)
+8. Books finished (R12)
+9. Training ends (R5)
+10. Tax payment (R7), due weeks only
+11. Demand delivery (R7): in the deadline week; a project also in the week its target is reached, and in the week after it was refused
+12. Demand made (R7), demand weeks only
+13. Bandits (R10): threat, setting out, raid; every week from week 1
+14. Spoilage (R9)
 
 The player acts between weeks; changes take effect the following week. Production, mana, construction and training use travel as it was when the week started, so a worker placed while the game stands at week N does nothing in week N+1 and works from week N+2. Code-level detail: the `weekly-step` skill.
 
@@ -60,14 +64,14 @@ The player acts between weeks; changes take effect the following week. Productio
 - Market workers produce gold directly (prototype simplification).
 
 ### Builders
-- An ordered building is a site. It needs `build.builders` builders: unplaced workers the player places on the site, any colour, colour has no effect. A site takes no more.
-- A site advances one week in every week in which all its builders are on it and have arrived (travel 0). After `build.weeks` such weeks it is finished: workers can be placed in it from then on, and its builders become unplaced (travelling).
-- A builder leaving the site before it is finished (moved or unplaced) resets its progress to 0. The site stays; the gold isn't refunded or paid again.
+- An ordered building is a site, a project: it needs `build.work` work. Builders are workers the player places on it, any colour (colour has no effect), at most `build.capacity`.
+- Each week, every builder on the site who has arrived (travel 0 at the start of the week) adds 1 to its progress. When the progress reaches `build.work`, the site is finished: a new building (with a new id) stands in its place, and its builders become unplaced (travelling).
+- A builder leaving the site (moved or unplaced) doesn't change its progress. The gold isn't refunded.
 - Builders eat and count toward taxes, but produce nothing and no mana.
-- UI: each site shows its arrived builders (arrived / `build.builders`) and progress (weeks done / `build.weeks`).
+- UI: each site shows its arrived builders (arrived / `build.capacity`) and progress (progress / `build.work`).
 
 ### Travel
-- A worker's travel is set to `travel.weeks` whenever it is placed from unplaced (into a building, a site or the guildhouse), moved directly from one building to another (once), unplaced by the player, or released as a finished trainee or builder. Moving a worker that is still travelling sets it to `travel.weeks` again.
+- A worker's travel is set to `travel.weeks` whenever it is placed from unplaced (into a building, a site, a project or the guildhouse), moved directly from one building to another (once), unplaced by the player, or released as a finished trainee or builder, or from a project that ends or is refused (R7). Moving a worker that is still travelling sets it to `travel.weeks` again.
 - The worker takes its place at once, but while its travel is above 0 it produces nothing and no mana, isn't an arrived builder, and doesn't train. It still eats and counts toward taxes.
 - An unplaced worker can't be placed while its travel is above 0.
 - Newborns and starting workers have travel 0.
@@ -93,12 +97,12 @@ The player acts between weeks; changes take effect the following week. Productio
 - Demanded colour by Manameter rank: year 1 biggest, year 2 third, year 3 smallest.
 - Amount: population × `king.demand.population_share_permille` × base production of that colour × `king.demand.production_weeks`.
 - Food, gold and defence demands are delivered from the stock. The player decides before the deadline: deliver or refuse. Delivered, refused or missed (stock short).
-- Knowledge and culture demands are projects with the amount above as target:
-  - From the week after the demand until the target is reached, the village's whole production of that good (all monasteries or all taverns) goes into the project instead of the stock. In the week the target is reached, only what is missing goes in and the rest to the stock; after that, production goes to the stock.
-  - Mana is unchanged. The project doesn't spoil; the stock of that good is never used for it and spoils as usual.
-  - The project stays open until the deadline (the deadline week's production counts). Target reached → delivered; otherwise → missed. No partial delivery; no decision needed.
-  - The player can refuse it at any time while it is open: from the next week production goes to the stock again, and the refusal counts as a miss in that next week.
-- The current demand, its amount, deadline and progress must be visible in the UI; for a project also the buildings whose production goes into it.
+- Knowledge and culture demands are projects:
+  - When the demand is made, a project appears among the places, with the amount as target and the colour of the good's home place.
+  - The player places workers on it: any number, any colour; travel as usual. Workers on it produce and make mana exactly as in a building of that colour and good. Their output goes into the project, not the stock, and doesn't count toward happiness; output beyond the target is lost. Nothing else feeds the project, and the stock is never used for it.
+  - At the end of each week: target reached at or before the deadline → delivered; the project disappears and its workers become unplaced (travelling). Not reached by the end of the deadline week → missed; the project disappears and its workers become unplaced. No partial delivery.
+  - The player can refuse it at any time while it is open: the project disappears and its workers become unplaced at once; the refusal counts as a miss in the next week.
+- The current demand, its amount, deadline and progress must be visible in the UI; for a project its progress and the workers on it.
 - Misses: skipped or missed taxes and refused or missed demands count in one shared tally. `king.misses_forgiven` misses are forgiven; the next ends the game.
 - The king takes what he can: on every skipped or missed tax and every refused or missed gold or food demand, the king also takes the stock there is (gold for taxes and gold demands, food for food demands), up to the amount owed; a stock at or below 0 gives nothing. Defence demands and projects leave nothing to take: a miss only. Taking happens in the step of the payment or delivery, before spoilage.
 
@@ -115,7 +119,7 @@ The player acts between weeks; changes take effect the following week. Productio
 ## R10 Bandits
 Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 - Runs every week from week 1; the grace period (R7) doesn't apply.
-- Uses the gold after taxes and demands, before spoilage (step 12), and this week's defence production: what watchtowers produce this week, the tower included (travelling workers produce nothing, R2). The defence stock plays no part.
+- Uses the gold after taxes and demands, before spoilage (step 13), and this week's defence production: what watchtowers produce this week, the tower included (travelling workers produce nothing, R2). The defence stock plays no part.
 - Protected gold = defence production × `bandit.cover_weeks`.
 - Pressure = gold ÷ protected gold, per mille, rounded down. Gold at or below 0 gives 0. No defence production with gold above 0: the threat jumps to `bandit.threshold` at once, so bandits set out (unless they already are on their way).
 - Threat: starts at 0; each week it rises by pressure − 1000 if that is positive, otherwise it stays as it is (per mille; `bandit.threshold` and `bandit.floor_step` are whole threat points). It never falls on its own, only after a raid. It is never below the floor, and is raised to it when the floor rises: 0 in year 1 (the first two half years), then `bandit.floor_step` more at the start of each later half year (half year = 48 ÷ 2 weeks).
@@ -126,7 +130,7 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 
 ## R11 Happiness
 - Every week from week 1: ratio = this week's culture production ÷ (population × `happiness.need_per_worker_permille`), per mille, rounded down.
-  - Culture production counts whether it goes to the stock or into a project (R7). The culture stock plays no part.
+  - Culture production counts only from buildings; culture produced on a project (R7) doesn't count. The culture stock plays no part.
   - Population: every worker at the start of the week (placed, unplaced, builders, trainees, travelling); a newborn counts from the following week. A population of 0 is an error.
 - Step from the ratio: below `happiness.level3.penalty_below_permille` −3, below `happiness.level2.penalty_below_permille` −2, below `happiness.level1.penalty_below_permille` −1; from `happiness.level3.bonus_from_permille` +3, from `happiness.level2.bonus_from_permille` +2, from `happiness.level1.bonus_from_permille` +1; otherwise 0.
 - Effect: this week's food and defence production change by ± `happiness.level1.change_permille`, `happiness.level2.change_permille` or `happiness.level3.change_permille` per mille (step −2: production × (1000 − `happiness.level2.change_permille`) ÷ 1000). Applied once to each product's total, after the colour factors (R2), rounded down. Nothing else changes: gold, knowledge, culture, mana and births stay as they are.
@@ -134,8 +138,18 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 - Everything after production uses the changed values: eating (R8) and the defence production that protects gold (R10).
 - UI: next to the stocks, the step applied in the last week run and its ratio; in the grace period also the step it would have. No forecast: next week's culture production depends on the placement.
 
+## R12 Books
+- The player can start writing a book of any colour (green, yellow, blue, red, violet) at any time, at no cost; several books can be written at once. A book is a project among the places and needs `book.work` knowledge, whatever its colour.
+- A book takes one worker, any colour. Travel and leaving as for sites (R2): the worker travels first, and leaving keeps the progress.
+- The worker writes what he would produce in a blue building (`place.monastery.output_per_worker`, his colour's factor against blue, trained or not), × the book colour's Manameter share ÷ 200 (normal at 20%; linear, no floor, no cap), with the Manameter at the start of the week; rounded down per worker. It goes into the book, not the stock, and doesn't count toward happiness (R11); output beyond the target is lost.
+- Mana: as in a blue building (R3).
+- At the end of the week (step 8), a book whose progress reached `book.work` is finished: the village holds one more book of its colour, the project disappears and its worker becomes unplaced (travelling).
+- A game starts with no books. Books are held for good and have no effect yet.
+- UI: a button per colour to start a book; each book among the places with its colour, its progress / target and its worker; the books held per colour next to the stocks.
+- Export: `books_green`, `books_yellow`, `books_blue`, `books_red`, `books_violet`, the books held at the end of the week.
+
 ## Forecasts
-UI only: forecasts change nothing in the game. Each one repeats the change of the last week run (its end minus its start) unchanged for every week ahead. The change is raw: taxes paid, demands delivered, what the king took and robbery in that week count in it; gold spent on buildings between weeks doesn't. No forecasts in week 0 (no week before it); the next tax's amount and week are shown from week 0. The AutoRun bots use the same forecasts (food balance, next tax).
+UI only: forecasts change nothing in the game. Each one repeats the change of the last week run (its end minus its start) unchanged for every week ahead. The change is raw: taxes paid, demands delivered, what the king took and robbery in that week count in it; gold spent on buildings between weeks doesn't. No forecasts in week 0 (no week before it); the next tax's amount and week are shown from week 0. The bots use the same forecasts (food balance, next tax).
 - Food: the stock's change per week, rising, falling or steady; if falling, the week it goes below 0.
 - Gold: the stock's change per week (spoilage included), rising, falling or steady.
 - Next tax: the amount fixed at the count, or before the count `king.tax.per_worker` × the current workers (shown as "at least": births until the count raise it); its due week; the gold expected then (gold now + change × weeks until the due week, that week included) and the shortfall, if any. None after the game's last payment.
@@ -144,4 +158,4 @@ UI only: forecasts change nothing in the game. Each one repeats the change of th
 
 ## Export
 - Weekly CSV, one row per week, week 0 (the start) first. Amounts of goods and `bandit_threat` in thousandths; mana in whole points; Manameter shares per mille; counts and weeks as plain numbers. Product columns in the pentagon order of their buildings, colour columns in pentagon order.
-- Columns: week; production_food, production_gold, production_knowledge, production_defence, production_culture; mana_<colour>; manameter_<colour>; food_left (after spoilage); newborn (the newborn's colour, empty if none); trained (colours of the workers who finished training that week); builders (arrived, at the end of the week); travelling (workers with travel above 0, at the end of the week); gold (after spoilage); tax_due (filled in the count week); tax (paid, skipped or missed, in the due week); demand_product and demand_amount (in the week the demand is made); demand_outcome (delivered, refused or missed, in the deadline week, or for a refused project in the week after the refusal); demand_progress (a project's total at the end of every week it is open, the week it is made and its deadline week included; empty for food, gold and defence demands and when no project is open); king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise); spoiled_food, spoiled_gold, spoiled_knowledge, spoiled_defence, spoiled_culture; gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold); bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0); bandit_threat (end of the week); bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week); gold_robbed (what the bandits took that week, before spoilage; 0 otherwise); happiness_ratio (per mille; empty in week 0); happiness_step (the step applied, −3 to +3, a plain number; 0 in the grace period; empty in week 0); game_over.
+- Columns: week; production_food, production_gold, production_knowledge, production_defence, production_culture (what buildings produced; output on a project is not included); mana_<colour>; manameter_<colour>; food_left (after spoilage); newborn (the newborn's colour, empty if none); trained (colours of the workers who finished training that week); builders (arrived, at the end of the week); travelling (workers with travel above 0, at the end of the week); gold (after spoilage); tax_due (filled in the count week); tax (paid, skipped or missed, in the due week); demand_product and demand_amount (in the week the demand is made); demand_outcome (delivered, refused or missed, in the deadline week; for a project delivered early, in the week its target is reached; for a refused project, in the week after the refusal); demand_progress (a project's total at the end of every week it is open, the week it is made and the week it is delivered or missed included; empty for food, gold and defence demands and when no project is open); king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise); spoiled_food, spoiled_gold, spoiled_knowledge, spoiled_defence, spoiled_culture; gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold); bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0); bandit_threat (end of the week); bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week); gold_robbed (what the bandits took that week, before spoilage; 0 otherwise); happiness_ratio (per mille; empty in week 0); happiness_step (the step applied, −3 to +3, a plain number; 0 in the grace period; empty in week 0); game_over; books_green, books_yellow, books_blue, books_red, books_violet (books held at the end of the week, R12).

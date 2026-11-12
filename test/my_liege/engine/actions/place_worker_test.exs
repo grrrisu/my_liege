@@ -3,7 +3,7 @@ defmodule MyLiege.Engine.Actions.PlaceWorkerTest do
 
   alias MyLiege.Engine.Actions.PlaceWorker
   alias MyLiege.Engine.{Game, Worker}
-  alias MyLiege.Engine.Place.Building
+  alias MyLiege.Engine.Place.Project
   alias MyLiege.EngineFixtures
 
   # worker 1 (green) on the farm (1), worker 2 (red) in the watchtower (2)
@@ -47,12 +47,6 @@ defmodule MyLiege.Engine.Actions.PlaceWorkerTest do
     assert %Worker{place: 2, travel: 2} = find_worker(game, 1)
   end
 
-  test "a finished building not ready next week is refused", %{game: game} do
-    game = update_building(game, 2, &%{&1 | ready_week: game.week + 2})
-
-    assert PlaceWorker.run(game, 1, 2) == {:error, :not_ready}
-  end
-
   test "a full building is refused" do
     config =
       EngineFixtures.config(
@@ -64,8 +58,8 @@ defmodule MyLiege.Engine.Actions.PlaceWorkerTest do
     assert PlaceWorker.run(game, 1, 2) == {:error, :full}
   end
 
-  test "a site takes up to build_builders builders" do
-    config = EngineFixtures.config(build_builders: 1)
+  test "a site takes up to build_capacity builders" do
+    config = EngineFixtures.config(build_capacity: 1)
     {:ok, game} = config |> EngineFixtures.game_without_demands(1) |> Game.construct(:market)
     site = List.last(game.places)
 
@@ -73,14 +67,14 @@ defmodule MyLiege.Engine.Actions.PlaceWorkerTest do
     assert PlaceWorker.run(game, 2, site.id) == {:error, :full}
   end
 
-  test "moving a builder off a site resets its progress", %{game: game} do
+  test "moving a builder off a site keeps its progress", %{game: game} do
     {:ok, game} = Game.construct(game, :market)
     site = List.last(game.places)
     game = update_building(game, site.id, &%{&1 | progress: 1})
     game = update_worker(game, 1, &%{&1 | place: site.id})
 
     assert {:ok, game} = PlaceWorker.run(game, 1, 2)
-    assert %Building{progress: 0} = find_place(game, site.id)
+    assert %Project{progress: 1} = find_place(game, site.id)
   end
 
   test "in a finished guildhouse the worker starts training after its travel", context do
@@ -111,10 +105,8 @@ defmodule MyLiege.Engine.Actions.PlaceWorkerTest do
   end
 
   # a finished guildhouse with id 3
-  defp with_guildhouse(game) do
-    {:ok, game} = Game.construct(game, :guildhouse)
-    update_building(game, 3, &%{&1 | ready_week: 0})
-  end
+  defp with_guildhouse(game),
+    do: %{game | places: game.places ++ [EngineFixtures.new_building(3, :guildhouse)]}
 
   defp update_worker(game, id, fun),
     do: %{game | workers: Enum.map(game.workers, &if(&1.id == id, do: fun.(&1), else: &1))}

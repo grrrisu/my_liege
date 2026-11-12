@@ -11,7 +11,7 @@ defmodule MyLiege.Engine.ForecastTest do
 
   # the game after a week whose stocks changed by `changes`, with `stocks` now
   defp after_change(game, changes, stocks \\ %{}) do
-    stock_change = Map.merge(Map.new(game.stocks, fn {p, _} -> {p, 0} end), changes)
+    stock_change = game.stocks |> Map.new(fn {p, _} -> {p, 0} end) |> Map.merge(changes)
 
     %{
       game
@@ -32,12 +32,21 @@ defmodule MyLiege.Engine.ForecastTest do
 
     test "a project open all week: its gain; none in the week it is made" do
       start = Game.new(EngineFixtures.config(), 1)
-      project = %{product: :knowledge, amount: 10_000, due_week: 8, progress: 1_000}
-      {:ok, report, _game} = Game.run_week(%{start | demand: project})
+      start = EngineFixtures.open_demand(start, :knowledge, 10_000, 8)
+      {:ok, report, _game} = Game.run_week(start)
 
-      # no monastery: no gain
+      # no one on it: no gain
       assert report.project_change == 0
       assert Game.report(start).project_change == nil
+
+      # the farmer (worker 1) moves onto it and makes 4.5 knowledge (green on blue: opposite)
+      start = %{
+        start
+        | workers: Enum.map(start.workers, &if(&1.id == 1, do: %{&1 | place: 3}, else: &1))
+      }
+
+      {:ok, report, _game} = Game.run_week(start)
+      assert report.project_change == 1_500
     end
 
     test "is unknown in week 0, so there are no forecasts" do
@@ -135,7 +144,7 @@ defmodule MyLiege.Engine.ForecastTest do
   describe "demand" do
     test "from the stock: the stock plus its change for every week left" do
       game = after_change(week_1(), %{food: 1_000}, %{food: 20_000})
-      game = %{game | demand: %{product: :food, amount: 25_000, due_week: 6, progress: nil}}
+      game = EngineFixtures.open_demand(game, :food, 25_000, 6)
 
       assert %{expected: 25_000, met?: true} = Forecast.demand(game)
 
@@ -144,9 +153,9 @@ defmodule MyLiege.Engine.ForecastTest do
     end
 
     test "a project: progress plus last week's gain, at most the amount" do
-      game = week_1()
-      project = %{product: :knowledge, amount: 10_000, due_week: 5, progress: 2_000}
-      game = %{game | demand: project, report: %{game.report | project_change: 1_500}}
+      game = EngineFixtures.open_demand(week_1(), :knowledge, 10_000, 5)
+      game = with_progress(game, 2_000)
+      game = %{game | report: %{game.report | project_change: 1_500}}
 
       assert %{expected: 8_000, met?: false} = Forecast.demand(game)
 
@@ -155,13 +164,20 @@ defmodule MyLiege.Engine.ForecastTest do
     end
 
     test "a project made in the last week has no forecast yet; a refused one none" do
-      game = week_1()
-      project = %{product: :knowledge, amount: 10_000, due_week: 5, progress: 0}
-      game = %{game | demand: project}
+      game = EngineFixtures.open_demand(week_1(), :knowledge, 10_000, 5)
 
       assert %{expected: nil, met?: nil} = Forecast.demand(game)
       assert Forecast.demand(%{game | deliver_demand: false}) == nil
     end
+  end
+
+  defp with_progress(game, progress) do
+    id = game.demand.project_id
+
+    %{
+      game
+      | places: Enum.map(game.places, &if(&1.id == id, do: %{&1 | progress: progress}, else: &1))
+    }
   end
 
   describe "bandits" do

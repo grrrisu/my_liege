@@ -6,7 +6,7 @@ defmodule MyLiege.Engine.Forecast do
   or a raid counts them in; gold spent on buildings between weeks does not.
 
   There are no forecasts in week 0, which has no week before it; only the amount and week of the
-  next tax are known then. A forecast only reads the game: it never changes it. The AutoRun bots
+  next tax are known then. A forecast only reads the game: it never changes it. The bots
   use the same functions.
 
   Amounts are in thousandths (see `Fixed`).
@@ -104,10 +104,13 @@ defmodule MyLiege.Engine.Forecast do
 
   defp expected(game, demand, weeks) do
     if Demands.project?(demand) do
-      expected = project(demand.progress, game.report.project_change, weeks)
+      %{progress: progress} = Demands.project(demand, game.places)
+      expected = project(progress, game.report.project_change, weeks)
       expected && min(expected, demand.amount)
     else
-      project(Map.fetch!(game.stocks, demand.product), change(game, demand.product), weeks)
+      game.stocks
+      |> Map.fetch!(demand.product)
+      |> project(change(game, demand.product), weeks)
     end
   end
 

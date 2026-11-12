@@ -9,7 +9,8 @@ defmodule MyLiege.Engine.Actions.Construct do
   """
 
   alias MyLiege.Engine.Game
-  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Place.Blueprint
+  alias MyLiege.Engine.Rules.Construction
 
   def run(%Game{} = game, type) do
     cost = Game.build_cost(game)
@@ -27,7 +28,7 @@ defmodule MyLiege.Engine.Actions.Construct do
         {:ok,
          %{
            game
-           | places: Building.add_site(game.places, type),
+           | places: Construction.new_site(game.places, type, game.config),
              stocks: %{game.stocks | gold: game.stocks.gold - cost},
              report: report
          }}

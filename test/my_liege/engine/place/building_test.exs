@@ -21,37 +21,24 @@ defmodule MyLiege.Engine.Place.BuildingTest do
     assert Place.good(EngineFixtures.new_building(0, :farm)) == :food
   end
 
-  test "the game starts with the farm and the tower (a watchtower), both ready" do
+  test "the game starts with the farm and the tower (a watchtower)" do
     buildings = Building.starting()
 
     assert Enum.map(buildings, &Place.type/1) == [:farm, :watchtower]
-    assert Enum.all?(buildings, &Building.ready?(&1, 0))
+    assert Enum.map(buildings, & &1.id) == [1, 2]
   end
 
-  test "an added site is not ready and has no progress" do
-    site = Building.starting() |> Building.add_site(:market) |> List.last()
+  test "next_id is one more than the highest id over all places" do
+    places = [EngineFixtures.new_building(1, :farm), EngineFixtures.new_site(4, :market)]
 
-    assert %Building{id: 3, ready_week: nil, progress: 0} = site
-    assert Building.site?(site)
-    refute Building.ready?(site, 99)
-  end
-
-  test "buildings can be built without limit" do
-    buildings =
-      Enum.reduce(1..10, Building.starting(), fn _, current_buildings ->
-        Building.add_site(current_buildings, :market)
-      end)
-
-    building_ids = Enum.map(buildings, & &1.id)
-
-    assert Enum.count(buildings, &(Place.type(&1) == :market)) == 10
-    assert Enum.uniq(building_ids) == building_ids
+    assert Place.next_id(places) == 5
+    assert Place.next_id([]) == 1
   end
 
   test "workers_at lists the workers placed at a place" do
     workers = [%{id: 1, place: 1}, %{id: 2, place: 2}, %{id: 3, place: 1}, %{id: 4, place: nil}]
 
-    assert Enum.map(Place.workers_at(workers, 1), & &1.id) == [1, 3]
-    assert Enum.map(Place.workers_at(workers, nil), & &1.id) == [4]
+    assert workers |> Place.workers_at(1) |> Enum.map(& &1.id) == [1, 3]
+    assert workers |> Place.workers_at(nil) |> Enum.map(& &1.id) == [4]
   end
 end

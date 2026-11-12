@@ -67,13 +67,13 @@ defmodule MyLiege.Engine.SimSteps.HappinessTest do
     assert report.food_left == 992_800
   end
 
-  test "culture going into a project counts" do
+  test "the tavern's culture counts and goes to the stock while a culture project is open" do
     game = config() |> EngineFixtures.game_without_demands(1) |> with_tavern(4)
-    project = %{product: :culture, amount: 100_000, due_week: 8, progress: 0}
-    {:ok, report, game} = Game.run_week(%{game | week: 1, demand: project})
+    game = EngineFixtures.open_demand(%{game | week: 1}, :culture, 100_000, 8)
+    {:ok, report, game} = Game.run_week(game)
 
-    assert game.stocks.culture == 0
-    assert report.demand_progress == 12_000
+    assert game.stocks.culture == 12_000
+    assert report.demand_progress == 0
     assert report.happiness.ratio == 2_000
   end
 

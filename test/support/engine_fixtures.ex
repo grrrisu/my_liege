@@ -1,8 +1,9 @@
 defmodule MyLiege.EngineFixtures do
   @moduledoc "Explicit engine configuration for tests, independent of the designer's CSV."
 
-  alias MyLiege.Engine.{Config, Game, Manameter}
-  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.{Config, Game, Manameter, Place}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
+  alias MyLiege.Engine.Rules.Demands
 
   def config(overrides \\ []) do
     struct!(
@@ -25,10 +26,13 @@ defmodule MyLiege.EngineFixtures do
           untrained: %{same: 1000, neighbour: 800, opposite: 500},
           trained: %{same: 1250, neighbour: 600, opposite: 300}
         },
-        build_weeks: 2,
+        # a site needs builders (R2): tests that need a finished building add one
+        # (`add_building/2`) instead of building it
+        build_work: 4,
         build_cost_gold: 30,
-        # no builders and no travel, so tests about other rules stay independent of R2 sites
-        build_builders: 0,
+        build_capacity: 2,
+        book_work: 96,
+        # no travel, so tests about other rules see placements take effect at once
         travel_weeks: 0,
         mana: %{
           untrained: %{place_colour: 2, worker_colour: 1},
@@ -68,9 +72,61 @@ defmodule MyLiege.EngineFixtures do
     )
   end
 
-  @doc "A building of `type` with id `id`, finished from week 0 unless `fields` say otherwise."
-  def new_building(id, type, fields \\ []),
-    do: struct!(%Building{id: id, blueprint: Blueprint.fetch!(type)}, fields)
+  @doc "A building of `type` with id `id`."
+  def new_building(id, type), do: %Building{id: id, blueprint: Blueprint.fetch!(type)}
+
+  @doc "Adds a finished building of `type` to the game, with the next free id, as if built."
+  def add_building(game, type),
+    do: %{game | places: game.places ++ [game.places |> Place.next_id() |> new_building(type)]}
+
+  @doc "A site with id `id` that gives a building of `type`, target 4 unless `fields` say otherwise."
+  def new_site(id, type, fields \\ []) do
+    site = %Project{
+      id: id,
+      blueprint: Project.site_blueprint(),
+      target: 4,
+      gives: {:building, type}
+    }
+
+    struct!(site, fields)
+  end
+
+  @doc "A king's demand project for `good` with id `id`, target 10, due week 8 unless `fields` say otherwise."
+  def new_demand_project(id, good, fields \\ []) do
+    project = %Project{
+      id: id,
+      blueprint: Project.demand_blueprint(good),
+      target: 10_000,
+      gives: {:demand, 8}
+    }
+
+    struct!(project, fields)
+  end
+
+  @doc "A book of `colour` with id `id`, target 96 unless `fields` say otherwise."
+  def new_book(id, colour, fields \\ []) do
+    book = %Project{
+      id: id,
+      blueprint: Project.book_blueprint(),
+      target: 96_000,
+      gives: {:book, colour}
+    }
+
+    struct!(book, fields)
+  end
+
+  @doc """
+  Opens a king's demand of `amount` `product` due in `due_week`; for knowledge and culture
+  with its project among the places (`Demands.open_project/2`).
+  """
+  def open_demand(game, product, amount, due_week) do
+    demand = %{product: product, amount: amount, due_week: due_week, project_id: nil}
+    {places, demand} = Demands.open_project(game.places, demand)
+    %{game | places: places, demand: demand}
+  end
+
+  @doc "The open demand's project, or `nil`."
+  def demand_project(game), do: Demands.project(game.demand, game.places)
 
   @doc "A new game without king's demands, for tests about other rules."
   def game_without_demands(config, seed), do: %{Game.new(config, seed) | demand_weeks: []}

@@ -1,6 +1,6 @@
 ---
 name: game-data
-description: 'The game data of My Liege: every value, its shape and unit, where it comes from (the CSV config, a hardcoded constant, or state that changes during a game) and which modules read or write it. Use when: looking for where a number comes from; adding, renaming or removing a CSV key or Config field; adding a field to Game, Worker, a place (Place.Building, Place.Blueprint) or WeeklyReport; checking hard rule 2 (no game value outside the config); deciding whether a value belongs in the CSV; tracing who changes a piece of state.'
+description: 'The game data of My Liege: every value, its shape and unit, where it comes from (the CSV config, a hardcoded constant, or state that changes during a game) and which modules read or write it. Use when: looking for where a number comes from; adding, renaming or removing a CSV key or Config field; adding a field to Game, Worker, a place (Place.Building, Place.Project, Place.Blueprint) or WeeklyReport; checking hard rule 2 (no game value outside the config); deciding whether a value belongs in the CSV; tracing who changes a piece of state.'
 ---
 
 # Game data
@@ -11,7 +11,7 @@ All game data falls into four kinds:
 |------|-------|---------|
 | **Config**: balance values | `priv/balance_inputs.csv` → `LoadConfig` → `%Config{}` | never during a game; fixed at `Game.new/2`, kept in `game.config` |
 | **Hardcoded**: structure and constants | module attributes in the engine | never; changing one is a code change |
-| **State**: the village now | `%Game{}` and its `%Worker{}`, `%Place.Building{}`, `%Manameter{}` | every week (steps) and between weeks (player actions) |
+| **State**: the village now | `%Game{}` and its `%Worker{}`, `%Place.Building{}`, `%Place.Project{}`, `%Manameter{}` | every week (steps) and between weeks (player actions) |
 | **Report**: what one week did | `%WeeklyReport{}` in `game.report` | rebuilt each week; history kept by callers |
 
 `Forecast` is read-only and derived from state and the last report. Elixir app config
@@ -45,11 +45,11 @@ How the week runs is in the `weekly-step` skill. Layers and where code goes are 
   out of the parsed inputs as it reads it; whatever is left over is unread. The
   `manameter.<colour>.start_permille` keys must sum to 1000.
 - The designer exports the CSV. Never edit it.
-- `GameLive.mount/3` uses `Config.from_csv/0`, and AutoRun takes a config argument. Tests
+- `GameLive.mount/3` uses `Config.from_csv/0`, and `Bot.run/4` takes a config argument. Tests
   never use the CSV: they use `EngineFixtures.config/1`
   ([engine_fixtures.ex](../../../test/support/engine_fixtures.ex)), whose explicit values
-  include `king_grace_weeks: 0`, `build_builders: 0`, `travel_weeks: 0` and very high bandit
-  values.
+  include `king_grace_weeks: 0`, `travel_weeks: 0` and very high bandit values; a test that
+  needs a finished building adds one with `EngineFixtures.add_building/2`.
 - Rules receive `%Config{}` as an explicit argument. Steps pass `game.config`.
 
 ### Key names
@@ -58,7 +58,7 @@ Keys are `group.item.attribute`, lowercase, dot-separated, e.g. `place.farm.capa
 is left out when a group has only one thing (`travel.weeks`).
 
 - **Group**, the system: `game`, `start`, `birth`, `place`, `good`, `efficiency`, `mana`,
-  `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness` (v2 later: `way`,
+  `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness`, `book` (v2 later: `way`,
   `book`, `trade`, `expedition`, `suspicion`).
 - **Item**, a name the code already uses: place type, good, colour, training level,
   relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
@@ -72,22 +72,23 @@ is left out when a group has only one thing (`travel.weeks`).
 
 | Config field | Shape | CSV key(s) | Read by |
 |---|---|---|---|
-| `game_years` | int | `game.years` | `Game.last_week/1`, `Rules.Demands.schedule/3`, `AutoRun.leading/2`, GameLive |
+| `game_years` | int | `game.years` | `Game.last_week/1`, `Rules.Demands.schedule/3`, `Bot.Analysis.leading/2`, GameLive |
 | `start_farmers`, `start_soldiers` | int | `start.farmers`, `start.soldiers` | `Worker.starting/2` |
 | `start_food` | int | `start.food` | `Rules.Food.starting/1` (via `Game.new/2`) |
 | `start_gold` | int | `start.gold` | `Game.new/2` (`starting_stocks`) |
 | `manameter_start` | `%Manameter{}` | `manameter.<colour>.start_permille` ×5 | `Game.new/2` |
 | `place_output_per_worker` | `%{farm, market, monastery, watchtower, tavern}` | `place.<type>.output_per_worker` ×5 | `Rules.Production.worker_output/3`, `Rules.Demands.make/5` |
 | `efficiency` | `%{untrained \| trained => %{same \| neighbour \| opposite => ‰}}` | `efficiency.<training>.<relation>_permille` ×6 | `Rules.Production.worker_output/3` |
-| `place_capacity` | `%{type => int}`, guildhouse included | `place.<type>.capacity` ×6 | `Rules.Placement.capacity/2` and `check_enter/3`, `AutoRun` (ordering), GameLive |
+| `place_capacity` | `%{type => int}`, guildhouse included | `place.<type>.capacity` ×6 | `Rules.Placement.capacity/2` and `check_enter/3`, `Bot.Placing` (ordering), GameLive |
 | `mana` | `%{untrained \| trained => %{place_colour, worker_colour}}` | `mana.<training>.place_colour`, `mana.<training>.worker_colour` | `Rules.Mana.worker_mana/3` |
 | `manameter_points_per_week` | ‰ | `manameter.points_per_week_permille` | `Rules.ManameterUpdate.update/3` |
 | `birth_interval_weeks` | int | `birth.interval_weeks` | `Rules.Births.birth_week?/2` |
 | `birth_min_food_left` | int | `birth.min_food_left` | `Rules.Births.attempt/5` |
-| `good_food_eaten_per_worker` | int | `good.food.eaten_per_worker` | `Rules.Food.eat/3`, `AutoRun` (`food_low?`) |
-| `build_weeks` | int | `build.weeks` | `Rules.Construction`, GameLive |
+| `good_food_eaten_per_worker` | int | `good.food.eaten_per_worker` | `Rules.Food.eat/3`, `Bot.BotActions.Feed` (`food_low?`) |
+| `build_work` | int | `build.work` | `Rules.Construction.new_site/3` (a site's target), `Bot.Placing` (`earnings`), GameLive |
 | `build_cost_gold` | int | `build.cost_gold` | `Game.build_cost/1`, `Game.construct/2`, GameLive |
-| `build_builders` | int | `build.builders` | `Rules.Placement.capacity/2` (sites), `Rules.Construction`, GameLive |
+| `build_capacity` | int | `build.capacity` | `Rules.Placement.capacity/2` (sites), `Bot.Placing` (`earnings`), GameLive |
+| `book_work` | int (knowledge units) | `book.work` | `Rules.Books.new_book/3` (a book's target, `Fixed.from`) |
 | `travel_weeks` | int | `travel.weeks` | `Rules.Travel.depart/3`, `Rules.Training.first_week/2` |
 | `training_min_share` | ‰ | `training.min_share_permille` | `Rules.Training.check/3` |
 | `training_weeks` | int | `training.weeks` | `Rules.Training.last_week/2` |
@@ -123,7 +124,7 @@ you add one, ask the designer whether it should be a CSV key.
 
 | Value | Where | Used by |
 |---|---|---|
-| 48 weeks per year (the designer's only sanctioned exception) | `Game` `@weeks_per_year`, `Game.weeks_per_year/0` | `Game.last_week/1`, `Demands`, `Bandits`, AutoRun |
+| 48 weeks per year (the designer's only sanctioned exception) | `Game` `@weeks_per_year`, `Game.weeks_per_year/0` | `Game.last_week/1`, `Demands`, `Bandits`, the bots |
 | The order of the pipeline steps | `Game` `@pipeline` | `run_week/1` |
 | Colours in pentagon order `green, yellow, blue, red, violet` (Growth, Wealth, Wisdom, Strength, Culture) | `Pentagon` `@colours`, `colours/0` | everything that iterates colours, the `Manameter` struct keys, `LoadConfig`, `Reporting` |
 | Manameter total 1000 | `Manameter.total_shares/0` | `LoadConfig` (validation) |
@@ -140,7 +141,7 @@ you add one, ask the designer whether it should be a CSV key.
 | 2 demands a year; project products `knowledge, culture`; takeable `food, gold`; Manameter rank by year `[0, 2, 4]` | `Rules.Demands` `@half_years_per_year`, `@project_products`, `@takeable_products`, `@ranks` | `Demands` |
 | Bandits: 2 half years a year, floor 0 for the first 2 half years; pressure 1000 is the break-even and the repel limit | `Rules.Bandits` `@half_years_per_year`, `@floorless_half_years`, inline `1000` | `Bandits`, `Forecast.bandits/1` |
 | Bandit starting state `%{threat: 0, raid_week: nil}` | `Rules.Bandits.starting/0` | `Game` defaults |
-| AutoRun: pivot measure 200 ‰, default `pivot_week` 48 | `AutoRun` `@points`, opts | AutoRun only (not the game) |
+| Bots: pivot measure 200 ‰, default `pivot_week` 48 | `Bot.Analysis` `@points`, opts | the bots only (not the game) |
 | UI colour classes | `GameLive` `@colour_classes` | UI only |
 
 ## 3. State that changes over time
@@ -155,16 +156,17 @@ you add one, ask the designer whether it should be a CSV key.
 | `week` | int, last week run | 0 | `run_week/1` (+1) |
 | `demand_weeks` | `[week]`, one per half year at most | `Demands.schedule/3` in `new/2` | never (tests: `EngineFixtures.game_without_demands/2` sets `[]`) |
 | `workers` | `[%Worker{}]` | `Worker.starting/2` | `place_worker/3`, `unplace_worker/2` (between weeks); steps `Travel`, `Birth` (appends), `Construction` and `TrainingEnd` (release) |
-| `places` | `[%Place.Building{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Place.Building.add_site/2`, between weeks), `place/unplace` (`Rules.Placement.leave/1` resets site progress), `Construction` step |
+| `places` | `[%Place.Building{} \| %Place.Project{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `refuse_project/1` (removes the demand project); steps `Production` (demand project progress), `Construction` (site progress; replaces a done site by a building with a new id), `DemandDelivery` (removes the settled demand project), `DemandMade` (appends a demand project) |
 | `manameter` | `%Manameter{}` ‰ | `config.manameter_start` | `ManameterUpdate` step |
 | `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2` (gold); steps `Production` (+), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
 | `report` | `%WeeklyReport{}` | week-0 report | `run_week/1`; `construct/2` adds to `gold_spent_buildings` |
 | `tax_due` | thousandths \| nil | nil | `TaxCount` sets it, `TaxPayment` clears it |
 | `pay_tax` | bool \| nil | nil | `decide_tax/2` sets it, `TaxPayment` clears it |
-| `demand` | `%{product, amount, due_week, progress}` \| nil (`progress` is an int only for projects) | nil | `DemandMade` sets it, `Production` (project progress), `DemandDelivery` clears it |
+| `demand` | `%{product, amount, due_week, project_id}` \| nil (`project_id` is the id of its project for knowledge and culture, `nil` otherwise) | nil | `DemandMade` sets it, `DemandDelivery` clears it |
 | `deliver_demand` | bool \| nil | nil | `decide_demand/2`, `refuse_project/1`; `DemandDelivery` clears it |
 | `misses` | int | 0 | `TaxPayment`, `DemandDelivery` (via `Rules.Misses`) |
 | `bandits` | `%{threat (thousandths), raid_week \| nil}` | `Bandits.starting/0` | `Bandits` step |
+| `books` | `%{colour => count}`, all five colours | `Rules.Books.none/0` (all 0) | `Books` step (+1 per finished book) |
 | `game_over` | bool | false | `TaxPayment`, `DemandDelivery` |
 
 ### `%Worker{}` ([worker.ex](../../../lib/my_liege/engine/worker.ex))
@@ -177,9 +179,27 @@ guildhouse (`Rules.Training.first_week/2`) and cleared on a move or at the end o
 
 ### `%Place.Building{}` ([place/building.ex](../../../lib/my_liege/engine/place/building.ex))
 
-`id` and `blueprint` (from `Place.Blueprint`, giving type, colour and good) never change. A site has `ready_week: nil` and a `progress` count. The
-`Construction` step advances `progress` and sets `ready_week`, and moving a builder off a
-site resets `progress` to 0. Once `ready_week` is set the building is finished for good.
+`id` and `blueprint` (from `Place.Blueprint`, giving type, colour and good) never change. A
+building is always finished.
+
+### `%Place.Project{}` ([place/project.ex](../../../lib/my_liege/engine/place/project.ex))
+
+`id`, `blueprint`, `target` and `gives` never change; `progress` starts at 0. A
+construction site has the site blueprint (`type: :site`, no colour, no good), `target:
+build_work` and `gives: {:building, type}`. The `Construction` step adds 1 to `progress` per
+arrived builder; a builder leaving doesn't change it. Once `done?/1`, the step replaces the
+site by a `%Place.Building{}` of `type` with a new id.
+
+A book (R12) has `Project.book_blueprint/0` (blue, knowledge), `target:
+Fixed.from(book_work)` and `gives: {:book, colour}`; `Actions.StartBook` appends it, the
+`Production` step adds its writer's output (× experience) to `progress`, the `Books` step
+removes it once done and adds the book to `game.books`.
+
+A king's demand project has `Project.demand_blueprint(good)` (`type: :demand`, the good's
+home colour, the good), `target` the demand's amount and `gives: {:demand, due_week}`. It is
+appended by `DemandMade` (`Rules.Demands.open_project/2`); the `Production` step adds its
+workers' output to `progress`, up to the target; `DemandDelivery` and `refuse_project/1`
+remove it and release its workers.
 
 ## 4. The weekly report
 
@@ -189,16 +209,18 @@ site resets `progress` to 0. Once `ready_week` is set the building is finished f
 `WeeklyReport.new/2` starts each week empty, with zero maps over products and colours, and
 the steps fill it. The field-by-step mapping is the "Order inside a week" table in
 `weekly-step`. `game.report` holds the last report only. The history lives in callers:
-`GameLive` (`@reports`), `AutoRun.run/4` and `EngineFixtures.run_weeks/2`.
+`GameLive` (`@reports`), `Bot.run/4` and `EngineFixtures.run_weeks/2`.
 
 - **Exported** by `Reporting.to_csv/1`: week, production, mana, manameter, food_left,
   newborn, trained, builders, travelling, gold, tax_due, tax, demand (product, amount),
   demand_outcome, demand_progress, king_took, spoiled, gold_spent_buildings,
   bandit_pressure, bandit_threat, bandits_weeks_to_raid, gold_robbed, happiness_ratio,
-  happiness_step, game_over.
+  happiness_step, game_over, books (`books_<colour>` in pentagon order, held at the end of
+  the week).
 - **Not exported**: `start` (the game at the start of the week, `nil` once the week is done),
   `stock_change` and `project_change` (for `Forecast`), `bandit_protected`,
-  `bandit_threat_change` and `bandit_raid` (for the UI).
+  `bandit_threat_change` and `bandit_raid` (for the UI), `books_finished` (the colours of
+  the books finished that week).
 
 The export format is fixed. Ask before changing a column (hard rule 5).
 
@@ -207,7 +229,7 @@ The export format is fixed. Ask before changing a column (hard rule 5).
 - `Forecast` ([forecast.ex](../../../lib/my_liege/engine/forecast.ex)) is computed from
   `game.stocks`, `game.demand`, `game.bandits`, `game.tax_due`, `report.stock_change`,
   `report.project_change`, `report.bandit_pressure` and the config. It never changes the game.
-  GameLive (`assign_game/2`) and AutoRun (`food_low?`, `gold_low?`) read it.
+  GameLive (`assign_game/2`) and the bots (`Feed.food_low?/1`, `SaveGold.gold_low?/1`, `Bot.Placing`) read it.
 - Predicates on `Game` (`tax_decision_due?/1`, `demand_decision_due?/1`,
   `project_refusable?/1`, `won?/1`, `can_afford_building?/1`, `build_cost/1`) are derived
   from state and config too.
@@ -217,7 +239,7 @@ The export format is fixed. Ask before changing a column (hard rule 5).
 | Module | Reads | Writes |
 |---|---|---|
 | `MyLiegeWeb.GameLive` | `Config.from_csv/0`, game fields, config fields (see the tables), `Forecast`, `Rules.Bandits`, `Rules.Construction`, `Rules.Placement`, `Place`, `Place.Blueprint`, `Manameter`, `Fixed.scale/0` | only through `Game` actions and `run_week/1` |
-| `MyLiege.AutoRun` | the config it is given, `Forecast`, `Place`, `Place.Blueprint`, `game.workers`, `game.places`, `game.stocks` | only through `Game` actions |
+| `MyLiege.Bot` (`lib/my_liege/bot/`) | the config it is given, `Forecast`, `Place`, `Place.Blueprint`, `game.workers`, `game.places`, `game.stocks` | only through `Game` actions |
 | `MyLiege.Reporting` | `WeeklyReport` fields, `Place.Blueprint.goods/0`, `Pentagon.colours/0` | none |
 | `EngineFixtures` (tests) | builds its own `%Config{}` | none |
 

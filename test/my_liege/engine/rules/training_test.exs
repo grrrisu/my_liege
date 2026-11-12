@@ -2,6 +2,7 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Game, Manameter, Place, Worker}
+  alias MyLiege.Engine.Place.Building
   alias MyLiege.EngineFixtures
 
   # green farmer (id 1) at 80% green; red soldier (id 2) at 10% red
@@ -12,8 +13,8 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
   end
 
   describe "R5: training in the guildhouse" do
-    test "the guildhouse can be built and is neutral", %{guildhouse: guildhouse} do
-      assert guildhouse.ready_week == 3
+    test "the guildhouse is a building and is neutral", %{guildhouse: guildhouse} do
+      assert %Building{} = guildhouse
       assert Place.colour(guildhouse) == nil
     end
 
@@ -88,9 +89,13 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
     end
   end
 
+  # a finished guildhouse (id 3), the game at week 2
   defp with_guildhouse(config) do
-    {:ok, game} = config |> Game.new(1) |> Game.construct(:guildhouse)
-    game |> EngineFixtures.run_weeks(2) |> elem(1)
+    config
+    |> Game.new(1)
+    |> EngineFixtures.add_building(:guildhouse)
+    |> EngineFixtures.run_weeks(2)
+    |> elem(1)
   end
 
   defp guildhouse(game), do: Enum.find(game.places, &(Place.type(&1) == :guildhouse))

@@ -1,6 +1,6 @@
 defmodule MyLiege.Engine.SimSteps.TaxPayment do
   @moduledoc """
-  Step 9 of the week, R7 tax payment: in a due week, pays or skips the counted tax, or misses
+  Step 10 of the week, R7 tax payment: in a due week, pays or skips the counted tax, or misses
   it. On a skip or a miss the king takes the gold there is, up to the tax, in `report.king_took`.
   """
   @behaviour MyLiege.Engine.SimStep

@@ -123,9 +123,10 @@ defmodule MyLiege.Engine.LoadConfig do
       manameter_points_per_week: "manameter.points_per_week_permille",
       training_min_share: "training.min_share_permille",
       training_weeks: "training.weeks",
-      build_weeks: "build.weeks",
       build_cost_gold: "build.cost_gold",
-      build_builders: "build.builders",
+      build_work: "build.work",
+      build_capacity: "build.capacity",
+      book_work: "book.work",
       travel_weeks: "travel.weeks",
       king_grace_weeks: "king.grace_weeks",
       king_misses_forgiven: "king.misses_forgiven",
@@ -161,7 +162,7 @@ defmodule MyLiege.Engine.LoadConfig do
   end
 
   # reads one value per item: `key_or_reader.(item)` gives its key or reader
-  defp by(items, key_or_reader), do: all(Enum.map(items, &{&1, key_or_reader.(&1)}))
+  defp by(items, key_or_reader), do: items |> Enum.map(&{&1, key_or_reader.(&1)}) |> all()
 
   defp then_apply(reader, fun) do
     fn inputs ->

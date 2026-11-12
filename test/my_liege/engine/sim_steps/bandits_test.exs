@@ -14,7 +14,9 @@ defmodule MyLiege.Engine.SimSteps.BanditsTest do
   test "bandits run from week 1, also in the grace period" do
     # 1000 gold: pressure 16 666, so the threat passes 20 in week 2
     config = config(king_grace_weeks: 24, start_gold: 1000, bandit_threshold: 20)
-    {reports, game} = EngineFixtures.run_weeks(EngineFixtures.game_without_demands(config, 1), 2)
+
+    {reports, game} =
+      config |> EngineFixtures.game_without_demands(1) |> EngineFixtures.run_weeks(2)
 
     assert Enum.map(reports, & &1.bandit_threat) == [15_666, 31_332]
     assert Enum.map(reports, & &1.bandits_weeks_to_raid) == [nil, 4]

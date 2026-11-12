@@ -17,16 +17,19 @@ defmodule MyLiege.Engine.Rules.Demands do
   refuses, and delivering without enough stock is a miss. On a refusal or a miss of a food
   or gold demand, the king takes the stock there is, up to the amount; a defence demand
   leaves nothing to take. Demands for knowledge and
-  culture are projects: they start at `progress` 0 and receive the village's whole
-  production of that product until `progress` reaches the amount (the rest goes to the
-  stock). A project doesn't spoil and never uses the stock; at the deadline it is delivered if
-  it reached the amount, otherwise missed, with no partial delivery. The player may refuse a
-  project while it is open; a project leaves nothing to take. Refusals and misses count with
-  missed taxes in `Misses`.
+  culture are projects: a `Place.Project` among the places (`open_project/2`), with the
+  amount as target and the colour of the good's home place. Only the workers placed on it
+  fill it, producing as in that building; the stock is never used for it. It is delivered
+  once it reaches the amount at or before the deadline, otherwise missed at the deadline, with
+  no partial delivery. The player may refuse a project while it is open; a project leaves
+  nothing to take. Refusals and misses count with missed taxes in `Misses`.
+
+  The demand (`game.demand`) is the king's obligation, `%{product, amount, due_week,
+  project_id}`; `project_id` points to its project, `nil` for a demand from the stock.
   """
 
-  alias MyLiege.Engine.{Config, Fixed, Manameter, Pentagon}
-  alias MyLiege.Engine.Place.Blueprint
+  alias MyLiege.Engine.{Config, Fixed, Manameter, Pentagon, Place}
+  alias MyLiege.Engine.Place.{Blueprint, Project}
   alias MyLiege.Engine.Rules.Grace
 
   @half_years_per_year 2
@@ -70,8 +73,8 @@ defmodule MyLiege.Engine.Rules.Demands do
 
   @doc """
   The demand made at the end of `week` for a village of `population` workers, or `nil` if
-  its amount is 0. Returns `%{product, amount, due_week, progress}`; amounts in thousandths.
-  `progress` is 0 for a project and `nil` for a demand delivered from the stock.
+  its amount is 0. Returns `%{product, amount, due_week, project_id: nil}`; amounts in
+  thousandths. A knowledge or culture demand gets its project from `open_project/2`.
   """
   def make(week, weeks_per_year, %Manameter{} = manameter, population, %Config{} = config) do
     year = div(week - 1, weeks_per_year) + 1
@@ -80,48 +83,62 @@ defmodule MyLiege.Engine.Rules.Demands do
     units = Fixed.from(population * base * config.king_demand_production_weeks)
     amount = div(units * config.king_demand_population_share, 1000)
 
-    product = product_of(type)
-
     if amount > 0,
       do: %{
-        product: product,
+        product: product_of(type),
         amount: amount,
         due_week: week + config.king_demand_deadline_weeks,
-        progress: if(product in @project_products, do: 0)
+        project_id: nil
       }
   end
 
-  @doc "Whether the demand is a project (knowledge or culture) rather than taken from the stock."
-  def project?(%{progress: progress}), do: is_integer(progress)
-  def project?(nil), do: false
-
   @doc """
-  Feeds a week's production to a project. Returns `{project, production}`, where the project
-  received what it still lacked of its product and `production` keeps the rest, for the stock.
+  Opens the project of a knowledge or culture `demand`: appends a `Place.Project` with the
+  next free id, the amount as target and the good's home colour to `places`. Returns
+  `{places, demand}` with the demand's `project_id` set. Other demands, and `nil`, are
+  returned unchanged (also `nil`, no demand).
   """
-  def feed(%{product: product, amount: amount, progress: progress} = project, production) do
-    made = Map.fetch!(production, product)
-    taken = min(made, max(amount - progress, 0))
-    {%{project | progress: progress + taken}, %{production | product => made - taken}}
+  def open_project(places, %{product: product} = demand) when product in @project_products do
+    project = %Project{
+      id: Place.next_id(places),
+      blueprint: Project.demand_blueprint(product),
+      target: demand.amount,
+      gives: {:demand, demand.due_week}
+    }
+
+    {places ++ [project], %{demand | project_id: project.id}}
   end
+
+  def open_project(places, demand), do: {places, demand}
+
+  @doc "Whether the demand is a project (knowledge or culture) rather than taken from the stock."
+  def project?(nil), do: false
+  def project?(demand), do: not is_nil(demand.project_id)
+
+  @doc "The demand's project among `places`, or `nil` (no project, or no longer there)."
+  def project(nil, _places), do: nil
+  def project(%{project_id: nil}, _places), do: nil
+  def project(%{project_id: id}, places), do: Enum.find(places, &(&1.id == id))
 
   @doc """
   Settles a demand. Returns `{outcome, stocks, taken}`: `:refused` is the player's choice. A
-  project is `:delivered` if its progress reached the amount, otherwise `:missed`, and leaves
-  the stocks alone. Any other demand is `:delivered` by taking the amount from the stock, or
-  `:missed` if the stock was not enough. On `:refused` and `:missed` of a food or gold demand
-  the king takes the stock there is, up to the amount. `taken` is `%{food, gold}`, what the
-  king took that way.
+  project demand is `:delivered` if its project is done, otherwise `:missed`, and leaves the
+  stocks alone; `project` is its project (`nil` once removed). Any other demand is
+  `:delivered` by taking the amount from the stock, or `:missed` if the stock was not enough.
+  On `:refused` and `:missed` of a food or gold demand the king takes the stock there is, up
+  to the amount. `taken` is `%{food, gold}`, what the king took that way.
   """
-  def settle(%{amount: amount, progress: progress}, stocks, deliver?) when is_integer(progress) do
+  def settle(demand, project, stocks, deliver?)
+
+  def settle(%{project_id: id}, project, stocks, deliver?) when id != nil do
     cond do
       not deliver? -> {:refused, stocks, nothing_taken()}
-      progress >= amount -> {:delivered, stocks, nothing_taken()}
+      project != nil and Project.done?(project) -> {:delivered, stocks, nothing_taken()}
       true -> {:missed, stocks, nothing_taken()}
     end
   end
 
-  def settle(%{product: product, amount: amount}, stocks, deliver?) do
+  def settle(%{product: product, amount: amount}, _project, stocks, deliver?) do
     stock = Map.fetch!(stocks, product)
 
     cond do

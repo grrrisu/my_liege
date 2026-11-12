@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.Actions.DecideDemandTest do
   # a food demand due next week
   setup do
     game = EngineFixtures.game_without_demands(EngineFixtures.config(), 1)
-    demand = %{product: :food, amount: 1_000, due_week: game.week + 1, progress: nil}
+    demand = %{product: :food, amount: 1_000, due_week: game.week + 1, project_id: nil}
     %{game: %{game | demand: demand}}
   end
 
@@ -30,7 +30,7 @@ defmodule MyLiege.Engine.Actions.DecideDemandTest do
   end
 
   test "refused for a project", %{game: game} do
-    game = %{game | demand: %{game.demand | product: :knowledge, progress: 0}}
+    game = EngineFixtures.open_demand(game, :knowledge, 1_000, game.week + 1)
 
     assert DecideDemand.run(game, true) == {:error, :no_demand_due}
   end

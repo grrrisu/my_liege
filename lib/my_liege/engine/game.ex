@@ -15,12 +15,13 @@ defmodule MyLiege.Engine.Game do
     DecideTax,
     PlaceWorker,
     RefuseProject,
+    StartBook,
     UnplaceWorker
   }
 
   alias MyLiege.Engine.{Config, Fixed, Random, SimSteps, WeeklyReport, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Building}
-  alias MyLiege.Engine.Rules.{Bandits, Demands, Food, Taxes}
+  alias MyLiege.Engine.Rules.{Bandits, Books, Demands, Food, Taxes}
 
   @derive {Inspect, except: [:config]}
   @enforce_keys [
@@ -43,6 +44,7 @@ defmodule MyLiege.Engine.Game do
                 deliver_demand: nil,
                 misses: 0,
                 bandits: Bandits.starting(),
+                books: Books.none(),
                 game_over: false
               ]
 
@@ -57,6 +59,7 @@ defmodule MyLiege.Engine.Game do
     SimSteps.Eating,
     SimSteps.Birth,
     SimSteps.Construction,
+    SimSteps.Books,
     SimSteps.TrainingEnd,
     SimSteps.TaxPayment,
     SimSteps.DemandDelivery,
@@ -176,6 +179,9 @@ defmodule MyLiege.Engine.Game do
   @doc "See `MyLiege.Engine.Actions.Construct`."
   def construct(%__MODULE__{} = game, type), do: Construct.run(game, type)
 
+  @doc "See `MyLiege.Engine.Actions.StartBook`."
+  def start_book(%__MODULE__{} = game, colour), do: StartBook.run(game, colour)
+
   @doc "The price of any building, in thousandths of gold."
   def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)
 
@@ -197,11 +203,6 @@ defmodule MyLiege.Engine.Game do
       nil -> {:error, :unknown_place}
       place -> {:ok, place}
     end
-  end
-
-  @doc false
-  def put_place(%__MODULE__{} = game, place) do
-    %{game | places: Enum.map(game.places, &if(&1.id == place.id, do: place, else: &1))}
   end
 
   @doc false

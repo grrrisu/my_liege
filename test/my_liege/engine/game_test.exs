@@ -22,7 +22,7 @@ defmodule MyLiege.Engine.GameTest do
     test "its report shows week 0 as the starting state" do
       config = EngineFixtures.config()
 
-      assert Game.report(Game.new(config, 1)) == %WeeklyReport{
+      assert config |> Game.new(1) |> Game.report() == %WeeklyReport{
                week: 0,
                production: %{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0},
                mana: %{green: 0, blue: 0, red: 0, yellow: 0, violet: 0},
@@ -40,6 +40,7 @@ defmodule MyLiege.Engine.GameTest do
                spoiled: %{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0},
                gold_spent_buildings: 0,
                bandit_threat: 0,
+               books: %{green: 0, yellow: 0, blue: 0, red: 0, violet: 0},
                game_over: false
              }
     end
@@ -71,6 +72,7 @@ defmodule MyLiege.Engine.GameTest do
                SimSteps.Eating,
                SimSteps.Birth,
                SimSteps.Construction,
+               SimSteps.Books,
                SimSteps.TrainingEnd,
                SimSteps.TaxPayment,
                SimSteps.DemandDelivery,
@@ -113,14 +115,14 @@ defmodule MyLiege.Engine.GameTest do
     end
 
     test "every product's stock accumulates", %{config: config} do
-      game = run_weeks(Game.new(config, 1), 2)
+      game = config |> Game.new(1) |> run_weeks(2)
 
       assert game.stocks.defence == 6_000
       assert game.stocks.gold == 100_000
     end
 
     test "a newborn eats from the following week", %{config: config} do
-      game = run_weeks(Game.new(config, 1), 1)
+      game = config |> Game.new(1) |> run_weeks(1)
       {:ok, report, _game} = Game.run_week(game)
 
       # 27 + 9 produced - 3 workers × 3 eaten; no birth in week 2
@@ -155,8 +157,8 @@ defmodule MyLiege.Engine.GameTest do
     end
 
     test "the same seed replays the same run", %{config: config} do
-      assert run_weeks(Game.new(config, 5), 20) ==
-               run_weeks(Game.new(config, 5), 20)
+      assert config |> Game.new(5) |> run_weeks(20) ==
+               config |> Game.new(5) |> run_weeks(20)
     end
   end
 
@@ -191,7 +193,7 @@ defmodule MyLiege.Engine.GameTest do
 
     test "reaching the last week without game over wins; no week runs after it" do
       config = EngineFixtures.config(game_years: 1, start_gold: 1000)
-      game = run_weeks(EngineFixtures.game_without_demands(config, 1), 48)
+      game = config |> EngineFixtures.game_without_demands(1) |> run_weeks(48)
 
       assert Game.won?(game)
       assert Game.run_week(game) == {:error, :finished}
@@ -199,14 +201,14 @@ defmodule MyLiege.Engine.GameTest do
 
     test "not won before the last week" do
       config = EngineFixtures.config(game_years: 1, start_gold: 1000)
-      game = run_weeks(EngineFixtures.game_without_demands(config, 1), 47)
+      game = config |> EngineFixtures.game_without_demands(1) |> run_weeks(47)
 
       refute Game.won?(game)
     end
 
     test "game over in the last week is not a win" do
       config = EngineFixtures.config(game_years: 1, start_gold: 0)
-      game = run_weeks(EngineFixtures.game_without_demands(config, 1), 48)
+      game = config |> EngineFixtures.game_without_demands(1) |> run_weeks(48)
 
       assert game.game_over
       refute Game.won?(game)

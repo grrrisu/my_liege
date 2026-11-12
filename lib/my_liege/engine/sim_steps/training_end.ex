@@ -1,5 +1,5 @@
 defmodule MyLiege.Engine.SimSteps.TrainingEnd do
-  @moduledoc "Step 8 of the week, R5 training ends: finished trainees are trained, unplaced and travelling."
+  @moduledoc "Step 9 of the week, R5 training ends: finished trainees are trained, unplaced and travelling."
   @behaviour MyLiege.Engine.SimStep
 
   alias MyLiege.Engine.Rules.Training

@@ -1,14 +1,15 @@
 defmodule MyLiege.Engine.Rules.ConstructionTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Manameter, Worker}
-  alias MyLiege.Engine.Place.Building
+  alias MyLiege.Engine.{Game, Manameter, Place, Worker}
+  alias MyLiege.Engine.Place.{Building, Project}
+  alias MyLiege.Engine.Rules.Construction
   alias MyLiege.EngineFixtures
 
-  # 2 builders, 1 week of travel, 2 construction weeks; workers 1 (green) and 2 (red) start
-  # on the farm and the tower
+  # 4 work, at most 2 builders, 1 week of travel; workers 1 (green) and 2 (red) start on the
+  # farm (1) and the tower (2); the market site has id 3
   setup do
-    config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
+    config = EngineFixtures.config(build_work: 4, build_capacity: 2, travel_weeks: 1)
     game = EngineFixtures.game_without_demands(config, 1)
     {:ok, game} = Game.construct(game, :market)
     %{config: config, game: game, site: List.last(game.places)}
@@ -16,81 +17,131 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
 
   describe "R2 builders" do
     test "an ordered building is a site without progress; the price is paid at once", context do
-      %{game: game, site: site} = context
+      %{config: config, game: game, site: site} = context
 
-      assert Building.site?(site)
-      assert %Building{ready_week: nil, progress: 0} = site
+      assert %Project{id: 3, gives: {:building, :market}, progress: 0} = site
+      assert site.target == config.build_work
+      assert Place.colour(site) == nil
+      refute Project.done?(site)
       assert game.stocks.gold == 100_000 - Game.build_cost(game)
-      refute Building.ready?(site, 99)
     end
 
-    test "the starting farm and tower are finished and need no builders", %{game: game} do
-      assert game.places |> Enum.take(2) |> Enum.all?(&(not Building.site?(&1)))
+    test "the starting farm and tower are buildings and need no builders", %{game: game} do
+      assert game.places |> Enum.take(2) |> Enum.all?(&match?(%Building{}, &1))
     end
 
-    test "a site takes build_builders builders of any colour", context do
+    test "sites can be ordered without limit, each with its own id", %{config: config} do
+      places =
+        Enum.reduce(1..10, Building.starting(), fn _, places ->
+          Construction.new_site(places, :market, config)
+        end)
+
+      ids = Enum.map(places, & &1.id)
+
+      assert Enum.count(places, &match?(%Project{gives: {:building, :market}}, &1)) == 10
+      assert Enum.uniq(ids) == ids
+    end
+
+    test "a site never takes more than build_capacity builders, of any colour", context do
       %{game: game, site: site} = context
       game = add_unplaced(game, :blue)
-      {:ok, game} = Game.place_worker(game, 1, site.id)
-      {:ok, game} = Game.place_worker(game, 2, site.id)
+      game = place_builders(game, site)
 
       assert Game.place_worker(game, 3, site.id) == {:error, :full}
+
+      {weeks, _game} = weekly(game, site, 2)
+      assert Enum.map(weeks, & &1.builders) == [2, 2]
+      assert Enum.map(weeks, & &1.progress) == [0, 2]
     end
 
-    test "with all builders arrived, it is finished after build_weeks weeks", context do
+    test "2 builders finish in 2 weeks", context do
       %{game: game, site: site} = context
       game = place_builders(game, site)
-      {weeks, game} = weekly(game, site, 3)
+      {weeks, _game} = weekly(game, site, 3)
 
       # week 1 travel, weeks 2 and 3 building
-      assert Enum.map(weeks, & &1.progress) == [0, 1, 2]
-      assert %Building{ready_week: 4, progress: 2} = find_place(game, site.id)
+      assert Enum.map(weeks, & &1.progress) == [0, 2, nil]
       assert Enum.map(weeks, & &1.builders) == [2, 2, 0]
     end
 
-    test "finished builders become unplaced and travel", context do
-      %{game: game, site: site} = context
-      game = place_builders(game, site)
-      {_reports, game} = EngineFixtures.run_weeks(game, 3)
-
-      assert [%Worker{place: nil, travel: 1}, %Worker{place: nil, travel: 1}] =
-               Enum.take(game.workers, 2)
-    end
-
-    test "with too few builders the site doesn't advance", context do
+    test "1 builder finishes in 4 weeks", context do
       %{game: game, site: site} = context
       {:ok, game} = Game.place_worker(game, 1, site.id)
-      {_reports, game} = EngineFixtures.run_weeks(game, 5)
+      {weeks, game} = weekly(game, site, 5)
 
-      assert %Building{ready_week: nil, progress: 0} = find_place(game, site.id)
+      # week 1 travel, weeks 2 to 5 building
+      assert Enum.map(weeks, & &1.progress) == [0, 1, 2, 3, nil]
+      assert %Building{blueprint: %{type: :market}} = List.last(game.places)
     end
 
-    test "moving a builder off resets the progress; it restarts once all are back", context do
+    test "a builder still travelling at the start of the week adds nothing", context do
+      %{game: game, site: site} = context
+      {:ok, game} = Game.place_worker(game, 1, site.id)
+      {_reports, game} = EngineFixtures.run_weeks(game, 1)
+      {:ok, game} = Game.place_worker(game, 2, site.id)
+
+      # week 2: worker 1 has arrived, worker 2 travels; week 3: both
+      {weeks, _game} = weekly(game, site, 2)
+      assert Enum.map(weeks, & &1.progress) == [1, 3]
+    end
+
+    test "a builder leaving keeps the progress; the site goes on with the other", context do
       %{game: game, site: site} = context
       game = place_builders(game, site)
       {_reports, game} = EngineFixtures.run_weeks(game, 2)
-      assert find_place(game, site.id).progress == 1
+      assert find_place(game, site.id).progress == 2
 
       {:ok, game} = Game.place_worker(game, 1, 1)
-      assert find_place(game, site.id).progress == 0
+      assert find_place(game, site.id).progress == 2
       gold = game.stocks.gold
 
-      {:ok, game} = Game.place_worker(game, 1, site.id)
-      # travel in week 3, building in weeks 4 and 5
-      {weeks, game} = weekly(game, site, 3)
-
-      assert Enum.map(weeks, & &1.progress) == [0, 1, 2]
-      assert find_place(game, site.id).ready_week == 6
+      # worker 2 alone: 1 work in week 3, the 4th in week 4
+      {weeks, game} = weekly(game, site, 2)
+      assert Enum.map(weeks, & &1.progress) == [3, nil]
       assert game.stocks.gold == gold
     end
 
-    test "unplacing a builder resets the progress", context do
+    test "unplacing a builder keeps the progress", context do
       %{game: game, site: site} = context
       game = place_builders(game, site)
       {_reports, game} = EngineFixtures.run_weeks(game, 2)
       {:ok, game} = Game.unplace_worker(game, 2)
 
-      assert find_place(game, site.id).progress == 0
+      assert find_place(game, site.id).progress == 2
+    end
+
+    test "the finished building has a new id; its builders are unplaced and travel", context do
+      %{game: game, site: site} = context
+      game = place_builders(game, site)
+      {_reports, game} = EngineFixtures.run_weeks(game, 3)
+
+      assert find_place(game, site.id) == nil
+      assert %Building{id: 4, blueprint: %{type: :market}} = List.last(game.places)
+
+      assert [%Worker{place: nil, travel: 1}, %Worker{place: nil, travel: 1}] =
+               Enum.take(game.workers, 2)
+    end
+
+    test "workers on a king's demand project are not counted as builders", context do
+      %{game: game, site: site} = context
+      project = EngineFixtures.new_demand_project(4, :culture)
+      game = %{game | places: game.places ++ [project]}
+      {:ok, game} = Game.place_worker(game, 1, site.id)
+      {:ok, game} = Game.place_worker(game, 2, project.id)
+      {[_week_1, week_2], _game} = EngineFixtures.run_weeks(game, 2)
+
+      assert week_2.builders == 1
+    end
+
+    test "writers on a book are not counted as builders", context do
+      %{game: game, site: site} = context
+      {:ok, game} = Game.start_book(game, :green)
+      book = List.last(game.places)
+      {:ok, game} = Game.place_worker(game, 1, site.id)
+      {:ok, game} = Game.place_worker(game, 2, book.id)
+      {[_week_1, week_2], _game} = EngineFixtures.run_weeks(game, 2)
+
+      assert week_2.builders == 1
     end
 
     test "builders produce nothing and no mana, but eat", context do
@@ -123,9 +174,9 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       game = place_builders(game, site)
       {reports, game} = EngineFixtures.run_weeks(game, 4)
 
-      assert find_place(game, site.id).ready_week == 4
+      assert %Building{id: 5, blueprint: %{type: :guildhouse}} = List.last(game.places)
       assert Enum.all?(reports, &(&1.trained == []))
-      assert Enum.all?(Enum.take(game.workers, 2), &(&1.place == nil and not &1.trained))
+      assert game.workers |> Enum.take(2) |> Enum.all?(&(&1.place == nil and not &1.trained))
     end
 
     test "a finished building at week M takes workers at M; they produce from M + 2", context do
@@ -133,7 +184,8 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       game = place_builders(game, site)
       {_reports, game} = EngineFixtures.run_weeks(game, 4)
       # finished at the end of week 3; the builders arrive back unplaced in week 4
-      {:ok, game} = Game.place_worker(game, 1, site.id)
+      market = List.last(game.places)
+      {:ok, game} = Game.place_worker(game, 1, market.id)
       {[week_5, week_6], _game} = EngineFixtures.run_weeks(game, 2)
 
       assert week_5.production.gold == 0
@@ -147,13 +199,17 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
     game
   end
 
-  # runs `count` weeks; for each, the site's progress and the report's arrived builders
+  # runs `count` weeks; for each, the site's progress (nil once it is gone) and the report's
+  # arrived builders
   defp weekly(game, site, count) do
     Enum.map_reduce(1..count, game, fn _, game ->
       {[report], game} = EngineFixtures.run_weeks(game, 1)
-      {%{progress: find_place(game, site.id).progress, builders: report.builders}, game}
+      {%{progress: game |> find_place(site.id) |> progress(), builders: report.builders}, game}
     end)
   end
+
+  defp progress(%Project{progress: progress}), do: progress
+  defp progress(nil), do: nil
 
   defp add_unplaced(game, colour) do
     worker = %Worker{id: Worker.next_id(game.workers), colour: colour}

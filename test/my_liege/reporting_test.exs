@@ -24,18 +24,19 @@ defmodule MyLiege.ReportingTest do
                "king_took_gold,king_took_food," <>
                "spoiled_food,spoiled_gold,spoiled_knowledge,spoiled_defence,spoiled_culture," <>
                "gold_spent_buildings,bandit_pressure,bandit_threat,bandits_weeks_to_raid," <>
-               "gold_robbed,happiness_ratio,happiness_step,game_over"
+               "gold_robbed,happiness_ratio,happiness_step,game_over," <>
+               "books_green,books_yellow,books_blue,books_red,books_violet"
 
     assert week_0 ==
-             "0,0,0,0,0,0,0,0,0,0,0,800,50,50,100,0,24000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,,0,,0,,,false"
+             "0,0,0,0,0,0,0,0,0,0,0,800,50,50,100,0,24000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,,0,,0,,,false,0,0,0,0,0"
 
     # seed 1 draws a green newborn in week 1
     assert week_1 ==
-             "1,9000,0,0,3000,0,3,0,0,3,0,799,50,50,101,0,27000,green,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,666,,0,0,-3,false"
+             "1,9000,0,0,3000,0,3,0,0,3,0,799,50,50,101,0,27000,green,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,666,,0,0,-3,false,0,0,0,0,0"
 
     # the unplaced newborn makes no mana but eats: 27 + 9 - 3 × 3
     assert week_2 ==
-             "2,9000,0,0,3000,0,3,0,0,3,0,798,50,50,102,0,27000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,1332,,0,0,-3,false"
+             "2,9000,0,0,3000,0,3,0,0,3,0,798,50,50,102,0,27000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,1332,,0,0,-3,false,0,0,0,0,0"
   end
 
   test "the spoiled columns show what each stock lost; food_left and gold are after spoilage" do
@@ -76,15 +77,10 @@ defmodule MyLiege.ReportingTest do
   test "demand_progress shows a project's total in every week it is open" do
     game = EngineFixtures.game_without_demands(EngineFixtures.config(), 1)
     monastery = EngineFixtures.new_building(3, :monastery)
-    monk = %Worker{id: 3, colour: :blue, place: 3}
-    project = %{product: :knowledge, amount: 9_000, due_week: 2, progress: 0}
-
-    game = %{
-      game
-      | places: game.places ++ [monastery],
-        workers: game.workers ++ [monk],
-        demand: project
-    }
+    # the knowledge project gets id 4, with the monk on it
+    monk = %Worker{id: 3, colour: :blue, place: 4}
+    game = %{game | places: game.places ++ [monastery], workers: game.workers ++ [monk]}
+    game = EngineFixtures.open_demand(game, :knowledge, 9_000, 2)
 
     {reports, _game} = EngineFixtures.run_weeks(game, 3)
 
@@ -100,7 +96,7 @@ defmodule MyLiege.ReportingTest do
 
   test "the trained column lists the colours of workers who finished training" do
     config = EngineFixtures.config()
-    {:ok, game} = config |> Game.new(1) |> Game.construct(:guildhouse)
+    game = config |> Game.new(1) |> EngineFixtures.add_building(:guildhouse)
     {_reports, game} = EngineFixtures.run_weeks(game, 2)
     guildhouse = Enum.find(game.places, &(Place.type(&1) == :guildhouse))
     {:ok, game} = Game.place_worker(game, 1, guildhouse.id)
@@ -130,7 +126,7 @@ defmodule MyLiege.ReportingTest do
   end
 
   test "the builders and travelling columns count arrived builders and travelling workers" do
-    config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
+    config = EngineFixtures.config(build_capacity: 2, travel_weeks: 1)
     {:ok, game} = config |> Game.new(1) |> Game.construct(:market)
     site = List.last(game.places)
     {:ok, game} = Game.place_worker(game, 1, site.id)
@@ -169,7 +165,7 @@ defmodule MyLiege.ReportingTest do
   test "the bandit columns show pressure, threat, weeks to the raid and gold robbed" do
     # without its soldier the tower makes no defence: the bandits set out in week 1 and raid in 5
     config = EngineFixtures.config(bandit_threshold: 10, bandit_warning_weeks: 4)
-    {:ok, game} = Game.unplace_worker(EngineFixtures.game_without_demands(config, 1), 2)
+    {:ok, game} = config |> EngineFixtures.game_without_demands(1) |> Game.unplace_worker(2)
     {reports, _game} = EngineFixtures.run_weeks(game, 6)
 
     rows = reports |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
