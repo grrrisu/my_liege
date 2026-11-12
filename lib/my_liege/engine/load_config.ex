@@ -8,23 +8,22 @@ defmodule MyLiege.Engine.LoadConfig do
   and fails the build too, so unused keys can't pile up in the CSV.
   """
 
-  alias MyLiege.Engine.Manameter
+  alias MyLiege.Engine.{Manameter, Pentagon}
 
   require Logger
 
   @header "key,value"
 
-  # written out here, not taken from Building, Worker or Pentagon, which depend on Config at
-  # compile time; the config test checks they match
+  # written out here, not taken from Building or Worker, which depend on Config at compile
+  # time; the config test checks they match
   @path_types [:farm, :market, :monastery, :watchtower, :tavern]
   @types @path_types ++ [:guildhouse]
   @goods [:food, :gold, :knowledge, :defence, :culture]
   @trainings [:untrained, :trained]
-  @relations [:same, :neighbour, :opposite]
   @levels [:level1, :level2, :level3]
 
   @doc false
-  def names, do: %{types: @types, goods: @goods, trainings: @trainings, relations: @relations}
+  def names, do: %{types: @types, goods: @goods, trainings: @trainings}
 
   @doc "Reads the CSV at `path` and returns the configuration fields as a map."
   def load!(path) do
@@ -99,7 +98,7 @@ defmodule MyLiege.Engine.LoadConfig do
       start_food: "start.food",
       start_gold: "start.gold",
       manameter_start:
-        Manameter.colours()
+        Pentagon.colours()
         |> by(&"manameter.#{&1}.start_permille")
         |> then_apply(&manameter_start!/1),
       birth_interval_weeks: "birth.interval_weeks",
@@ -110,7 +109,7 @@ defmodule MyLiege.Engine.LoadConfig do
       good_spoilage: by(@goods, &"good.#{&1}.spoilage_permille"),
       efficiency:
         by(@trainings, fn training ->
-          by(@relations, &"efficiency.#{training}.#{&1}_permille")
+          by(Pentagon.relations(), &"efficiency.#{training}.#{&1}_permille")
         end),
       mana:
         by(@trainings, fn training ->

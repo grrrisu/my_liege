@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.Rules.ManameterUpdate do
   colours with the largest remainders (ties in pentagon order), so the total never changes.
   """
 
-  alias MyLiege.Engine.{Config, Manameter}
+  alias MyLiege.Engine.{Config, Manameter, Pentagon}
 
   @doc "Returns the new Manameter; unchanged in a week without mana."
   def update(%Manameter{} = manameter, mana, %Config{} = config) do
@@ -28,7 +28,7 @@ defmodule MyLiege.Engine.Rules.ManameterUpdate do
     total_share = Manameter.total(manameter)
     denominator = total_share * total_mana
 
-    Enum.map(Manameter.colours(), fn colour ->
+    Enum.map(Pentagon.colours(), fn colour ->
       numerator =
         Map.fetch!(manameter, colour) * (total_share - points) * total_mana +
           points * Map.fetch!(mana, colour) * total_share

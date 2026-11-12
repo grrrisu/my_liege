@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.ConfigTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Config, LoadConfig, Manameter, Pentagon, Worker}
+  alias MyLiege.Engine.{Building, Config, LoadConfig, Manameter, Worker}
 
   describe "loading config inputs" do
     test "the CSV loads into a complete configuration with a full Manameter" do
@@ -39,8 +39,7 @@ defmodule MyLiege.Engine.ConfigTest do
       assert LoadConfig.names() == %{
                types: Building.types(),
                goods: Building.products(),
-               trainings: Worker.trainings(),
-               relations: Pentagon.relations()
+               trainings: Worker.trainings()
              }
     end
 

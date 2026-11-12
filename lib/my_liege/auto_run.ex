@@ -66,7 +66,7 @@ defmodule MyLiege.AutoRun do
       File.write!("summary.csv", csv)
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Manameter}
+  alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Pentagon}
   alias MyLiege.Engine.Rules.{Bandits, Production, Travel}
 
   @weeks_per_year Game.weeks_per_year()
@@ -419,7 +419,7 @@ defmodule MyLiege.AutoRun do
     for year <- 1..config.game_years,
         week = year * @weeks_per_year,
         report = Enum.find(reports, &(&1.week == week)) do
-      colour = Enum.max_by(Manameter.colours(), &Map.fetch!(report.manameter, &1))
+      colour = Enum.max_by(Pentagon.colours(), &Map.fetch!(report.manameter, &1))
       {week, colour, Map.fetch!(report.manameter, colour)}
     end
   end
@@ -452,7 +452,7 @@ defmodule MyLiege.AutoRun do
       end
 
     if manameters != [] do
-      Map.new(Manameter.colours(), fn colour ->
+      Map.new(Pentagon.colours(), fn colour ->
         {colour, manameters |> Enum.map(&Map.fetch!(&1, colour)) |> Enum.min_max()}
       end)
     end

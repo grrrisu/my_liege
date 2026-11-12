@@ -28,7 +28,7 @@ defmodule MyLiege.Engine.WeeklyReport do
   Neither is exported.
   """
 
-  alias MyLiege.Engine.{Building, Game, Manameter, Worker}
+  alias MyLiege.Engine.{Building, Game, Manameter, Pentagon, Worker}
 
   @enforce_keys [:week]
   defstruct [
@@ -104,7 +104,7 @@ defmodule MyLiege.Engine.WeeklyReport do
       week: week,
       start: start,
       production: zeros(Building.products()),
-      mana: zeros(Manameter.colours()),
+      mana: zeros(Pentagon.colours()),
       spoiled: zeros(Building.products())
     }
   end

@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.BirthsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Fixed, Manameter, Random, Worker}
+  alias MyLiege.Engine.{Building, Fixed, Pentagon, Random, Worker}
   alias MyLiege.Engine.Rules.Births
   alias MyLiege.EngineFixtures
 
@@ -55,7 +55,7 @@ defmodule MyLiege.Engine.Rules.BirthsTest do
       food_left = Fixed.from(24)
       {newborn, _} = Births.attempt(1, food_left, manameter, config, seeded_rand(1))
       assert %Worker{trained: false, building: nil} = newborn
-      assert newborn.colour in Manameter.colours()
+      assert newborn.colour in Pentagon.colours()
     end
 
     test "colour chances equal the Manameter shares", %{manameter: manameter} do
