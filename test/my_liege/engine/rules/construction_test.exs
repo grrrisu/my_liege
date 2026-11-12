@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
   # 2 builders, 1 week of travel, 2 construction weeks; workers 1 (green) and 2 (red) start
   # on the farm and the tower
   setup do
-    config = EngineFixtures.config(builders_per_building: 2, travel_weeks: 1)
+    config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
     game = EngineFixtures.game_without_demands(config, 1)
     {:ok, game} = Game.construct(game, :market)
     %{config: config, game: game, site: List.last(game.buildings)}
@@ -27,7 +27,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       assert game.buildings |> Enum.take(2) |> Enum.all?(&(not Building.site?(&1)))
     end
 
-    test "a site takes builders_per_building builders of any colour", context do
+    test "a site takes build_builders builders of any colour", context do
       %{game: game, site: site} = context
       game = add_unplaced(game, :blue)
       {:ok, game} = Game.place_worker(game, 1, site.id)
@@ -36,7 +36,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       assert Game.place_worker(game, 3, site.id) == {:error, :full}
     end
 
-    test "with all builders arrived, it is finished after construction_weeks weeks", context do
+    test "with all builders arrived, it is finished after build_weeks weeks", context do
       %{game: game, site: site} = context
       game = place_builders(game, site)
       {weeks, game} = weekly(game, site, 3)
@@ -98,7 +98,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       {[week_1], game} = EngineFixtures.run_weeks(game, 1)
       {[week_2], _game} = EngineFixtures.run_weeks(game, 1)
 
-      assert week_2.production == %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0}
+      assert week_2.production == %{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0}
       assert week_2.mana == %{green: 0, blue: 0, red: 0, yellow: 0, violet: 0}
       assert week_2.food_left == week_1.food_left - length(game.workers) * 3_000
     end

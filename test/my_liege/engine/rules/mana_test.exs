@@ -49,7 +49,7 @@ defmodule MyLiege.Engine.Rules.ManaTest do
     test "a worker can only be placed in a finished building with room", context do
       %{config: config, buildings_by_type: %{farm: farm}} = context
       new_tavern = %Building{id: 3, type: :tavern, ready_week: 7}
-      full_farm = for _ <- 1..config.capacity.farm, do: worker(:green, false, farm.id)
+      full_farm = for _ <- 1..config.place_capacity.farm, do: worker(:green, false, farm.id)
 
       refute Building.can_place?(new_tavern, [], 6, config)
       assert Building.can_place?(new_tavern, [], 7, config)

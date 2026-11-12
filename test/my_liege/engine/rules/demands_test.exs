@@ -16,18 +16,18 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       assert length(weeks) == 6
 
       for {week, h} <- Enum.with_index(weeks) do
-        assert week in (h * 24 + 1)..(h * 24 + 24 - config.demand_deadline_weeks)
+        assert week in (h * 24 + 1)..(h * 24 + 24 - config.king_demand_deadline_weeks)
       end
     end
 
     test "grace period: no draw for a half year inside it", %{config: config} do
       rand = 7 |> Random.new() |> elem(1)
-      {weeks, _rand} = Demands.schedule(48, %{config | grace_weeks: 24}, rand)
+      {weeks, _rand} = Demands.schedule(48, %{config | king_grace_weeks: 24}, rand)
 
       assert length(weeks) == 5
 
       for {week, h} <- Enum.with_index(weeks, 1) do
-        assert week in (h * 24 + 1)..(h * 24 + 24 - config.demand_deadline_weeks)
+        assert week in (h * 24 + 1)..(h * 24 + 24 - config.king_demand_deadline_weeks)
       end
     end
 
@@ -35,7 +35,7 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
          %{config: config} do
       for seed <- 1..20 do
         rand = seed |> Random.new() |> elem(1)
-        {[first | _], _rand} = Demands.schedule(48, %{config | grace_weeks: 30}, rand)
+        {[first | _], _rand} = Demands.schedule(48, %{config | king_grace_weeks: 30}, rand)
         assert first in 31..40
       end
     end
@@ -43,7 +43,7 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
     test "grace period: a half year without room for the deadline after it has no demand",
          %{config: config} do
       rand = 7 |> Random.new() |> elem(1)
-      {[first | _] = weeks, _rand} = Demands.schedule(48, %{config | grace_weeks: 41}, rand)
+      {[first | _] = weeks, _rand} = Demands.schedule(48, %{config | king_grace_weeks: 41}, rand)
 
       assert length(weeks) == 4
       assert first in 49..64
@@ -78,7 +78,7 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       assert Demands.make(30, 48, manameter, 0, config) == nil
     end
 
-    test "knowledge and entertainment demands are projects starting at 0", %{config: config} do
+    test "knowledge and culture demands are projects starting at 0", %{config: config} do
       manameter = %Manameter{green: 100, blue: 400, red: 300, yellow: 100, violet: 100}
 
       # year 1: blue, knowledge; 12 workers × 10% × 3 × 8 weeks = 28.8
@@ -155,7 +155,7 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
   describe "R7: demands in the week" do
     setup do
       # plenty of food, so the first demand (year 1: green, food) is not 0
-      config = EngineFixtures.config(starting_food: 1000)
+      config = EngineFixtures.config(start_food: 1000)
       game = Game.new(config, 1)
       [first | _] = game.demand_weeks
       {reports, game} = EngineFixtures.run_weeks(game, first)

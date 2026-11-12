@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.Rules.MissesTest do
   alias MyLiege.Engine.Rules.Misses
   alias MyLiege.EngineFixtures
 
-  # tax_misses_forgiven: 1
+  # king_misses_forgiven: 1
   setup do
     %{config: EngineFixtures.config()}
   end

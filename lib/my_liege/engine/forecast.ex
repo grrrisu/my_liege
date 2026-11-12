@@ -49,7 +49,7 @@ defmodule MyLiege.Engine.Forecast do
   end
 
   @doc """
-  The next tax amount: as fixed at the count, or before the count `tax_per_worker` for every
+  The next tax amount: as fixed at the count, or before the count `king_tax_per_worker` for every
   current worker (births before the count can still raise it).
   """
   def tax_amount(%Game{} = game), do: game.tax_due || Taxes.assess(game.workers, game.config)

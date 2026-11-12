@@ -11,7 +11,7 @@ defmodule MyLiege.Reporting do
   `demand_product` and `demand_amount` are filled in the week the king makes a demand,
   `demand_outcome` (delivered, refused, missed) in its deadline week, or for a refused
   project in the week after the refusal. `demand_progress` is a project's (knowledge or
-  entertainment) total at the end of every week it is open, empty otherwise. `spoiled_*` is what each
+  culture) total at the end of every week it is open, empty otherwise. `spoiled_*` is what each
   stock lost at the end of the week; `food_left` and `gold` are after spoilage.
   `gold_spent_buildings` is the gold paid for buildings ordered while the game stood at that
   week (after it ran, before the next one), so it is not yet taken from that row's `gold`.
@@ -21,7 +21,7 @@ defmodule MyLiege.Reporting do
   production, empty in week 0; `bandit_threat` (thousandths) and `bandits_weeks_to_raid` are at
   the end of the week, the latter empty when no bandits are on their way (also in the raid
   week); `gold_robbed` is what the bandits took that week, before spoilage.
-  R11: `happiness_ratio` is the week's entertainment production ÷ what the population needs,
+  R11: `happiness_ratio` is the week's culture production ÷ what the population needs,
   in per mille; `happiness_step` (−3 to 3, a plain number) is the step applied to food and
   defence, 0 in the grace period. Both empty in week 0.
   """

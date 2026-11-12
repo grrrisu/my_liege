@@ -1,8 +1,11 @@
 defmodule MyLiege.Engine.LoadConfig do
   @moduledoc """
   Reads the designer's `key,value` CSV export and maps it to the configuration fields.
-  Every value must be a whole number; anything else raises, so a bad export fails the build
-  instead of being rounded.
+
+  Keys are `group.item.attribute`, e.g. `place.farm.capacity`. Every value must be a whole
+  number; anything else raises, so a bad export fails the build instead of being rounded.
+  Every key is taken out of the inputs as it is read; a key left over at the end is unread
+  and fails the build too, so unused keys can't pile up in the CSV.
   """
 
   alias MyLiege.Engine.Manameter
@@ -11,53 +14,38 @@ defmodule MyLiege.Engine.LoadConfig do
 
   @header "key,value"
 
+  # written out here, not taken from Building, Worker or Pentagon, which depend on Config at
+  # compile time; the config test checks they match
+  @path_types [:farm, :market, :monastery, :watchtower, :tavern]
+  @types @path_types ++ [:guildhouse]
+  @goods [:food, :gold, :knowledge, :defence, :culture]
+  @trainings [:untrained, :trained]
+  @relations [:same, :neighbour, :opposite]
+  @levels [:level1, :level2, :level3]
+
+  @doc false
+  def names, do: %{types: @types, goods: @goods, trainings: @trainings, relations: @relations}
+
   @doc "Reads the CSV at `path` and returns the configuration fields as a map."
   def load!(path) do
     inputs = path |> File.read!() |> parse!()
-
-    config = %{
-      birth_interval_weeks: fetch!(inputs, "birth_interval_weeks"),
-      birth_min_food_left: fetch!(inputs, "birth_min_food_left"),
-      starting_manameter: starting_manameter!(inputs),
-      starting_farmers: fetch!(inputs, "starting_farmers"),
-      starting_soldiers: fetch!(inputs, "starting_soldiers"),
-      base_production: base_production(inputs),
-      capacity: capacity(inputs),
-      colour_factors: colour_factors(inputs),
-      construction_weeks: fetch!(inputs, "construction_weeks"),
-      build_cost_gold: fetch!(inputs, "build_cost_gold"),
-      builders_per_building: fetch!(inputs, "builders_per_building"),
-      travel_weeks: fetch!(inputs, "travel_weeks"),
-      mana_per_worker: mana_per_worker(inputs),
-      manameter_points_per_week: fetch!(inputs, "manameter_points_per_week"),
-      starting_food: fetch!(inputs, "starting_food"),
-      starting_gold: fetch!(inputs, "starting_gold"),
-      years_per_game: fetch!(inputs, "years_per_game"),
-      food_eaten_per_worker: fetch!(inputs, "wheat_eaten_per_worker"),
-      tax_per_worker: fetch!(inputs, "tax_per_worker"),
-      tax_interval_weeks: fetch!(inputs, "tax_interval_weeks"),
-      tax_count_lead_weeks: fetch!(inputs, "tax_count_lead_weeks"),
-      tax_misses_forgiven: fetch!(inputs, "tax_misses_forgiven"),
-      grace_weeks: fetch!(inputs, "grace_weeks"),
-      training_threshold: fetch!(inputs, "training_threshold"),
-      training_weeks: fetch!(inputs, "training_weeks"),
-      demand_deadline_weeks: fetch!(inputs, "demand_deadline_weeks"),
-      demand_population_share: fetch!(inputs, "demand_population_share"),
-      demand_production_weeks: fetch!(inputs, "demand_production_weeks"),
-      spoilage_rates: spoilage_rates(inputs),
-      bandit_threshold: fetch!(inputs, "bandit_threshold"),
-      bandit_warning_weeks: fetch!(inputs, "bandit_warning_weeks"),
-      bandit_cover_weeks: fetch!(inputs, "bandit_cover_weeks"),
-      bandit_floor_step: fetch!(inputs, "bandit_floor_step"),
-      happiness_culture_per_worker: fetch!(inputs, "happiness_culture_per_worker"),
-      happiness_penalty_below: by_level(inputs, "happiness_penalty_~_below"),
-      happiness_bonus_from: by_level(inputs, "happiness_bonus_~_from"),
-      happiness_steps: by_level(inputs, "happiness_step_~")
-    }
+    config = read!(inputs)
 
     Logger.info(
       "config inputs: loaded #{map_size(inputs)} values from #{Path.relative_to_cwd(path)}"
     )
+
+    config
+  end
+
+  @doc "Maps parsed inputs to the configuration fields. Raises on a missing or an unread key."
+  def read!(inputs) do
+    {config, unread} = fields().(inputs)
+
+    if unread != %{} do
+      raise ArgumentError,
+            "config inputs: keys not read: #{unread |> Map.keys() |> Enum.sort() |> inspect()}"
+    end
 
     config
   end
@@ -86,11 +74,11 @@ defmodule MyLiege.Engine.LoadConfig do
     end)
   end
 
-  @doc "Fetches a key, raising with the key's name if it is missing."
-  def fetch!(values, key) do
-    case Map.fetch(values, key) do
-      {:ok, value} -> value
-      :error -> raise ArgumentError, "config inputs: missing key #{inspect(key)}"
+  @doc "Takes a key out of `values`, returning `{value, rest}`. Raises with the key's name if it is missing."
+  def take!(values, key) do
+    case Map.pop(values, key) do
+      {nil, _} -> raise ArgumentError, "config inputs: missing key #{inspect(key)}"
+      found -> found
     end
   end
 
@@ -103,67 +91,93 @@ defmodule MyLiege.Engine.LoadConfig do
     end
   end
 
-  defp starting_manameter!(inputs) do
-    shares =
-      for colour <- Manameter.colours(), do: {colour, fetch!(inputs, "manameter_start_#{colour}")}
+  defp fields do
+    all(
+      game_years: "game.years",
+      start_farmers: "start.farmers",
+      start_soldiers: "start.soldiers",
+      start_food: "start.food",
+      start_gold: "start.gold",
+      manameter_start:
+        Manameter.colours()
+        |> by(&"manameter.#{&1}.start_permille")
+        |> then_apply(&manameter_start!/1),
+      birth_interval_weeks: "birth.interval_weeks",
+      birth_min_food_left: "birth.min_food_left",
+      place_output_per_worker: by(@path_types, &"place.#{&1}.output_per_worker"),
+      place_capacity: by(@types, &"place.#{&1}.capacity"),
+      good_food_eaten_per_worker: "good.food.eaten_per_worker",
+      good_spoilage: by(@goods, &"good.#{&1}.spoilage_permille"),
+      efficiency:
+        by(@trainings, fn training ->
+          by(@relations, &"efficiency.#{training}.#{&1}_permille")
+        end),
+      mana:
+        by(@trainings, fn training ->
+          all(
+            place_colour: "mana.#{training}.place_colour",
+            worker_colour: "mana.#{training}.worker_colour"
+          )
+        end),
+      manameter_points_per_week: "manameter.points_per_week_permille",
+      training_min_share: "training.min_share_permille",
+      training_weeks: "training.weeks",
+      build_weeks: "build.weeks",
+      build_cost_gold: "build.cost_gold",
+      build_builders: "build.builders",
+      travel_weeks: "travel.weeks",
+      king_grace_weeks: "king.grace_weeks",
+      king_misses_forgiven: "king.misses_forgiven",
+      king_tax_per_worker: "king.tax.per_worker",
+      king_tax_interval_weeks: "king.tax.interval_weeks",
+      king_tax_count_lead_weeks: "king.tax.count_lead_weeks",
+      king_demand_deadline_weeks: "king.demand.deadline_weeks",
+      king_demand_population_share: "king.demand.population_share_permille",
+      king_demand_production_weeks: "king.demand.production_weeks",
+      bandit_threshold: "bandit.threshold",
+      bandit_warning_weeks: "bandit.warning_weeks",
+      bandit_cover_weeks: "bandit.cover_weeks",
+      bandit_floor_step: "bandit.floor_step",
+      happiness_need_per_worker: "happiness.need_per_worker_permille",
+      happiness_penalty_below: by(@levels, &"happiness.#{&1}.penalty_below_permille"),
+      happiness_bonus_from: by(@levels, &"happiness.#{&1}.bonus_from_permille"),
+      happiness_change: by(@levels, &"happiness.#{&1}.change_permille")
+    )
+  end
 
+  # A reader takes inputs and returns {value, the inputs it didn't read}; a key is a reader too.
+  defp reader(key) when is_binary(key), do: &take!(&1, key)
+  defp reader(reader) when is_function(reader, 1), do: reader
+
+  # reads every {name, reader or key} into a map of name => value
+  defp all(pairs) do
+    fn inputs ->
+      Enum.reduce(pairs, {%{}, inputs}, fn {name, field}, {values, rest} ->
+        {value, rest} = reader(field).(rest)
+        {Map.put(values, name, value), rest}
+      end)
+    end
+  end
+
+  # reads one value per item: `key_or_reader.(item)` gives its key or reader
+  defp by(items, key_or_reader), do: all(Enum.map(items, &{&1, key_or_reader.(&1)}))
+
+  defp then_apply(reader, fun) do
+    fn inputs ->
+      {value, rest} = reader.(inputs)
+      {fun.(value), rest}
+    end
+  end
+
+  defp manameter_start!(shares) do
     manameter = struct!(Manameter, shares)
 
     if Manameter.total(manameter) != Manameter.total_shares() do
       raise ArgumentError,
-            "config inputs: manameter_start_* must sum to #{Manameter.total_shares()}, " <>
-              "got #{Manameter.total(manameter)}"
+            "config inputs: manameter.<colour>.start_permille must sum to " <>
+              "#{Manameter.total_shares()}, got #{Manameter.total(manameter)}"
     end
 
     manameter
-  end
-
-  defp base_production(inputs) do
-    %{
-      farm: fetch!(inputs, "wheat_per_farm_worker"),
-      monastery: fetch!(inputs, "base_production_monastery"),
-      watchtower: fetch!(inputs, "base_production_watchtower"),
-      market: fetch!(inputs, "gold_per_market_worker"),
-      tavern: fetch!(inputs, "base_production_tavern")
-    }
-  end
-
-  defp capacity(inputs) do
-    Map.new([:farm, :monastery, :watchtower, :market, :tavern, :guildhouse], fn type ->
-      {type, fetch!(inputs, "capacity_#{type}")}
-    end)
-  end
-
-  # listed here, not taken from Building, which depends on Config at compile time
-  defp spoilage_rates(inputs) do
-    Map.new([:food, :knowledge, :defence, :gold, :entertainment], fn product ->
-      {product, fetch!(inputs, "spoilage_rate_#{product}")}
-    end)
-  end
-
-  defp colour_factors(inputs) do
-    Map.new([:untrained, :trained], fn training ->
-      {training,
-       Map.new([:same, :neighbour, :opposite], fn relation ->
-         {relation, fetch!(inputs, "factor_#{relation}_#{training}")}
-       end)}
-    end)
-  end
-
-  # levels 1 to 3; `~` in the pattern is replaced by the level
-  defp by_level(inputs, pattern) do
-    Map.new(1..3, fn level ->
-      {level, fetch!(inputs, String.replace(pattern, "~", Integer.to_string(level)))}
-    end)
-  end
-
-  defp mana_per_worker(inputs) do
-    Map.new([:untrained, :trained], fn training ->
-      {training,
-       %{
-         building_colour: fetch!(inputs, "mana_building_#{training}"),
-         own_colour: fetch!(inputs, "mana_own_#{training}")
-       }}
-    end)
   end
 end

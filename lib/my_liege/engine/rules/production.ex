@@ -11,8 +11,8 @@ defmodule MyLiege.Engine.Rules.Production do
   def worker_output(%Worker{} = worker, %Building{} = building, %Config{} = config) do
     training = if worker.trained, do: :trained, else: :untrained
     relation = Pentagon.relation(worker.colour, Building.colour(building))
-    factor_per_mille = config.colour_factors[training][relation]
-    base = config.base_production |> Map.fetch!(building.type) |> Fixed.from()
+    factor_per_mille = config.efficiency[training][relation]
+    base = config.place_output_per_worker |> Map.fetch!(building.type) |> Fixed.from()
     div(base * factor_per_mille, 1000)
   end
 

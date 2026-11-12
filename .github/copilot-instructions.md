@@ -9,10 +9,16 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 
 ## Numbers
 - All game values come from `priv/balance_inputs.csv` (`key,value`), read by key at compile time with `@external_resource`. The designer exports it; never edit it.
-- Fail at compile time on a missing key or a value that isn't a whole number. No defaults, no rounding.
-- Per mille (800 = 80%): keys starting with `factor_`, `manameter_start_`, `spoilage_rate_`, `happiness_`, and `manameter_points_per_week`, `demand_population_share`, `training_threshold`, `plough_threshold_green`, `plough_bonus`.
+- Fail at compile time on a missing key, a key `LoadConfig` doesn't read, or a value that isn't a whole number. No defaults, no rounding.
 - Only exception: 48 weeks per year, hardcoded.
 - Tests may build their own configuration with explicit values.
+
+## Config key names
+- Keys are `group.item.attribute`, lowercase, dot-separated, e.g. `place.farm.capacity`. Leave the item out when a group has only one thing: `travel.weeks`.
+- Group = the system: `game`, `start`, `birth`, `place`, `good`, `efficiency`, `mana`, `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness` (v2 later: `way`, `book`, `trade`, `expedition`, `suspicion`).
+- Item = a name the code already uses: building type, good, colour, training level, relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
+- Units: keys ending in `_permille` are per mille (800 = 80%); keys ending in `_weeks` are weeks; everything else is a whole amount.
+- `%Config{}` fields: the key with dots as underscores and `_permille` dropped (`king.tax.per_worker` → `king_tax_per_worker`); keys that differ only by item are one field, a map keyed by the item (`place.<type>.capacity` → `place_capacity: %{farm: …}`).
 
 ## Hard rules
 1. Never invent a rule or a number. If a rule is missing, open or ambiguous, or a value has no key, stop and ask the designer. Give options; don't pick one. No placeholder values.

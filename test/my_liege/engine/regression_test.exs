@@ -19,14 +19,14 @@ defmodule MyLiege.Engine.RegressionTest do
     # happiness is at −3 after the grace period and cuts food and defence by 30%
     config =
       EngineFixtures.config(
-        years_per_game: 1,
-        starting_gold: 1000,
-        starting_food: 10_000,
+        game_years: 1,
+        start_gold: 1000,
+        start_food: 10_000,
         bandit_threshold: 10,
         bandit_warning_weeks: 4,
         bandit_cover_weeks: 200,
-        grace_weeks: 4,
-        happiness_steps: %{1 => 100, 2 => 200, 3 => 300}
+        king_grace_weeks: 4,
+        happiness_change: %{level1: 100, level2: 200, level3: 300}
       )
 
     {reports, game} = EngineFixtures.run_weeks(Game.new(config, 42), 48)

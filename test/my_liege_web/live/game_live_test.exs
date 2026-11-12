@@ -66,14 +66,14 @@ defmodule MyLiegeWeb.GameLiveTest do
     view |> element("#build-market") |> render_click()
 
     assert has_element?(view, "#building-3", "market site")
-    assert has_element?(view, "#site-3", "builders arrived 0/#{config.builders_per_building}")
-    assert has_element?(view, "#site-3", "progress 0/#{config.construction_weeks} weeks")
+    assert has_element?(view, "#site-3", "builders arrived 0/#{config.build_builders}")
+    assert has_element?(view, "#site-3", "progress 0/#{config.build_weeks} weeks")
   end
 
   test "the build price is shown; the buttons are disabled once gold is short", %{conn: conn} do
     config = Config.from_csv()
     {:ok, view, _html} = live(conn, ~p"/game")
-    affordable = div(config.starting_gold, config.build_cost_gold)
+    affordable = div(config.start_gold, config.build_cost_gold)
 
     assert has_element?(view, "#build-cost", "#{config.build_cost_gold} gold")
 
@@ -82,7 +82,7 @@ defmodule MyLiegeWeb.GameLiveTest do
       view |> element("#build-farm") |> render_click()
     end
 
-    gold = config.starting_gold - affordable * config.build_cost_gold
+    gold = config.start_gold - affordable * config.build_cost_gold
     assert has_element?(view, "#stock-gold", "#{gold}")
     assert has_element?(view, "#build-farm[disabled]")
     assert has_element?(view, "#build-guildhouse[disabled]")
@@ -96,7 +96,7 @@ defmodule MyLiegeWeb.GameLiveTest do
     view |> element("#place-3") |> render_click()
 
     config = Config.from_csv()
-    needed = config.builders_per_building
+    needed = config.build_builders
 
     assert has_element?(view, "#building-3 #worker-1")
     assert has_element?(view, "#travel-1", "#{config.travel_weeks}")
@@ -240,7 +240,7 @@ defmodule MyLiegeWeb.GameLiveTest do
   test "approaching bandits are shown with the weeks left until the raid", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
-    Enum.find(1..Config.from_csv().grace_weeks, fn _ ->
+    Enum.find(1..Config.from_csv().king_grace_weeks, fn _ ->
       next_week(view)
       has_element?(view, "#bandits-approaching")
     end)

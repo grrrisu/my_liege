@@ -8,41 +8,48 @@ defmodule MyLiege.EngineFixtures do
       %Config{
         birth_interval_weeks: 2,
         birth_min_food_left: 1,
-        starting_manameter: %Manameter{green: 800, blue: 50, red: 100, yellow: 50, violet: 0},
-        starting_farmers: 1,
-        starting_soldiers: 1,
-        base_production: %{farm: 9, monastery: 3, watchtower: 3, market: 3, tavern: 3},
-        capacity: %{farm: 4, monastery: 4, watchtower: 4, market: 4, tavern: 4, guildhouse: 1},
-        colour_factors: %{
+        manameter_start: %Manameter{green: 800, blue: 50, red: 100, yellow: 50, violet: 0},
+        start_farmers: 1,
+        start_soldiers: 1,
+        place_output_per_worker: %{farm: 9, monastery: 3, watchtower: 3, market: 3, tavern: 3},
+        place_capacity: %{
+          farm: 4,
+          monastery: 4,
+          watchtower: 4,
+          market: 4,
+          tavern: 4,
+          guildhouse: 1
+        },
+        efficiency: %{
           untrained: %{same: 1000, neighbour: 800, opposite: 500},
           trained: %{same: 1250, neighbour: 600, opposite: 300}
         },
-        construction_weeks: 2,
+        build_weeks: 2,
         build_cost_gold: 30,
         # no builders and no travel, so tests about other rules stay independent of R2 sites
-        builders_per_building: 0,
+        build_builders: 0,
         travel_weeks: 0,
-        mana_per_worker: %{
-          untrained: %{building_colour: 2, own_colour: 1},
-          trained: %{building_colour: 1, own_colour: 2}
+        mana: %{
+          untrained: %{place_colour: 2, worker_colour: 1},
+          trained: %{place_colour: 1, worker_colour: 2}
         },
         manameter_points_per_week: 3,
-        starting_food: 24,
-        starting_gold: 100,
-        years_per_game: 3,
-        food_eaten_per_worker: 3,
-        tax_per_worker: 10,
-        tax_interval_weeks: 24,
-        tax_count_lead_weeks: 4,
-        tax_misses_forgiven: 1,
+        start_food: 24,
+        start_gold: 100,
+        game_years: 3,
+        good_food_eaten_per_worker: 3,
+        king_tax_per_worker: 10,
+        king_tax_interval_weeks: 24,
+        king_tax_count_lead_weeks: 4,
+        king_misses_forgiven: 1,
         # no grace period, so tests about other rules see taxes and demands from week 1
-        grace_weeks: 0,
-        training_threshold: 300,
+        king_grace_weeks: 0,
+        training_min_share: 300,
         training_weeks: 4,
-        demand_deadline_weeks: 8,
-        demand_population_share: 100,
-        demand_production_weeks: 8,
-        spoilage_rates: %{food: 0, knowledge: 0, defence: 0, gold: 0, entertainment: 0},
+        king_demand_deadline_weeks: 8,
+        king_demand_population_share: 100,
+        king_demand_production_weeks: 8,
+        good_spoilage: %{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0},
         # bandits never set out and, if they do (no defence), never arrive, so tests about other
         # rules keep their gold; bandit tests set their own values
         bandit_threshold: 1_000_000,
@@ -51,10 +58,10 @@ defmodule MyLiege.EngineFixtures do
         bandit_floor_step: 2,
         # the ratio is computed, but steps of 0 leave production alone, so tests about other
         # rules keep their food and defence; happiness tests set their own steps
-        happiness_culture_per_worker: 1000,
-        happiness_penalty_below: %{1 => 750, 2 => 500, 3 => 250},
-        happiness_bonus_from: %{1 => 1250, 2 => 1750, 3 => 2500},
-        happiness_steps: %{1 => 0, 2 => 0, 3 => 0}
+        happiness_need_per_worker: 1000,
+        happiness_penalty_below: %{level1: 750, level2: 500, level3: 250},
+        happiness_bonus_from: %{level1: 1250, level2: 1750, level3: 2500},
+        happiness_change: %{level1: 0, level2: 0, level3: 0}
       },
       overrides
     )

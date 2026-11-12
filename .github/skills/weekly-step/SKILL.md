@@ -8,14 +8,14 @@ description: 'How one week of My Liege runs in the rules engine (Game.run_week):
 One call to `Game.run_week(game)` runs one week and returns `{:ok, report, game}`.
 It is blocked, without changing anything, with:
 - `{:error, :game_over}` once `game.game_over` is set;
-- `{:error, :finished}` after the last week, `Game.last_week/1` (48 × `years_per_game`;
+- `{:error, :finished}` after the last week, `Game.last_week/1` (48 × `game_years`;
   48 weeks per year is fixed in `Game.weeks_per_year/0`, not in the CSV). Reaching it without
   game over is a win: `Game.won?/1`;
 - `{:error, :tax_undecided}` when the next week is a due week (`Game.tax_decision_due?/1`)
   and the player hasn't decided with `Game.decide_tax/2` yet;
 - `{:error, :demand_undecided}` when the next week is the deadline of a demand from the stock
   (`Game.demand_decision_due?/1`) and the player hasn't decided with `Game.decide_demand/2`.
-  Projects (knowledge, entertainment) need no decision.
+  Projects (knowledge, culture) need no decision.
 
 Code: [game.ex](../../../lib/my_liege/engine/game.ex),
 [sim_steps/](../../../lib/my_liege/engine/sim_steps/),
@@ -32,7 +32,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 - `game.week` is the **last week run**, i.e. the state at the end of that week.
 - Week 0 is the starting state from the config (`Game.new/2`); nothing has happened yet.
 - `run_week` runs `game.week + 1`. Every rule in it sees that same week number.
-- A full game is weeks 1 to 48 × `years_per_game`.
+- A full game is weeks 1 to 48 × `game_years`.
 - Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N:
   `place_worker/3`, `unplace_worker/2`, `construct/2`, `decide_tax/2`, `decide_demand/2`,
   `refuse_project/1`.
@@ -57,7 +57,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
 | 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5` | week, Manameter, workers at the start of the week | `game.demand`, `report.demand`, `report.demand_progress` (0 for a project) |
 | 12 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 9–10, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
-| 13 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `spoilage_rates` (per mille, key `spoilage_rate_<product>`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
+| 13 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
 | 14 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `game_over`; `start: nil` |
 
 Consequences of the order:
@@ -79,9 +79,9 @@ Consequences of the order:
 ## Rules each step relies on
 
 - **Sites and readiness:** a building ordered at state N (paid then, `build_cost_gold`) is a
-  site: `ready_week: nil`, `progress: 0`, room for `builders_per_building` builders (any
+  site: `ready_week: nil`, `progress: 0`, room for `build_builders` builders (any
   unplaced worker that has arrived). It advances in each week in which all builders were on
-  it with travel 0 at the start of the week; when `progress` reaches `construction_weeks` at
+  it with travel 0 at the start of the week; when `progress` reaches `build_weeks` at
   the end of week M, `ready_week = M + 1`. A builder leaving (moved or unplaced) resets
   `progress` to 0. Placement in a finished building needs `ready?(building, game.week + 1)`
   and room.
@@ -90,7 +90,7 @@ Consequences of the order:
   `Building.staffed/3` leaves travelling workers out.
 - **Training:** the guildhouse is neutral (no colour, product or mana; `Building.staffed/3`
   leaves it out). Placing an untrained worker in a finished guildhouse needs its colour's share ≥
-  `training_threshold`, checked once; `training_started = game.week + 1 + travel_weeks`
+  `training_min_share`, checked once; `training_started = game.week + 1 + travel_weeks`
   (`Rules.Training.first_week/2`). At the end of week `training_started + training_weeks - 1` the
   worker is trained, unplaced and travelling. Moving it out earlier loses the progress.
   Trainees still eat and count for taxes; no other cost.
@@ -106,16 +106,16 @@ Consequences of the order:
   ties in pentagon order. A week without mana leaves it unchanged.
 - **Randomness:** only births draw random numbers, from `game.rand`; the same seed replays
   the same run.
-- **Grace period:** `Rules.Grace`: weeks 1 to `grace_weeks` have no due week, no count for
-  one and no demand week. Test configs set `grace_weeks: 0`.
-- **Taxes:** due in weeks `tax_interval_weeks`, 2 × `tax_interval_weeks`, … after the grace
+- **Grace period:** `Rules.Grace`: weeks 1 to `king_grace_weeks` have no due week, no count for
+  one and no demand week. Test configs set `king_grace_weeks: 0`.
+- **Taxes:** due in weeks `king_tax_interval_weeks`, 2 × `king_tax_interval_weeks`, … after the grace
   period; counted
-  `tax_count_lead_weeks` earlier at `tax_per_worker` per head, and the amount is fixed then.
+  `king_tax_count_lead_weeks` earlier at `king_tax_per_worker` per head, and the amount is fixed then.
   The player must decide with `decide_tax/2` while the game stands at the week before a due
   week (`pay_tax` is `nil` until then and resets to `nil` after payment). Outcomes:
   `:paid` (full amount), `:skipped` (on purpose), `:missed` (not enough gold); no partial
   payments. On `:skipped` and `:missed` the king takes the gold there is, up to the amount
-  (`Rules.Taxes.settle/3` returns it as `taken`). More than `tax_misses_forgiven` misses set `game_over`, which blocks further
+  (`Rules.Taxes.settle/3` returns it as `taken`). More than `king_misses_forgiven` misses set `game_over`, which blocks further
   weeks. The count `misses` is shared with the king's demands. `AutoRun` always tries to pay
   and deliver; its runs end at game over.
 - **Bandits (R10):** `game.bandits` is `%{threat, raid_week}` (threat in thousandths).
@@ -130,17 +130,17 @@ Consequences of the order:
   `bandit_threat_change`, so they match the production shown.
 - **King's demands:** one per half year (`Game.weeks_per_year/0` ÷ 2), in a week drawn at
   `Game.new/2` from the seed (`game.demand_weeks`), among the half year's weeks after the
-  grace period, so the deadline, `demand_deadline_weeks` later, stays in the same half year;
+  grace period, so the deadline, `king_demand_deadline_weeks` later, stays in the same half year;
   a half year without such a week has no demand and uses no draw. The product belongs to the colour ranked 1st (year 1),
   3rd (year 2) or 5th (year 3 on) in the Manameter when the demand is made; ties in pentagon
   order. Amount: workers at the start of the demand week (before its birth) ×
-  `demand_population_share` (per mille) × base production of that colour's building ×
-  `demand_production_weeks`; 0 means no demand. Tests about other rules use
+  `king_demand_population_share` (per mille) × base production of that colour's building ×
+  `king_demand_production_weeks`; 0 means no demand. Tests about other rules use
   `EngineFixtures.game_without_demands/2`.
   Outcomes: `:delivered`, `:refused`, `:missed` (stock short); refused and missed count as
   misses. On a refused or missed food or gold demand the king takes the stock there is, up to
   the amount; defence and projects leave nothing to take.
-- **Projects:** a demand for knowledge or entertainment has `progress: 0` (others `nil`,
+- **Projects:** a demand for knowledge or culture has `progress: 0` (others `nil`,
   `Rules.Demands.project?/1`). From the next week's step 1 the product goes into the project
   until `progress` reaches `amount`, the rest to the stock; mana is unchanged, the project
   doesn't spoil and the stock is never used for it. At the deadline (step 10, after that
@@ -177,7 +177,7 @@ writes one row per report.
 4. Add what the step produces to `WeeklyReport`, then to `Reporting` if it belongs in the
    export.
 5. Tests: one describe block per rule with `EngineFixtures.config/1` (it sets
-   `builders_per_building` and `travel_weeks` to 0; tests about R2 builders or travel pass
+   `build_builders` and `travel_weeks` to 0; tests about R2 builders or travel pass
    their own values) in `test/my_liege/engine/rules/`, a test of the step in
    `test/my_liege/engine/sim_steps/`, and the new step in the `Game.pipeline/0` test in
    `game_test.exs`. To run many weeks in a test, use

@@ -98,7 +98,7 @@ defmodule MyLiege.Engine.ForecastTest do
   end
 
   describe "next tax" do
-    test "before the count: tax_per_worker for every current worker" do
+    test "before the count: king_tax_per_worker for every current worker" do
       game = after_change(week_1(), %{gold: 2_000}, %{gold: 50_000})
       tax = Forecast.next_tax(game)
 

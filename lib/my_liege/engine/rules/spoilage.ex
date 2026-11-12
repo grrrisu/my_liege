@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.Spoilage do
   @moduledoc """
   R9, spoilage: each week, every stock above 0 loses its product's
-  `spoilage_rates` share (per mille) of itself, rounded down, so the stock keeps the
+  `good_spoilage` share (per mille) of itself, rounded down, so the stock keeps the
   remainder. Stocks at or below 0 (a short week's -1 food) don't spoil.
 
   Amounts are in thousandths (see `Fixed`).
@@ -13,7 +13,7 @@ defmodule MyLiege.Engine.Rules.Spoilage do
   def spoil(stocks, %Config{} = config) do
     spoiled =
       Map.new(stocks, fn {product, stock} ->
-        {product, spoiled(stock, Map.fetch!(config.spoilage_rates, product))}
+        {product, spoiled(stock, Map.fetch!(config.good_spoilage, product))}
       end)
 
     {Map.merge(stocks, spoiled, fn _product, stock, lost -> stock - lost end), spoiled}

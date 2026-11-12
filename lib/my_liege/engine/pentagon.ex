@@ -3,6 +3,9 @@ defmodule MyLiege.Engine.Pentagon do
 
   alias MyLiege.Engine.Manameter
 
+  @doc "All relations, closest first."
+  def relations, do: [:same, :neighbour, :opposite]
+
   @doc "Returns `:same`, `:neighbour` or `:opposite`."
   def relation(colour, colour), do: :same
 

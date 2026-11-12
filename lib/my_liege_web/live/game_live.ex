@@ -220,7 +220,7 @@ defmodule MyLiegeWeb.GameLive do
           id="congratulations"
           class="rounded bg-green-100 px-4 py-3 font-semibold text-green-900"
         >
-          Congratulations, my liege! Your village has lasted {@game.config.years_per_game} years.
+          Congratulations, my liege! Your village has lasted {@game.config.game_years} years.
         </p>
 
         <div class="grid gap-10 lg:grid-cols-2">
@@ -317,7 +317,7 @@ defmodule MyLiegeWeb.GameLive do
               </div>
               <p :if={!@game.tax_due} class="text-sm opacity-60">
                 Next count in week {Taxes.next_due_week(@game.week, @game.config) -
-                  @game.config.tax_count_lead_weeks}
+                  @game.config.king_tax_count_lead_weeks}
               </p>
               <p :if={@forecast.tax} id="forecast-tax" class="mt-1 text-sm tabular-nums">
                 <span class="opacity-70">
@@ -343,7 +343,7 @@ defmodule MyLiegeWeb.GameLive do
                 </span>
               </p>
               <p id="tax-misses" class="text-sm tabular-nums">
-                Missed payments and demands: {@game.misses} (forgiven: {@game.config.tax_misses_forgiven})
+                Missed payments and demands: {@game.misses} (forgiven: {@game.config.king_misses_forgiven})
               </p>
             </section>
 
@@ -578,8 +578,8 @@ defmodule MyLiegeWeb.GameLive do
             id={"site-#{building.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            builders arrived {length(Construction.arrived(@game.workers, building.id))}/{@game.config.builders_per_building},
-            progress {building.progress}/{@game.config.construction_weeks} weeks
+            builders arrived {length(Construction.arrived(@game.workers, building.id))}/{@game.config.build_builders},
+            progress {building.progress}/{@game.config.build_weeks} weeks
           </span>
           <span
             :for={worker <- workers_in(@game.workers, building.id)}
@@ -755,7 +755,7 @@ defmodule MyLiegeWeb.GameLive do
         <span
           id="happiness-now"
           class={["font-semibold", step_class(@happiness.step)]}
-          title="last week's entertainment production against what every worker needs; changes food and defence production"
+          title="last week's culture production against what every worker needs; changes food and defence production"
         >
           step {signed_step(@happiness.step)}
         </span>

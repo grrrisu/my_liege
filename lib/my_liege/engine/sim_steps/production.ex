@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.SimSteps.Production do
   @moduledoc """
   Step 1 of the week, R2 production: the workers as placed at the start of the week; added to
-  the stocks. R11: the week's entertainment production against every worker at the start of
+  the stocks. R11: the week's culture production against every worker at the start of
   the week sets the happiness step, which changes the food and defence production before
   anything goes anywhere. R7: then, while a king's project is open and not refused, its
   product goes into the project first, up to its amount, and only the rest into the stock.
@@ -16,7 +16,7 @@ defmodule MyLiege.Engine.SimSteps.Production do
 
     happiness =
       Happiness.assess(
-        production.entertainment,
+        production.culture,
         length(report.start.workers),
         game.week,
         game.config

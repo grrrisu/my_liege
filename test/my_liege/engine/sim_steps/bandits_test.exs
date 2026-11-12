@@ -13,7 +13,7 @@ defmodule MyLiege.Engine.SimSteps.BanditsTest do
 
   test "bandits run from week 1, also in the grace period" do
     # 1000 gold: pressure 16 666, so the threat passes 20 in week 2
-    config = config(grace_weeks: 24, starting_gold: 1000, bandit_threshold: 20)
+    config = config(king_grace_weeks: 24, start_gold: 1000, bandit_threshold: 20)
     {reports, game} = EngineFixtures.run_weeks(EngineFixtures.game_without_demands(config, 1), 2)
 
     assert Enum.map(reports, & &1.bandit_threat) == [15_666, 31_332]
@@ -33,8 +33,8 @@ defmodule MyLiege.Engine.SimSteps.BanditsTest do
     config =
       config(
         # enough to outlast 23 weeks of 10% spoilage and the tax
-        starting_gold: 100_000,
-        spoilage_rates: %{food: 0, knowledge: 0, defence: 0, gold: 100, entertainment: 0}
+        start_gold: 100_000,
+        good_spoilage: %{food: 0, knowledge: 0, defence: 0, gold: 100, culture: 0}
       )
 
     game = EngineFixtures.game_without_demands(config, 1)
@@ -51,7 +51,7 @@ defmodule MyLiege.Engine.SimSteps.BanditsTest do
   end
 
   test "the report holds the week's protected gold and threat change, as the UI shows them" do
-    game = EngineFixtures.game_without_demands(config(starting_gold: 100), 1)
+    game = EngineFixtures.game_without_demands(config(start_gold: 100), 1)
     {[week_1], game} = EngineFixtures.run_weeks(game, 1)
 
     # 3 defence protects 60; 100 gold against 60: the threat rose by 0.666

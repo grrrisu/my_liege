@@ -41,7 +41,7 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
 
       config =
         EngineFixtures.config(
-          base_production: %{farm: 9, monastery: 2, watchtower: 4, market: 3, tavern: 5}
+          place_output_per_worker: %{farm: 9, monastery: 2, watchtower: 4, market: 3, tavern: 5}
         )
 
       assert Production.worker_output(worker(:blue), buildings_by_type.monastery, config) == 2_000
@@ -62,7 +62,7 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
       ]
 
       assert Production.output(workers, buildings, 0, config) ==
-               %{food: 13_500, knowledge: 3_000, defence: 0, gold: 0, entertainment: 0}
+               %{food: 13_500, knowledge: 3_000, defence: 0, gold: 0, culture: 0}
     end
 
     test "the game starts with the farm and the tower (a watchtower), both ready" do
@@ -107,7 +107,7 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
     test "each building has its own capacity", %{buildings_by_type: buildings_by_type} do
       config =
         EngineFixtures.config(
-          capacity: %{farm: 4, monastery: 2, watchtower: 4, market: 4, tavern: 4}
+          place_capacity: %{farm: 4, monastery: 2, watchtower: 4, market: 4, tavern: 4}
         )
 
       %{farm: farm, monastery: monastery} = buildings_by_type

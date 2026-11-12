@@ -9,10 +9,10 @@ defmodule MyLiege.Engine.Rules.Mana do
   @doc "One worker's mana per week in the given building, per colour."
   def worker_mana(%Worker{} = worker, %Building{} = building, %Config{} = config) do
     training = if worker.trained, do: :trained, else: :untrained
-    amounts = config.mana_per_worker[training]
+    amounts = config.mana[training]
 
-    %{Building.colour(building) => amounts.building_colour}
-    |> Map.update(worker.colour, amounts.own_colour, &(&1 + amounts.own_colour))
+    %{Building.colour(building) => amounts.place_colour}
+    |> Map.update(worker.colour, amounts.worker_colour, &(&1 + amounts.worker_colour))
   end
 
   @doc "Total mana per colour in `week`, from placed workers in ready buildings."

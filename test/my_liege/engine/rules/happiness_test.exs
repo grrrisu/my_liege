@@ -6,21 +6,22 @@ defmodule MyLiege.Engine.Rules.HappinessTest do
 
   defp config(overrides \\ []) do
     EngineFixtures.config(
-      [grace_weeks: 4, happiness_steps: %{1 => 100, 2 => 200, 3 => 300}] ++ overrides
+      [king_grace_weeks: 4, happiness_change: %{level1: 100, level2: 200, level3: 300}] ++
+        overrides
     )
   end
 
   describe "R11 ratio" do
-    test "entertainment production ÷ (population × happiness_culture_per_worker), per mille" do
+    test "culture production ÷ (population × happiness_need_per_worker), per mille" do
       assert Happiness.ratio(3_000, 4, config()) == 750
-      assert Happiness.ratio(3_000, 2, config(happiness_culture_per_worker: 500)) == 3_000
+      assert Happiness.ratio(3_000, 2, config(happiness_need_per_worker: 500)) == 3_000
     end
 
     test "rounds down" do
       assert Happiness.ratio(1_000, 3, config()) == 333
     end
 
-    test "no entertainment: 0" do
+    test "no culture: 0" do
       assert Happiness.ratio(0, 5, config()) == 0
     end
 
@@ -56,10 +57,10 @@ defmodule MyLiege.Engine.Rules.HappinessTest do
       defence: 3_001,
       gold: 6_000,
       knowledge: 3_000,
-      entertainment: 3_000
+      culture: 3_000
     }
 
-    test "changes food and defence by happiness_step_<n>, rounded down, and nothing else" do
+    test "changes food and defence by happiness.level<n>.change_permille, rounded down, and nothing else" do
       assert Happiness.apply_step(@production, -1, config()) ==
                %{@production | food: 8_100, defence: 2_700}
 
