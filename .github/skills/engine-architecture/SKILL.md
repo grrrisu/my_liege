@@ -57,8 +57,9 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 
 - A **blueprint** (`Place.Blueprint`) describes a type of place: its colour, the good it
   makes and which kind of place it becomes (`engine`). The catalogue has the five home
-  places in pentagon order, then the guildhouse. It depends on nothing but `Pentagon`, so
-  `LoadConfig` reads the types from it at compile time.
+  places in pentagon order, then the guildhouse; its test checks that order against
+  `Pentagon.colours/0`. It depends on no other module, so `LoadConfig` reads the types from
+  it at compile time.
 - A **place** is one that exists in the game. There is one struct per kind of place; today
   only `Place.Building` (a site until finished), later `Place.Project` and `Place.Trade`.
   Each holds its `id` and its `blueprint`.
