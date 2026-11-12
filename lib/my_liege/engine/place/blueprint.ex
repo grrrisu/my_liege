@@ -6,10 +6,8 @@ defmodule MyLiege.Engine.Place.Blueprint do
 
   The five home places, one per colour, come first in pentagon order; then the neutral ones.
   The catalogue is read at compile time, also by the loading of the designer's inputs, so this
-  module depends on nothing but `Pentagon`.
+  module depends on no other module.
   """
-
-  alias MyLiege.Engine.Pentagon
 
   @enforce_keys [:type, :colour, :good, :engine]
   defstruct @enforce_keys
@@ -21,44 +19,37 @@ defmodule MyLiege.Engine.Place.Blueprint do
           engine: :building
         }
 
-  @homes %{
-    green: {:farm, :food},
-    yellow: {:market, :gold},
-    blue: {:monastery, :knowledge},
-    red: {:watchtower, :defence},
-    violet: {:tavern, :culture}
-  }
+  # plain maps, as the struct can't be built while this module compiles; the home places'
+  # order must follow `Pentagon.colours/0` (checked in the blueprint test)
+  @catalogue [
+    %{type: :farm, colour: :green, good: :food, engine: :building},
+    %{type: :market, colour: :yellow, good: :gold, engine: :building},
+    %{type: :monastery, colour: :blue, good: :knowledge, engine: :building},
+    %{type: :watchtower, colour: :red, good: :defence, engine: :building},
+    %{type: :tavern, colour: :violet, good: :culture, engine: :building},
+    # v2: blue's culture way (concept, "The grid", decided 2026-11-11)
+    %{type: :guildhouse, colour: nil, good: nil, engine: :building}
+  ]
 
-  # the five home places in pentagon order, from the order in `Pentagon.colours/0`; plain
-  # maps, as the struct can't be built while this module compiles
-  @home_entries Enum.map(Pentagon.colours(), fn colour ->
-                  {type, good} = Map.fetch!(@homes, colour)
-                  %{type: type, colour: colour, good: good, engine: :building}
-                end)
-
-  @entries @home_entries ++
-             [
-               # v2: blue's culture way (concept, "The grid", decided 2026-11-11)
-               %{type: :guildhouse, colour: nil, good: nil, engine: :building}
-             ]
+  @homes Enum.filter(@catalogue, & &1.colour)
 
   @doc "All blueprints: the home places in pentagon order, then the guildhouse."
-  def all, do: Enum.map(@entries, &struct!(__MODULE__, &1))
+  def all, do: Enum.map(@catalogue, &struct!(__MODULE__, &1))
 
   @doc "The blueprint of `type`. Raises on an unknown type."
   def fetch!(type) do
-    case Enum.find(@entries, &(&1.type == type)) do
+    case Enum.find(@catalogue, &(&1.type == type)) do
       nil -> raise ArgumentError, "unknown place type #{inspect(type)}"
       entry -> struct!(__MODULE__, entry)
     end
   end
 
   @doc "All place types, in the order of `all/0`."
-  def types, do: Enum.map(@entries, & &1.type)
+  def types, do: Enum.map(@catalogue, & &1.type)
 
   @doc "The type of a colour's home place, e.g. `:green` -> `:farm`."
-  def home_type(colour), do: Enum.find_value(@home_entries, &(&1.colour == colour && &1.type))
+  def home_type(colour), do: Enum.find_value(@homes, &(&1.colour == colour && &1.type))
 
   @doc "The goods in pentagon order of their home places."
-  def goods, do: Enum.map(@home_entries, & &1.good)
+  def goods, do: Enum.map(@homes, & &1.good)
 end
