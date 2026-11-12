@@ -18,7 +18,8 @@ defmodule MyLiege.Engine.Game do
     UnplaceWorker
   }
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Random, SimSteps, WeeklyReport, Worker}
+  alias MyLiege.Engine.{Config, Fixed, Random, SimSteps, WeeklyReport, Worker}
+  alias MyLiege.Engine.Place.{Blueprint, Building}
   alias MyLiege.Engine.Rules.{Bandits, Demands, Food, Taxes}
 
   @derive {Inspect, except: [:config]}
@@ -28,7 +29,7 @@ defmodule MyLiege.Engine.Game do
     :rand,
     :week,
     :workers,
-    :buildings,
+    :places,
     :manameter,
     :stocks,
     :report,
@@ -84,7 +85,7 @@ defmodule MyLiege.Engine.Game do
   def new(%Config{} = config, seed \\ nil) do
     {seed, rand} = Random.new(seed)
     {demand_weeks, rand} = Demands.schedule(@weeks_per_year, config, rand)
-    buildings = Building.starting()
+    places = Building.starting()
 
     game = %__MODULE__{
       config: config,
@@ -92,8 +93,8 @@ defmodule MyLiege.Engine.Game do
       rand: rand,
       week: 0,
       demand_weeks: demand_weeks,
-      workers: Worker.starting(buildings, config),
-      buildings: buildings,
+      workers: Worker.starting(places, config),
+      places: places,
       manameter: config.manameter_start,
       stocks: starting_stocks(config),
       report: nil
@@ -166,8 +167,8 @@ defmodule MyLiege.Engine.Game do
     do: DecideDemand.run(game, deliver?)
 
   @doc "See `MyLiege.Engine.Actions.PlaceWorker`."
-  def place_worker(%__MODULE__{} = game, worker_id, building_id),
-    do: PlaceWorker.run(game, worker_id, building_id)
+  def place_worker(%__MODULE__{} = game, worker_id, place_id),
+    do: PlaceWorker.run(game, worker_id, place_id)
 
   @doc "See `MyLiege.Engine.Actions.UnplaceWorker`."
   def unplace_worker(%__MODULE__{} = game, worker_id), do: UnplaceWorker.run(game, worker_id)
@@ -191,11 +192,16 @@ defmodule MyLiege.Engine.Game do
   end
 
   @doc false
-  def fetch_building(%__MODULE__{} = game, building_id) do
-    case Enum.find(game.buildings, &(&1.id == building_id)) do
-      nil -> {:error, :unknown_building}
-      building -> {:ok, building}
+  def fetch_place(%__MODULE__{} = game, place_id) do
+    case Enum.find(game.places, &(&1.id == place_id)) do
+      nil -> {:error, :unknown_place}
+      place -> {:ok, place}
     end
+  end
+
+  @doc false
+  def put_place(%__MODULE__{} = game, place) do
+    %{game | places: Enum.map(game.places, &if(&1.id == place.id, do: place, else: &1))}
   end
 
   @doc false
@@ -205,7 +211,7 @@ defmodule MyLiege.Engine.Game do
 
   # products without a starting key begin at 0
   defp starting_stocks(config) do
-    Building.products()
+    Blueprint.goods()
     |> Map.new(&{&1, 0})
     |> Map.merge(%{
       food: Food.starting(config),

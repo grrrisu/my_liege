@@ -19,7 +19,7 @@ defmodule MyLiege.Engine.Rules.FoodTest do
     end
 
     test "unplaced workers eat too", %{config: config} do
-      workers = [%Worker{colour: :green, building: 1}, %Worker{colour: :red}]
+      workers = [%Worker{colour: :green, place: 1}, %Worker{colour: :red}]
 
       assert Food.eat(24_000, workers, config) == 18_000
     end

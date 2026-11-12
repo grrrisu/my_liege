@@ -15,7 +15,7 @@ defmodule MyLiege.Engine.GameActionsTest do
     {:ok, game} = Game.place_worker(game, 3, 1)
     {:ok, report, _game} = Game.run_week(game)
 
-    assert %Worker{building: 1} = find_worker(game, 3)
+    assert %Worker{place: 1} = find_worker(game, 3)
     assert report.production.food > 9_000
   end
 
@@ -30,7 +30,7 @@ defmodule MyLiege.Engine.GameActionsTest do
   test "a finished building takes workers who produce from the next week", %{game: game} do
     # no builders needed: ordered at week 1, built in weeks 2 and 3, produces from week 4
     {:ok, game} = Game.construct(game, :market)
-    market = List.last(game.buildings)
+    market = List.last(game.places)
     {_reports, game} = EngineFixtures.run_weeks(game, 2)
     {:ok, game} = Game.place_worker(game, 3, market.id)
     {:ok, report, _game} = Game.run_week(game)

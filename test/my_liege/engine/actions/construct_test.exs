@@ -2,7 +2,8 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.Actions.Construct
-  alias MyLiege.Engine.Building
+  alias MyLiege.Engine.Place
+  alias MyLiege.Engine.Place.{Blueprint, Building}
   alias MyLiege.EngineFixtures
 
   # 100 gold, build_cost_gold 30
@@ -13,8 +14,8 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
   test "adds a site with the next id", %{game: game} do
     assert {:ok, game} = Construct.run(game, :market)
 
-    assert %Building{id: 3, type: :market, ready_week: nil, progress: 0} =
-             List.last(game.buildings)
+    assert %Building{id: 3, blueprint: %{type: :market}, ready_week: nil, progress: 0} =
+             List.last(game.places)
   end
 
   test "pays build_cost_gold at once and adds it to the current report", %{game: game} do
@@ -29,7 +30,7 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
   end
 
   test "every type costs the same, the guildhouse included", %{game: game} do
-    for type <- Building.types() do
+    for type <- Blueprint.types() do
       assert {:ok, built} = Construct.run(game, type)
       assert built.stocks.gold == 70_000
     end
@@ -39,7 +40,7 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
     {:ok, game} = Construct.run(game, :market)
     {:ok, game} = Construct.run(game, :market)
 
-    assert Enum.map(game.buildings, & &1.type) == [:farm, :watchtower, :market, :market]
+    assert Enum.map(game.places, &Place.type/1) == [:farm, :watchtower, :market, :market]
   end
 
   test "exactly the price is enough", %{game: game} do

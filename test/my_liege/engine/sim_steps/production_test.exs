@@ -1,21 +1,21 @@
 defmodule MyLiege.Engine.SimSteps.ProductionTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, WeeklyReport, Worker}
   alias MyLiege.Engine.SimSteps.Production
+  alias MyLiege.Engine.{WeeklyReport, Worker}
   alias MyLiege.EngineFixtures
 
   # a blue worker in a monastery makes 3 knowledge a week
   setup do
     game = EngineFixtures.game_without_demands(EngineFixtures.config(), 1)
-    monastery = %Building{id: 3, type: :monastery}
-    monk = %Worker{id: 3, colour: :blue, building: 3}
+    monastery = EngineFixtures.new_building(3, :monastery)
+    monk = %Worker{id: 3, colour: :blue, place: 3}
     project = %{product: :knowledge, amount: 4_000, due_week: 5, progress: 2_000}
 
     %{
       game: %{
         game
-        | buildings: game.buildings ++ [monastery],
+        | places: game.places ++ [monastery],
           workers: game.workers ++ [monk],
           demand: project
       }

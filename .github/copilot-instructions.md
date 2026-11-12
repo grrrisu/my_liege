@@ -16,7 +16,7 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 ## Config key names
 - Keys are `group.item.attribute`, lowercase, dot-separated, e.g. `place.farm.capacity`. Leave the item out when a group has only one thing: `travel.weeks`.
 - Group = the system: `game`, `start`, `birth`, `place`, `good`, `efficiency`, `mana`, `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness` (v2 later: `way`, `book`, `trade`, `expedition`, `suspicion`).
-- Item = a name the code already uses: building type, good, colour, training level, relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
+- Item = a name the code already uses: place type, good, colour, training level, relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
 - Units: keys ending in `_permille` are per mille (800 = 80%); keys ending in `_weeks` are weeks; everything else is a whole amount.
 - `%Config{}` fields: the key with dots as underscores and `_permille` dropped (`king.tax.per_worker` → `king_tax_per_worker`); keys that differ only by item are one field, a map keyed by the item (`place.<type>.capacity` → `place_capacity: %{farm: …}`).
 

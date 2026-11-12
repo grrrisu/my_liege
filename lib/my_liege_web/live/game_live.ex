@@ -2,8 +2,9 @@ defmodule MyLiegeWeb.GameLive do
   @moduledoc "Bare play screen: game state, placing workers, building, and running the next week."
   use MyLiegeWeb, :live_view
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Forecast, Game, Pentagon}
-  alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Taxes, Training}
+  alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
+  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Placement, Taxes, Training}
   alias MyLiege.Reporting
 
   @colour_classes %{
@@ -57,9 +58,9 @@ defmodule MyLiegeWeb.GameLive do
     {:noreply, assign(socket, :selected, if(socket.assigns.selected == id, do: nil, else: id))}
   end
 
-  def handle_event("place", %{"building" => building_id}, socket) do
+  def handle_event("place", %{"building" => place_id}, socket) do
     %{game: game, selected: worker_id} = socket.assigns
-    result = Game.place_worker(game, worker_id, parse_id(building_id))
+    result = Game.place_worker(game, worker_id, parse_id(place_id))
     {:noreply, apply_result(socket, result)}
   end
 
@@ -70,7 +71,7 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   def handle_event("build", %{"type" => type}, socket) do
-    type = Enum.find(Building.types(), &(Atom.to_string(&1) == type))
+    type = Enum.find(Blueprint.types(), &(Atom.to_string(&1) == type))
     result = Game.construct(socket.assigns.game, type)
     {:noreply, apply_result(socket, result)}
   end
@@ -157,7 +158,7 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:full), do: "That building is full."
   defp error_message(:not_ready), do: "That building is not finished yet."
   defp error_message(:unknown_worker), do: "Select a worker first."
-  defp error_message(:unknown_building), do: "Unknown building."
+  defp error_message(:unknown_place), do: "Unknown place."
   defp error_message(:unknown_type), do: "Unknown building type."
   defp error_message(:not_enough_gold), do: "Not enough gold to build."
   defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
@@ -245,7 +246,7 @@ defmodule MyLiegeWeb.GameLive do
             <section id="stocks">
               <h2 class="mb-2 font-semibold">Stocks</h2>
               <table class="text-sm tabular-nums">
-                <tr :for={product <- Building.products()} id={"stock-#{product}"}>
+                <tr :for={product <- Blueprint.goods()} id={"stock-#{product}"}>
                   <td class="pr-4">{product}</td>
                   <td class="text-right">{units(Map.fetch!(@game.stocks, product))}</td>
                   <td :if={product == :gold} id="protected-gold" class="pl-4 opacity-70">
@@ -446,7 +447,7 @@ defmodule MyLiegeWeb.GameLive do
                 <tr>
                   <td class="pr-4">production</td>
                   <td>
-                    <span :for={product <- Building.products()} class="mr-3">
+                    <span :for={product <- Blueprint.goods()} class="mr-3">
                       {product} {units(Map.fetch!(@report.production, product))}
                     </span>
                   </td>
@@ -546,43 +547,43 @@ defmodule MyLiegeWeb.GameLive do
       </p>
       <div class="space-y-2">
         <div
-          :for={building <- @game.buildings}
-          id={"building-#{building.id}"}
+          :for={place <- @game.places}
+          id={"building-#{place.id}"}
           class="flex flex-wrap items-center gap-3"
         >
-          <div class={["h-4 w-4 rounded-sm", colour_class(Building.colour(building))]}></div>
+          <div class={["h-4 w-4 rounded-sm", colour_class(Place.colour(place))]}></div>
           <span class="w-24 text-sm">
-            {building.type}<span :if={Building.site?(building)} class="opacity-60"> site</span>
+            {Place.type(place)}<span :if={Building.site?(place)} class="opacity-60"> site</span>
           </span>
           <span class="w-10 text-sm tabular-nums">
-            {length(workers_in(@game.workers, building.id))}/{Building.capacity(
-              building,
+            {length(Place.workers_at(@game.workers, place.id))}/{Placement.capacity(
+              place,
               @game.config
             )}
           </span>
           <.worker
-            :for={worker <- workers_in(@game.workers, building.id)}
+            :for={worker <- Place.workers_at(@game.workers, place.id)}
             worker={worker}
             selected={@selected == worker.id}
           />
           <span
-            :if={feeds_project?(@game, building)}
-            id={"feeds-project-#{building.id}"}
+            :if={feeds_project?(@game, place)}
+            id={"feeds-project-#{place.id}"}
             class="rounded bg-amber-100 px-1.5 text-xs text-amber-900"
             title="this building's production goes into the king's project"
           >
             → project
           </span>
           <span
-            :if={Building.site?(building)}
-            id={"site-#{building.id}"}
+            :if={Building.site?(place)}
+            id={"site-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            builders arrived {length(Construction.arrived(@game.workers, building.id))}/{@game.config.build_builders},
-            progress {building.progress}/{@game.config.build_weeks} weeks
+            builders arrived {length(Construction.arrived(@game.workers, place.id))}/{@game.config.build_builders},
+            progress {place.progress}/{@game.config.build_weeks} weeks
           </span>
           <span
-            :for={worker <- workers_in(@game.workers, building.id)}
+            :for={worker <- Place.workers_at(@game.workers, place.id)}
             :if={worker.training_started}
             id={"training-#{worker.id}"}
             class="text-sm opacity-60"
@@ -591,9 +592,9 @@ defmodule MyLiegeWeb.GameLive do
           </span>
           <button
             :if={@selected}
-            id={"place-#{building.id}"}
+            id={"place-#{place.id}"}
             phx-click="place"
-            phx-value-building={building.id}
+            phx-value-building={place.id}
             class="rounded border px-2 py-0.5 text-sm hover:bg-zinc-100"
           >
             Place here
@@ -602,9 +603,9 @@ defmodule MyLiegeWeb.GameLive do
         <div id="unplaced" class="flex flex-wrap items-center gap-3">
           <div class="h-4 w-4"></div>
           <span class="w-24 text-sm">unplaced</span>
-          <span class="w-10 text-sm tabular-nums">{length(workers_in(@game.workers, nil))}</span>
+          <span class="w-10 text-sm tabular-nums">{length(Place.workers_at(@game.workers, nil))}</span>
           <.worker
-            :for={worker <- workers_in(@game.workers, nil)}
+            :for={worker <- Place.workers_at(@game.workers, nil)}
             worker={worker}
             selected={@selected == worker.id}
           />
@@ -643,7 +644,7 @@ defmodule MyLiegeWeb.GameLive do
       </p>
       <div class="flex flex-wrap gap-2">
         <button
-          :for={type <- Building.types()}
+          :for={type <- Blueprint.types()}
           id={"build-#{type}"}
           phx-click="build"
           phx-value-type={type}
@@ -699,19 +700,17 @@ defmodule MyLiegeWeb.GameLive do
     |> Enum.join(", ")
   end
 
-  # the next week's production of this building goes into the open project
-  defp feeds_project?(game, building) do
+  # the next week's production of this place goes into the open project
+  defp feeds_project?(game, place) do
     project = game.demand
 
     Demands.project?(project) and game.deliver_demand != false and
-      project.progress < project.amount and not Building.neutral?(building) and
-      not Building.site?(building) and
-      Building.product(building) == project.product
+      project.progress < project.amount and not Place.neutral?(place) and
+      not Building.site?(place) and
+      Place.good(place) == project.product
   end
 
-  defp type_colour(type), do: Building.colour(%Building{id: 0, type: type})
-
-  defp workers_in(workers, building_id), do: Enum.filter(workers, &(&1.building == building_id))
+  defp type_colour(type), do: Blueprint.fetch!(type).colour
 
   defp colour_class(nil), do: "bg-zinc-400"
   defp colour_class(colour), do: Map.fetch!(@colour_classes, colour)

@@ -5,8 +5,8 @@ defmodule MyLiege.Engine.Place.Blueprint do
   the game points to its blueprint (see `Place`).
 
   The five home places, one per colour, come first in pentagon order; then the neutral ones.
-  Every blueprint is read at compile time (also by `LoadConfig`), so this module must not
-  depend on `Config`.
+  The catalogue is read at compile time, also by the loading of the designer's inputs, so this
+  module depends on nothing but `Pentagon`.
   """
 
   alias MyLiege.Engine.Pentagon

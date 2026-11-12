@@ -2,7 +2,8 @@ defmodule MyLiege.AutoRunTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.AutoRun
-  alias MyLiege.Engine.{Building, Game, Manameter, Worker}
+  alias MyLiege.Engine.{Game, Manameter, Place, Worker}
+  alias MyLiege.Engine.Place.{Blueprint, Building}
   alias MyLiege.EngineFixtures
 
   setup do
@@ -32,15 +33,15 @@ defmodule MyLiege.AutoRunTest do
       config = %{config | start_gold: 0, king_demand_population_share: 0}
       {reports, game} = AutoRun.run(:stay, config, 1)
 
-      assert Enum.map(game.buildings, & &1.type) == [:farm, :watchtower]
+      assert Enum.map(game.places, &Place.type/1) == [:farm, :watchtower]
       assert Enum.all?(reports, &(&1.gold_spent_buildings == 0))
-      assert Enum.any?(game.workers, &is_nil(&1.building))
+      assert Enum.any?(game.workers, &is_nil(&1.place))
     end
 
     test "reports the gold spent on buildings in the week they were ordered", %{config: config} do
       config = %{config | start_gold: 1_000_000, king_demand_population_share: 0}
       {reports, game} = AutoRun.run(:stay, config, 1)
-      ordered = length(game.buildings) - 2
+      ordered = length(game.places) - 2
 
       assert ordered > 0
       assert Enum.sum_by(reports, & &1.gold_spent_buildings) == ordered * 30_000
@@ -48,10 +49,10 @@ defmodule MyLiege.AutoRunTest do
 
     test "every placed worker is in a building of their own colour", %{config: config} do
       {_reports, game} = AutoRun.run(:stay, config, 1)
-      buildings = Map.new(game.buildings, &{&1.id, &1})
+      buildings = Map.new(game.places, &{&1.id, &1})
 
-      for worker <- game.workers, worker.building do
-        assert Building.colour(Map.fetch!(buildings, worker.building)) == worker.colour
+      for worker <- game.workers, worker.place do
+        assert Place.colour(Map.fetch!(buildings, worker.place)) == worker.colour
       end
     end
 
@@ -60,9 +61,9 @@ defmodule MyLiege.AutoRunTest do
       config = %{config | start_gold: 1_000_000}
       {_reports, game} = AutoRun.run(:stay, config, 1)
 
-      for type <- Building.types() do
-        workers = Enum.count(game.workers, &(Building.type_of_colour(&1.colour) == type))
-        buildings = Enum.count(game.buildings, &(&1.type == type))
+      for type <- Blueprint.types() do
+        workers = Enum.count(game.workers, &(Blueprint.home_type(&1.colour) == type))
+        buildings = Enum.count(game.places, &(Place.type(&1) == type))
 
         assert buildings == max(ceil(workers / config.place_capacity[type]), starting(type)),
                "#{type}: #{workers} workers, #{buildings} buildings"
@@ -77,15 +78,15 @@ defmodule MyLiege.AutoRunTest do
   describe "Test A: Pivot" do
     test "workers born from the pivot week go to a watchtower", %{config: config} do
       {_reports, game} = AutoRun.run(:pivot, config, 1)
-      buildings = Map.new(game.buildings, &{&1.id, &1})
+      buildings = Map.new(game.places, &{&1.id, &1})
 
-      for worker <- game.workers, worker.building do
+      for worker <- game.workers, worker.place do
         expected =
           if worker.born_week && worker.born_week >= 48,
             do: :red,
             else: worker.colour
 
-        assert Building.colour(Map.fetch!(buildings, worker.building)) == expected
+        assert Place.colour(Map.fetch!(buildings, worker.place)) == expected
       end
     end
 
@@ -107,10 +108,10 @@ defmodule MyLiege.AutoRunTest do
         )
 
       {_reports, game} = AutoRun.run(:feed, config, 1)
-      farm_ids = for b <- game.buildings, b.type == :farm, do: b.id
+      farm_ids = for b <- game.places, Place.type(b) == :farm, do: b.id
 
       for worker <- game.workers, worker.born_week do
-        assert worker.building in farm_ids
+        assert worker.place in farm_ids
       end
     end
 
@@ -124,9 +125,9 @@ defmodule MyLiege.AutoRunTest do
 
       {_reports, game} = AutoRun.run(:feed, config, 1)
       first_newborn = Enum.find(game.workers, &(&1.born_week == 1))
-      farm_ids = for b <- game.buildings, b.type == :farm, do: b.id
+      farm_ids = for b <- game.places, Place.type(b) == :farm, do: b.id
 
-      assert first_newborn.building in farm_ids
+      assert first_newborn.place in farm_ids
       assert game.stocks.food > 0
     end
 
@@ -163,9 +164,9 @@ defmodule MyLiege.AutoRunTest do
 
       {_reports, game} = AutoRun.run(:feed, config, 1)
       first_newborn = Enum.find(game.workers, &(&1.born_week == 1))
-      market_ids = for b <- game.buildings, b.type == :market, do: b.id
+      market_ids = for b <- game.places, Place.type(b) == :market, do: b.id
 
-      assert first_newborn.building in market_ids
+      assert first_newborn.place in market_ids
     end
   end
 
@@ -211,10 +212,10 @@ defmodule MyLiege.AutoRunTest do
         )
 
       {_reports, game} = AutoRun.run(:feed_pivot, config, 1, pivot_week: 1)
-      buildings = Map.new(game.buildings, &{&1.id, &1})
+      buildings = Map.new(game.places, &{&1.id, &1})
 
-      for worker <- game.workers, worker.born_week, worker.building do
-        assert Map.fetch!(buildings, worker.building).type == :watchtower
+      for worker <- game.workers, worker.born_week, worker.place do
+        assert Place.type(Map.fetch!(buildings, worker.place)) == :watchtower
       end
     end
   end
@@ -306,7 +307,7 @@ defmodule MyLiege.AutoRunTest do
 
       game = AutoRun.defend(game)
 
-      assert Enum.map(game.workers, & &1.building) == [1, 2, 2, nil]
+      assert Enum.map(game.workers, & &1.place) == [1, 2, 2, nil]
     end
 
     test "moves nobody when the gold is already protected" do
@@ -329,8 +330,8 @@ defmodule MyLiege.AutoRunTest do
       with_surplus = last_change(game, food: 10_000)
       without = last_change(game, food: 8_000)
 
-      assert hd(AutoRun.defend(with_surplus).workers).building == 2
-      assert hd(AutoRun.defend(without).workers).building == 1
+      assert hd(AutoRun.defend(with_surplus).workers).place == 2
+      assert hd(AutoRun.defend(without).workers).place == 1
     end
   end
 
@@ -374,7 +375,7 @@ defmodule MyLiege.AutoRunTest do
   end
 
   defp last_change(game, changes) do
-    change = Map.merge(Map.new(Building.products(), &{&1, 0}), Map.new(changes))
+    change = Map.merge(Map.new(Blueprint.goods(), &{&1, 0}), Map.new(changes))
     %{game | report: %{game.report | stock_change: change}}
   end
 
@@ -501,7 +502,7 @@ defmodule MyLiege.AutoRunTest do
     end
   end
 
-  defp starting(type), do: Enum.count(Building.starting(), &(&1.type == type))
+  defp starting(type), do: Enum.count(Building.starting(), &(Place.type(&1) == type))
 
   defp report(week, red) do
     %{

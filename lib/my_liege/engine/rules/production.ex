@@ -5,28 +5,30 @@ defmodule MyLiege.Engine.Rules.Production do
   Amounts are in thousandths (see `Fixed`), so the result is exact.
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Pentagon, Worker}
+  alias MyLiege.Engine.{Config, Fixed, Pentagon, Place, Worker}
+  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Rules.Staffing
 
-  @doc "One worker's output per week in the given building."
-  def worker_output(%Worker{} = worker, %Building{} = building, %Config{} = config) do
+  @doc "One worker's output per week in the given place."
+  def worker_output(%Worker{} = worker, %Building{} = place, %Config{} = config) do
     training = if worker.trained, do: :trained, else: :untrained
-    relation = Pentagon.relation(worker.colour, Building.colour(building))
+    relation = Pentagon.relation(worker.colour, Place.colour(place))
     factor_per_mille = config.efficiency[training][relation]
-    base = config.place_output_per_worker |> Map.fetch!(building.type) |> Fixed.from()
+    base = config.place_output_per_worker |> Map.fetch!(Place.type(place)) |> Fixed.from()
     div(base * factor_per_mille, 1000)
   end
 
   @doc "Total output per product in `week`, from placed workers in ready buildings."
-  def output(workers, buildings, week, %Config{} = config) do
-    totals = Map.new(Building.products(), &{&1, 0})
+  def output(workers, places, week, %Config{} = config) do
+    totals = Map.new(Blueprint.goods(), &{&1, 0})
 
     workers
-    |> Building.staffed(buildings, week)
-    |> Enum.reduce(totals, fn {worker, building}, totals ->
+    |> Staffing.working(places, week)
+    |> Enum.reduce(totals, fn {worker, place}, totals ->
       Map.update!(
         totals,
-        Building.product(building),
-        &(&1 + worker_output(worker, building, config))
+        Place.good(place),
+        &(&1 + worker_output(worker, place, config))
       )
     end)
   end

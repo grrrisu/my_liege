@@ -25,7 +25,8 @@ defmodule MyLiege.Engine.Rules.Demands do
   missed taxes in `Misses`.
   """
 
-  alias MyLiege.Engine.{Building, Config, Fixed, Manameter, Pentagon}
+  alias MyLiege.Engine.{Config, Fixed, Manameter, Pentagon}
+  alias MyLiege.Engine.Place.Blueprint
   alias MyLiege.Engine.Rules.Grace
 
   @half_years_per_year 2
@@ -74,7 +75,7 @@ defmodule MyLiege.Engine.Rules.Demands do
   """
   def make(week, weeks_per_year, %Manameter{} = manameter, population, %Config{} = config) do
     year = div(week - 1, weeks_per_year) + 1
-    type = manameter |> colour(year) |> Building.type_of_colour()
+    type = manameter |> colour(year) |> Blueprint.home_type()
     base = Map.fetch!(config.place_output_per_worker, type)
     units = Fixed.from(population * base * config.king_demand_production_weeks)
     amount = div(units * config.king_demand_population_share, 1000)
@@ -145,5 +146,5 @@ defmodule MyLiege.Engine.Rules.Demands do
 
   defp nothing_taken, do: Map.new(@takeable_products, &{&1, 0})
 
-  defp product_of(type), do: Building.product(%Building{id: 0, type: type})
+  defp product_of(type), do: Blueprint.fetch!(type).good
 end

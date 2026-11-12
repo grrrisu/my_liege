@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Rules.DemandsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Game, Manameter, Random, Worker}
+  alias MyLiege.Engine.{Game, Manameter, Random, Worker}
   alias MyLiege.Engine.Rules.Demands
   alias MyLiege.EngineFixtures
 
@@ -216,9 +216,9 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
     # a blue worker in a monastery makes 3 knowledge a week; no other demand
     setup do
       game = EngineFixtures.game_without_demands(EngineFixtures.config(), 1)
-      monastery = %Building{id: 3, type: :monastery}
-      monk = %Worker{id: 3, colour: :blue, building: 3}
-      %{game: %{game | buildings: game.buildings ++ [monastery], workers: game.workers ++ [monk]}}
+      monastery = EngineFixtures.new_building(3, :monastery)
+      monk = %Worker{id: 3, colour: :blue, place: 3}
+      %{game: %{game | places: game.places ++ [monastery], workers: game.workers ++ [monk]}}
     end
 
     test "production goes into the project until the amount, then to the stock", %{game: game} do

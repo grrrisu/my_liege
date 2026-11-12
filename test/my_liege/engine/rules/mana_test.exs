@@ -1,7 +1,8 @@
 defmodule MyLiege.Engine.Rules.ManaTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Worker}
+  alias MyLiege.Engine.{Place, Worker}
+  alias MyLiege.Engine.Place.Building
   alias MyLiege.Engine.Rules.Mana
   alias MyLiege.EngineFixtures
 
@@ -9,7 +10,7 @@ defmodule MyLiege.Engine.Rules.ManaTest do
     setup do
       config = EngineFixtures.config()
       buildings = Building.starting()
-      buildings_by_type = Map.new(buildings, &{&1.type, &1})
+      buildings_by_type = Map.new(buildings, &{Place.type(&1), &1})
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type}
     end
 
@@ -45,19 +46,8 @@ defmodule MyLiege.Engine.Rules.ManaTest do
       assert Mana.produced(workers, buildings, 0, config) ==
                %{green: 5, blue: 2, red: 2, yellow: 0, violet: 0}
     end
-
-    test "a worker can only be placed in a finished building with room", context do
-      %{config: config, buildings_by_type: %{farm: farm}} = context
-      new_tavern = %Building{id: 3, type: :tavern, ready_week: 7}
-      full_farm = for _ <- 1..config.place_capacity.farm, do: worker(:green, false, farm.id)
-
-      refute Building.can_place?(new_tavern, [], 6, config)
-      assert Building.can_place?(new_tavern, [], 7, config)
-      assert Building.can_place?(farm, [], 0, config)
-      refute Building.can_place?(farm, full_farm, 0, config)
-    end
   end
 
-  defp worker(colour, trained \\ false, building_id \\ nil),
-    do: %Worker{colour: colour, trained: trained, building: building_id}
+  defp worker(colour, trained \\ false, place_id \\ nil),
+    do: %Worker{colour: colour, trained: trained, place: place_id}
 end

@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.GameTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Manameter, SimSteps, WeeklyReport, Worker}
+  alias MyLiege.Engine.{Game, Manameter, Place, SimSteps, WeeklyReport, Worker}
   alias MyLiege.EngineFixtures
 
   describe "a new game" do
@@ -11,7 +11,7 @@ defmodule MyLiege.Engine.GameTest do
 
       assert game.seed == 1
       assert game.week == 0
-      assert Enum.map(game.buildings, & &1.type) == [:farm, :watchtower]
+      assert Enum.map(game.places, &Place.type/1) == [:farm, :watchtower]
       assert Enum.map(game.workers, & &1.colour) == [:green, :red]
       assert game.manameter == config.manameter_start
 
@@ -107,7 +107,7 @@ defmodule MyLiege.Engine.GameTest do
       assert game.manameter == %Manameter{green: 799, blue: 50, red: 101, yellow: 50, violet: 0}
       # 24 + 9 produced - 2 workers × 3 eaten
       assert report.food_left == 27_000
-      assert %Worker{id: 3, trained: false, building: nil} = report.newborn
+      assert %Worker{id: 3, trained: false, place: nil} = report.newborn
       assert Enum.map(game.workers, & &1.id) == [1, 2, 3]
       assert game.week == 1
     end

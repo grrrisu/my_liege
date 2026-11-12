@@ -2,7 +2,7 @@ defmodule MyLiege.Engine.SimSteps.HappinessTest do
   @moduledoc "R11 happiness inside step 1 (production), across the week."
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Game, Worker}
+  alias MyLiege.Engine.{Game, Worker}
   alias MyLiege.EngineFixtures
 
   # a farmer (9 food) and a soldier (3 defence) as at the start; steps of 10/20/30%
@@ -18,9 +18,9 @@ defmodule MyLiege.Engine.SimSteps.HappinessTest do
 
   # adds a tavern with `count` violet workers (3 culture each)
   defp with_tavern(game, count) do
-    tavern = %Building{id: 10, type: :tavern}
-    workers = for i <- 1..count//1, do: %Worker{id: 100 + i, colour: :violet, building: 10}
-    %{game | buildings: game.buildings ++ [tavern], workers: game.workers ++ workers}
+    tavern = EngineFixtures.new_building(10, :tavern)
+    workers = for i <- 1..count//1, do: %Worker{id: 100 + i, colour: :violet, place: 10}
+    %{game | places: game.places ++ [tavern], workers: game.workers ++ workers}
   end
 
   test "no tavern: −3 after the grace period, food and defence production down 30%" do

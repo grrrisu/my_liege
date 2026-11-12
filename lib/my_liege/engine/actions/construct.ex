@@ -8,13 +8,14 @@ defmodule MyLiege.Engine.Actions.Construct do
   Success returns `{:ok, game}`; construction progresses starting next week.
   """
 
-  alias MyLiege.Engine.{Building, Game}
+  alias MyLiege.Engine.Game
+  alias MyLiege.Engine.Place.{Blueprint, Building}
 
   def run(%Game{} = game, type) do
     cost = Game.build_cost(game)
 
     cond do
-      type not in Building.types() ->
+      type not in Blueprint.types() ->
         {:error, :unknown_type}
 
       not Game.can_afford_building?(game) ->
@@ -26,7 +27,7 @@ defmodule MyLiege.Engine.Actions.Construct do
         {:ok,
          %{
            game
-           | buildings: Building.construct(game.buildings, type),
+           | places: Building.add_site(game.places, type),
              stocks: %{game.stocks | gold: game.stocks.gold - cost},
              report: report
          }}

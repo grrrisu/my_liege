@@ -1,6 +1,6 @@
 ---
 name: engine-architecture
-description: 'How the My Liege engine is structured: layers (Game → SimSteps → Rules), where code goes, the SimStep contract, rules on plain data, config, and the regression test. Use when: adding, moving or renaming engine modules; deciding where new code goes; refactoring; calling engine code from GameLive or AutoRun; reviewing a change for structure.'
+description: 'How the My Liege engine is structured: layers (Game → SimSteps → Rules), places (blueprint, building), where a function goes (model, rule, orchestration), the SimStep contract, rules on plain data, config, and the regression test. Use when: adding, moving or renaming engine modules; deciding where new code goes; refactoring; calling engine code from GameLive or AutoRun; reviewing a change for structure.'
 ---
 
 # Engine architecture
@@ -19,11 +19,17 @@ lib/my_liege/engine/
   load_config.ex     infrastructure: reads priv/balance_inputs.csv at compile time
   fixed.ex           infrastructure: thousandths
   random.ex          infrastructure: seeded random state
-  building.ex        data
+  place.ex           model: what all kinds of place share (colour, good, type, workers_at)
+  place/
+    blueprint.ex     model: the catalogue, one blueprint per type of place
+    building.ex      model: a building in the game (a site until finished)
   worker.ex          data
   manameter.ex       data
   pentagon.ex        data
   rules/             what happens: MyLiege.Engine.Rules.*
+    placement.ex     R2: who may enter a place, its capacity, what leaving does
+    staffing.ex      R2: which workers work in a week
+    …
   sim_steps/         when it happens: MyLiege.Engine.SimSteps.*
   actions/           player actions between weeks: MyLiege.Engine.Actions.*
 ```
@@ -32,6 +38,36 @@ Dependencies: `Game → SimSteps → Rules` and `Game → Actions → Rules`. Ac
 `SimSteps`, and rules never reference `Actions`. Rules depend only on data and infrastructure
 modules. `GameLive` and `AutoRun` call `Game` and `Rules` (e.g. `Rules.Taxes`, `Rules.Training`
 for display or decisions), never `SimSteps` or `Actions.*`.
+
+## Where a function goes
+
+Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
+
+- **Model** (`Place`, `Place.Building`, `Place.Blueprint`, `Worker`, …): only reads stored
+  data (`site?`, `ready?`, `colour`, `workers_at`). No `%Config{}`, no decision.
+- **Rule** (`Rules.*`): decides (may this worker enter, how many fit, what is produced). Pure
+  functions on plain data and an explicit `%Config{}`.
+- **Orchestration** (`Actions.*`, `SimSteps.*`): fetch what is needed, ask the rules, apply
+  the answer to the game. No decisions of its own.
+
+## Places
+
+[place.ex](../../../lib/my_liege/engine/place.ex),
+[place/](../../../lib/my_liege/engine/place/)
+
+- A **blueprint** (`Place.Blueprint`) describes a type of place: its colour, the good it
+  makes and which kind of place it becomes (`engine`). The catalogue has the five home
+  places in pentagon order, then the guildhouse. It depends on nothing but `Pentagon`, so
+  `LoadConfig` reads the types from it at compile time.
+- A **place** is one that exists in the game. There is one struct per kind of place; today
+  only `Place.Building` (a site until finished), later `Place.Project` and `Place.Trade`.
+  Each holds its `id` and its `blueprint`.
+- `game.places` is one list of all places, whatever their kind. Workers point to their place
+  by id (`worker.place`, `nil` when unplaced).
+- `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,
+  `type/1`, `neutral?/1`), plus `workers_at/2`.
+- Rules are organised **by rule, not by kind**: a rule module has one function clause per
+  kind of place (`check_enter(%Place.Building{} = place, …)`), not one module per kind.
 
 ## Actions (between weeks)
 
@@ -56,7 +92,7 @@ for display or decisions), never `SimSteps` or `Actions.*`.
   `Grace`, `Taxes`, `Demands` and `Misses`).
 - The moduledoc starts with its rule number ("R7, taxes: …") and names no step and no
   position in the week: a rule doesn't know when it is called.
-- Pure functions on plain data (workers, buildings, stocks, numbers) and an explicit
+- Pure functions on plain data (workers, places, stocks, numbers) and an explicit
   `%Config{}`. Rule modules never reference `Game`, `WeeklyReport`, `SimStep` or `SimSteps`.
   Example: `Rules.Misses.add/2` takes and returns a count; the step writes `misses` and
   `game_over` back to the game.
