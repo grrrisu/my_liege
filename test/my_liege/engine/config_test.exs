@@ -1,7 +1,8 @@
 defmodule MyLiege.Engine.ConfigTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Building, Config, LoadConfig, Manameter, Worker}
+  alias MyLiege.Engine.{Config, LoadConfig, Manameter, Worker}
+  alias MyLiege.Engine.Place.Blueprint
 
   describe "loading config inputs" do
     test "the CSV loads into a complete configuration with a full Manameter" do
@@ -36,11 +37,15 @@ defmodule MyLiege.Engine.ConfigTest do
     end
 
     test "the lists written out in LoadConfig match the engine's" do
-      assert LoadConfig.names() == %{
-               types: Building.types(),
-               goods: Building.products(),
-               trainings: Worker.trainings()
-             }
+      assert LoadConfig.names() == %{trainings: Worker.trainings()}
+    end
+
+    test "every blueprint type has its place.<type>.* keys" do
+      keys = "priv/balance_inputs.csv" |> File.read!() |> LoadConfig.parse!() |> Map.keys()
+
+      for type <- Blueprint.types() do
+        assert Enum.any?(keys, &String.starts_with?(&1, "place.#{type}.")), "no keys for #{type}"
+      end
     end
 
     test "a duplicate key fails" do

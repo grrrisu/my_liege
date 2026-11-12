@@ -9,21 +9,23 @@ defmodule MyLiege.Engine.LoadConfig do
   """
 
   alias MyLiege.Engine.{Manameter, Pentagon}
+  alias MyLiege.Engine.Place.Blueprint
 
   require Logger
 
   @header "key,value"
 
-  # written out here, not taken from Building or Worker, which depend on Config at compile
-  # time; the config test checks they match
-  @path_types [:farm, :market, :monastery, :watchtower, :tavern]
-  @types @path_types ++ [:guildhouse]
-  @goods [:food, :gold, :knowledge, :defence, :culture]
+  @types Blueprint.types()
+  # the types of the places that make a good
+  @good_types for blueprint <- Blueprint.all(), blueprint.good, do: blueprint.type
+  @goods Blueprint.goods()
+  # written out here, not taken from Worker, which depends on Config at compile time; the
+  # config test checks they match
   @trainings [:untrained, :trained]
   @levels [:level1, :level2, :level3]
 
   @doc false
-  def names, do: %{types: @types, goods: @goods, trainings: @trainings}
+  def names, do: %{trainings: @trainings}
 
   @doc "Reads the CSV at `path` and returns the configuration fields as a map."
   def load!(path) do
@@ -103,7 +105,7 @@ defmodule MyLiege.Engine.LoadConfig do
         |> then_apply(&manameter_start!/1),
       birth_interval_weeks: "birth.interval_weeks",
       birth_min_food_left: "birth.min_food_left",
-      place_output_per_worker: by(@path_types, &"place.#{&1}.output_per_worker"),
+      place_output_per_worker: by(@good_types, &"place.#{&1}.output_per_worker"),
       place_capacity: by(@types, &"place.#{&1}.capacity"),
       good_food_eaten_per_worker: "good.food.eaten_per_worker",
       good_spoilage: by(@goods, &"good.#{&1}.spoilage_permille"),
