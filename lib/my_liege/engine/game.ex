@@ -9,8 +9,17 @@ defmodule MyLiege.Engine.Game do
   Stocks are in thousandths (see `Fixed`).
   """
 
+  alias MyLiege.Engine.Actions.{
+    Construct,
+    DecideDemand,
+    DecideTax,
+    PlaceWorker,
+    RefuseProject,
+    UnplaceWorker
+  }
+
   alias MyLiege.Engine.{Building, Config, Fixed, Random, SimSteps, WeeklyReport, Worker}
-  alias MyLiege.Engine.Rules.{Bandits, Demands, Food, Taxes, Training, Travel}
+  alias MyLiege.Engine.Rules.{Bandits, Demands, Food, Taxes}
 
   @derive {Inspect, except: [:config]}
   @enforce_keys [
@@ -135,15 +144,8 @@ defmodule MyLiege.Engine.Game do
   def tax_decision_due?(%__MODULE__{} = game),
     do: is_integer(game.tax_due) and Taxes.due_week?(game.week + 1, game.config)
 
-  @doc """
-  The player's decision for the payment due next week: `true` pays, `false` skips it on
-  purpose. Only possible when `tax_decision_due?/1`.
-  """
-  def decide_tax(%__MODULE__{} = game, pay?) when is_boolean(pay?) do
-    if tax_decision_due?(game),
-      do: {:ok, %{game | pay_tax: pay?}},
-      else: {:error, :no_tax_due}
-  end
+  @doc "See `MyLiege.Engine.Actions.DecideTax`."
+  def decide_tax(%__MODULE__{} = game, pay?), do: DecideTax.run(game, pay?)
 
   @doc """
   Whether the next week is the deadline of a demand delivered from the stock, so the player
@@ -156,125 +158,22 @@ defmodule MyLiege.Engine.Game do
   def project_refusable?(%__MODULE__{demand: demand} = game),
     do: Demands.project?(demand) and is_nil(game.deliver_demand)
 
-  @doc """
-  Refuses the open project at once: from the next week its product goes to the stock again,
-  and the next week's run settles it as refused, which counts as a miss. Only possible when
-  `project_refusable?/1`.
-  """
-  def refuse_project(%__MODULE__{} = game) do
-    if project_refusable?(game),
-      do: {:ok, %{game | deliver_demand: false}},
-      else: {:error, :no_project}
-  end
+  @doc "See `MyLiege.Engine.Actions.RefuseProject`."
+  def refuse_project(%__MODULE__{} = game), do: RefuseProject.run(game)
 
-  @doc """
-  The player's decision for the demand due next week: `true` delivers, `false` refuses.
-  Only possible when `demand_decision_due?/1`.
-  """
-  def decide_demand(%__MODULE__{} = game, deliver?) when is_boolean(deliver?) do
-    if demand_decision_due?(game),
-      do: {:ok, %{game | deliver_demand: deliver?}},
-      else: {:error, :no_demand_due}
-  end
+  @doc "See `MyLiege.Engine.Actions.DecideDemand`."
+  def decide_demand(%__MODULE__{} = game, deliver?),
+    do: DecideDemand.run(game, deliver?)
 
-  @doc """
-  Places or moves a worker. It takes its place at once but travels `travel_weeks` first
-  (see `Travel`), also when it was still travelling. An unplaced worker can only be placed
-  once it has arrived. A finished building must have room; a site takes up to
-  `build_builders` builders. In the guildhouse the worker starts training after its
-  travel (see `Training.check/3`). Moving a trainee out loses its progress; moving a builder
-  off a site resets the site's progress to 0.
-  """
-  def place_worker(%__MODULE__{} = game, worker_id, building_id) do
-    with {:ok, worker} <- fetch_worker(game, worker_id),
-         {:ok, building} <- fetch_building(game, building_id) do
-      cond do
-        worker.building == building_id -> {:ok, game}
-        error = placement_error(game, worker, building) -> {:error, error}
-        trains?(building) -> start_training(game, worker, building_id)
-        true -> {:ok, move(game, worker, building_id, nil)}
-      end
-    end
-  end
+  @doc "See `MyLiege.Engine.Actions.PlaceWorker`."
+  def place_worker(%__MODULE__{} = game, worker_id, building_id),
+    do: PlaceWorker.run(game, worker_id, building_id)
 
-  defp placement_error(game, worker, building) do
-    others = Enum.reject(game.workers, &(&1.id == worker.id))
+  @doc "See `MyLiege.Engine.Actions.UnplaceWorker`."
+  def unplace_worker(%__MODULE__{} = game, worker_id), do: UnplaceWorker.run(game, worker_id)
 
-    cond do
-      is_nil(worker.building) and Travel.travelling?(worker) -> :travelling
-      not Building.site?(building) and not Building.ready?(building, game.week + 1) -> :not_ready
-      not Building.has_room?(building, others, game.config) -> :full
-      true -> nil
-    end
-  end
-
-  defp trains?(building), do: building.type == :guildhouse and not Building.site?(building)
-
-  defp start_training(game, worker, building_id) do
-    with :ok <- Training.check(worker, game.manameter, game.config) do
-      started = Training.first_week(game.week, game.config)
-      {:ok, move(game, worker, building_id, started)}
-    end
-  end
-
-  @doc """
-  Takes a worker out of its building; it travels `travel_weeks` before it can be placed again.
-  A trainee loses its progress; a builder resets its site's progress to 0. A worker that is
-  already unplaced stays as it is.
-  """
-  def unplace_worker(%__MODULE__{} = game, worker_id) do
-    with {:ok, worker} <- fetch_worker(game, worker_id) do
-      if is_nil(worker.building),
-        do: {:ok, game},
-        else: {:ok, move(game, worker, nil, nil)}
-    end
-  end
-
-  defp move(game, worker, building_id, training_started) do
-    worker = %{worker | training_started: training_started}
-    moved = Travel.depart(worker, building_id, game.config)
-    game |> reset_site(worker.building) |> put_worker(moved)
-  end
-
-  defp reset_site(game, building_id) do
-    buildings =
-      Enum.map(game.buildings, fn building ->
-        if building.id == building_id and Building.site?(building),
-          do: %{building | progress: 0},
-          else: building
-      end)
-
-    %{game | buildings: buildings}
-  end
-
-  @doc """
-  Orders a new building, which starts as a site (see `Construction`). Every type costs `build_cost_gold`, paid
-  from the gold stock now; refused with `{:error, :not_enough_gold}` if the stock is smaller.
-  The gold spent is added to `gold_spent_buildings` of the current week's report.
-  No limit on number or frequency.
-  """
-  def construct(%__MODULE__{} = game, type) do
-    cost = build_cost(game)
-
-    cond do
-      type not in Building.types() ->
-        {:error, :unknown_type}
-
-      not can_afford_building?(game) ->
-        {:error, :not_enough_gold}
-
-      true ->
-        report = %{game.report | gold_spent_buildings: game.report.gold_spent_buildings + cost}
-
-        {:ok,
-         %{
-           game
-           | buildings: Building.construct(game.buildings, type),
-             stocks: %{game.stocks | gold: game.stocks.gold - cost},
-             report: report
-         }}
-    end
-  end
+  @doc "See `MyLiege.Engine.Actions.Construct`."
+  def construct(%__MODULE__{} = game, type), do: Construct.run(game, type)
 
   @doc "The price of any building, in thousandths of gold."
   def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)
@@ -283,21 +182,24 @@ defmodule MyLiege.Engine.Game do
   def can_afford_building?(%__MODULE__{} = game),
     do: game.stocks.gold >= build_cost(game)
 
-  defp fetch_worker(game, worker_id) do
+  @doc false
+  def fetch_worker(%__MODULE__{} = game, worker_id) do
     case Enum.find(game.workers, &(&1.id == worker_id)) do
       nil -> {:error, :unknown_worker}
       worker -> {:ok, worker}
     end
   end
 
-  defp fetch_building(game, building_id) do
+  @doc false
+  def fetch_building(%__MODULE__{} = game, building_id) do
     case Enum.find(game.buildings, &(&1.id == building_id)) do
       nil -> {:error, :unknown_building}
       building -> {:ok, building}
     end
   end
 
-  defp put_worker(game, worker) do
+  @doc false
+  def put_worker(%__MODULE__{} = game, worker) do
     %{game | workers: Enum.map(game.workers, &if(&1.id == worker.id, do: worker, else: &1))}
   end
 

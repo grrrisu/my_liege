@@ -12,6 +12,17 @@ defmodule MyLiege.Engine.Rules.Construction do
   @doc "The workers placed on the building with id `site_id`."
   def builders(workers, site_id), do: Enum.filter(workers, &(&1.building == site_id))
 
+  @doc "A builder leaves the building with id `building_id`: if it is a site, its progress goes back to 0."
+  def leave_site(buildings, nil), do: buildings
+
+  def leave_site(buildings, building_id) do
+    Enum.map(buildings, fn building ->
+      if building.id == building_id and Building.site?(building),
+        do: %{building | progress: 0},
+        else: building
+    end)
+  end
+
   @doc "The builders on the site who have arrived."
   def arrived(workers, site_id),
     do: workers |> builders(site_id) |> Enum.reject(&Travel.travelling?/1)

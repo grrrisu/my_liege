@@ -2,6 +2,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Building, Game, Manameter, Worker}
+  alias MyLiege.Engine.Rules.Construction
   alias MyLiege.EngineFixtures
 
   # 2 builders, 1 week of travel, 2 construction weeks; workers 1 (green) and 2 (red) start
@@ -14,6 +15,19 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
   end
 
   describe "R2 builders" do
+    test "a builder leaving a site resets its progress", %{site: site} do
+      site = %{site | progress: 1}
+
+      assert [%Building{progress: 0}] = Construction.leave_site([site], site.id)
+    end
+
+    test "leaving a finished building or nil leaves the buildings unchanged", %{game: game} do
+      finished = hd(game.buildings)
+
+      assert Construction.leave_site([finished], finished.id) == [finished]
+      assert Construction.leave_site(game.buildings, nil) == game.buildings
+    end
+
     test "an ordered building is a site without progress; the price is paid at once", context do
       %{game: game, site: site} = context
 

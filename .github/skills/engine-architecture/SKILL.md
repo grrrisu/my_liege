@@ -12,7 +12,7 @@ each step reads and writes) is in the `weekly-step` skill.
 
 ```
 lib/my_liege/engine/
-  game.ex            machinery: state, player actions, run_week/1, pipeline/0
+  game.ex            machinery: state, run_week/1, pipeline/0, action entry points
   weekly_report.ex   machinery: the report of one week
   sim_step.ex        machinery: the step behaviour
   config.ex          infrastructure: every game value, fixed per game
@@ -25,11 +25,28 @@ lib/my_liege/engine/
   pentagon.ex        data
   rules/             what happens: MyLiege.Engine.Rules.*
   sim_steps/         when it happens: MyLiege.Engine.SimSteps.*
+  actions/           player actions between weeks: MyLiege.Engine.Actions.*
 ```
 
-Direction: `Game → SimSteps → Rules`. Rules depend only on data and infrastructure modules.
-`GameLive` and `AutoRun` call `Game` and `Rules` (e.g. `Rules.Taxes`, `Rules.Training` for
-display or decisions), never `SimSteps`.
+Dependencies: `Game → SimSteps → Rules` and `Game → Actions → Rules`. Actions never call
+`SimSteps`, and rules never reference `Actions`. Rules depend only on data and infrastructure
+modules. `GameLive` and `AutoRun` call `Game` and `Rules` (e.g. `Rules.Taxes`, `Rules.Training`
+for display or decisions), never `SimSteps` or `Actions.*`.
+
+## Actions (between weeks)
+
+[actions/](../../../lib/my_liege/engine/actions/)
+
+- Each player action has a module in `Actions.*` with public `run/…`: the game is the first
+  argument, followed by the same arguments as the corresponding `Game` function.
+- An action returns `{:ok, game}` or `{:error, reason}`. It validates and changes state using
+  `Rules.*` and `Game`'s state functions; it never calls `SimSteps`.
+- Actions are pure: they return a changed game and touch nothing else. Their changes take
+  effect in the next week; `Construct` pays its price from the gold stock at once.
+- `Game` is the only entry point. Callers never use `Actions.*` directly.
+- Each action has its own unit test file, `test/my_liege/engine/actions/<action>_test.exs`,
+  calling `run/…` directly with its conditions and errors. Tests through `Game`
+  (`game_actions_test.exs`, rule tests) are integration tests and don't replace them.
 
 ## Rules (what)
 
@@ -103,4 +120,6 @@ display or decisions), never `SimSteps`.
 ## Not there on purpose
 
 No `events` field in the report, no trace, no `halt` in the pipeline, no `init`/`opts` in
-`SimStep`, no `put_config`. Don't add them unasked; ask the designer.
+`SimStep`, no `put_config`. No behaviour (`@behaviour`) for actions, as their arguments
+differ; add one only when replay, a decision log or a `GameServer` needs it. No common
+game-over or finished check for actions yet. Don't add any of these unasked; ask the designer.

@@ -33,9 +33,11 @@ rules vs. steps) is in the `engine-architecture` skill.
 - Week 0 is the starting state from the config (`Game.new/2`); nothing has happened yet.
 - `run_week` runs `game.week + 1`. Every rule in it sees that same week number.
 - A full game is weeks 1 to 48 × `game_years`.
-- Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N:
-  `place_worker/3`, `unplace_worker/2`, `construct/2`, `decide_tax/2`, `decide_demand/2`,
-  `refuse_project/1`.
+- Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N through
+  `Game`: `Game.place_worker/3` (`Actions.PlaceWorker`), `Game.unplace_worker/2`
+  (`Actions.UnplaceWorker`), `Game.construct/2` (`Actions.Construct`),
+  `Game.decide_tax/2` (`Actions.DecideTax`), `Game.decide_demand/2`
+  (`Actions.DecideDemand`), and `Game.refuse_project/1` (`Actions.RefuseProject`).
   Changes take effect in week N + 1. `construct/2` pays `build_cost_gold` from the gold stock
   at once and adds it to `gold_spent_buildings` of week N's report (`{:error, :not_enough_gold}`
   if the stock is short).
