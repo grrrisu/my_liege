@@ -8,40 +8,29 @@ defmodule MyLiege.Engine.Building do
   builders, at most `build_builders`.
   """
 
-  alias MyLiege.Engine.{Config, Pentagon, Worker}
+  alias MyLiege.Engine.{Config, Worker}
+  alias MyLiege.Engine.Place.Blueprint
 
   @enforce_keys [:id, :type]
   defstruct id: nil, type: nil, ready_week: 0, progress: 0
 
-  @colours %{farm: :green, monastery: :blue, watchtower: :red, market: :yellow, tavern: :violet}
-  @products %{
-    farm: :food,
-    monastery: :knowledge,
-    watchtower: :defence,
-    market: :gold,
-    tavern: :culture
-  }
-  # path building types in pentagon order, from the order in `Pentagon.colours/0`
-  @path_types Enum.map(Pentagon.colours(), fn colour ->
-                Enum.find(Map.keys(@colours), &(Map.fetch!(@colours, &1) == colour))
-              end)
-  @types @path_types ++ [:guildhouse]
+  @types Blueprint.types()
 
   @doc "The building's path colour, or `nil` for the neutral guildhouse."
-  def colour(%__MODULE__{type: type}), do: Map.get(@colours, type)
+  def colour(%__MODULE__{type: type}), do: Blueprint.fetch!(type).colour
 
   @doc "The building type of a path colour, e.g. `:green` -> `:farm`."
-  def type_of_colour(colour), do: Enum.find(@path_types, &(Map.fetch!(@colours, &1) == colour))
+  defdelegate type_of_colour(colour), to: Blueprint, as: :home_type
 
   @doc "All building types: the path buildings in pentagon order, then the guildhouse."
-  def types, do: @types
+  defdelegate types, to: Blueprint
 
-  def neutral?(%__MODULE__{type: type}), do: not Map.has_key?(@colours, type)
+  def neutral?(%__MODULE__{} = building), do: is_nil(colour(building))
 
-  def product(%__MODULE__{type: type}), do: Map.fetch!(@products, type)
+  def product(%__MODULE__{type: type}), do: Blueprint.fetch!(type).good
 
   @doc "The products in pentagon order of their buildings."
-  def products, do: Enum.map(@path_types, &Map.fetch!(@products, &1))
+  defdelegate products, to: Blueprint, as: :goods
 
   def ready?(%__MODULE__{ready_week: nil}, _week), do: false
   def ready?(%__MODULE__{ready_week: ready_week}, week), do: week >= ready_week
