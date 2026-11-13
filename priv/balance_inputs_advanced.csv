@@ -38,6 +38,7 @@ place.monastery.capacity,4
 place.watchtower.capacity,4
 place.market.capacity,4
 place.tavern.capacity,4
+build.work,4
 training.weeks,4
 place.guildhouse.capacity,1
 good.food.spoilage_permille,50
@@ -49,7 +50,6 @@ king.demand.deadline_weeks,8
 king.demand.population_share_permille,100
 king.demand.production_weeks,8
 build.cost_gold,30
-build.work,4
 build.capacity,2
 travel.weeks,1
 king.grace_weeks,24
@@ -67,4 +67,4 @@ happiness.level3.bonus_from_permille,2500
 happiness.level1.change_permille,100
 happiness.level2.change_permille,200
 happiness.level3.change_permille,300
-book.work,96
+book.work,48

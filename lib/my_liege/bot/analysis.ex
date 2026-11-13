@@ -13,16 +13,16 @@ defmodule MyLiege.Bot.Analysis do
   @points 200
 
   @summary_header [
-    "pattern",
-    "seed",
-    "first_tax_week",
-    "first_tax_paid",
-    "first_tax_missed",
-    "first_tax_gold_difference",
-    "buildings_ordered",
-    "weeks_food_below_0",
-    "gold_robbed"
-  ]
+                    "pattern",
+                    "seed",
+                    "first_tax_week",
+                    "first_tax_paid",
+                    "first_tax_missed",
+                    "first_tax_gold_difference",
+                    "buildings_ordered",
+                    "weeks_food_below_0",
+                    "gold_robbed"
+                  ] ++ Enum.map(Pentagon.colours(), &"book_week_#{&1}")
 
   @doc """
   Runs every pattern with every seed and returns a CSV: one row per pattern and seed, then
@@ -38,6 +38,8 @@ defmodule MyLiege.Bot.Analysis do
     #{@weeks_per_year}.
   - `weeks_food_below_0`: weeks of the run that ended with food below 0.
   - `gold_robbed`: gold the bandits took in the run.
+  - `book_week_<colour>`, in pentagon order: the week the first book of that colour was
+    finished (empty if never; empty in the totals).
 
   Gold is in whole gold, not thousandths.
   """
@@ -70,8 +72,13 @@ defmodule MyLiege.Bot.Analysis do
       buildings_ordered:
         orders |> Enum.filter(fn {week, _} -> week in 1..@weeks_per_year end) |> sum_values(),
       weeks_food_below_0: Enum.count(reports, &(&1.food_left < 0)),
-      gold_robbed: Enum.sum_by(reports, & &1.gold_robbed)
+      gold_robbed: Enum.sum_by(reports, & &1.gold_robbed),
+      book_weeks: Map.new(Pentagon.colours(), &{&1, book_week(reports, &1)})
     }
+  end
+
+  defp book_week(reports, colour) do
+    with %{week: week} <- Enum.find(reports, &(colour in &1.books_finished)), do: week
   end
 
   # the amount is fixed in the count week, the last report before the payment with `tax_due`
@@ -95,7 +102,8 @@ defmodule MyLiege.Bot.Analysis do
       first_tax_gold_difference: sum.(:first_tax_gold_difference),
       buildings_ordered: sum.(:buildings_ordered),
       weeks_food_below_0: sum.(:weeks_food_below_0),
-      gold_robbed: sum.(:gold_robbed)
+      gold_robbed: sum.(:gold_robbed),
+      book_weeks: Map.new(Pentagon.colours(), &{&1, nil})
     }
   end
 
@@ -115,7 +123,7 @@ defmodule MyLiege.Bot.Analysis do
       summary.buildings_ordered,
       summary.weeks_food_below_0,
       whole_gold(summary.gold_robbed)
-    ]
+    ] ++ Enum.map(Pentagon.colours(), &Map.fetch!(summary.book_weeks, &1))
   end
 
   defp whole_gold(nil), do: nil

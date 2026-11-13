@@ -8,7 +8,7 @@ defmodule MyLiege.Bot do
   (`MyLiege.Bot.BotActions.*`), run before each week, and a build condition (`:always`,
   `:tax_safe` or `:invest`). Order is priority: an earlier action gets the workers first.
   The named strategies (`:stay`, `:pivot`, `:feed`, `:feed_pivot`, `:feed_save_tax`,
-  `:feed_defend`, `:feed_invest_defend`) are in `MyLiege.Bot.Strategies.named/2`. The
+  `:feed_defend`, `:feed_invest_defend`, `:feed_books`) are in `MyLiege.Bot.Strategies.named/2`. The
   `bots` skill (`.github/skills/bots/SKILL.md`) describes the actions, the strategies and
   how to add one.
 
