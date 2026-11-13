@@ -70,6 +70,25 @@ defmodule MyLiege.AutoRunTest do
       end
     end
 
+    test "places no workers on a king's demand project; the demand is missed", %{config: config} do
+      # blue leads, so the year-1 demand is for knowledge; enough gold, so taxes are paid
+      config = %{
+        config
+        | game_years: 1,
+          start_gold: 1_000_000,
+          manameter_start: %Manameter{green: 50, yellow: 50, blue: 800, red: 50, violet: 50}
+      }
+
+      {reports, _game} = AutoRun.run(:stay, config, 1, weeks: 24)
+
+      assert [%{product: :knowledge, due_week: due_week, project_id: id}] =
+               reports |> Enum.map(& &1.demand) |> Enum.reject(&is_nil/1)
+
+      assert id != nil
+      assert Enum.find(reports, &(&1.week == due_week)).demand_outcome == :missed
+      assert Enum.all?(reports, &(&1.demand_progress in [nil, 0]))
+    end
+
     test "the same seed replays the same run", %{config: config} do
       assert AutoRun.run(:stay, config, 7) == AutoRun.run(:stay, config, 7)
     end

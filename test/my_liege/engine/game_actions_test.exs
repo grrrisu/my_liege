@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.GameActionsTest do
   # Player actions through `Game`, followed by the next week. What each action does on its
   # own is unit-tested in test/my_liege/engine/actions/.
 
-  alias MyLiege.Engine.{Game, Worker}
+  alias MyLiege.Engine.{Game, Manameter, Worker}
   alias MyLiege.EngineFixtures
 
   setup do
@@ -40,6 +40,36 @@ defmodule MyLiege.Engine.GameActionsTest do
 
     assert report.week == 4
     assert report.production.gold > 0
+  end
+
+  test "a culture demand: violet workers on its project deliver it before the deadline" do
+    # violet leads, so the week-1 demand is for culture; 1 week of travel
+    config =
+      EngineFixtures.config(
+        travel_weeks: 1,
+        manameter_start: %Manameter{green: 100, yellow: 50, blue: 50, red: 100, violet: 700}
+      )
+
+    game = %{Game.new(config, 1) | demand_weeks: [1]}
+    bards = for id <- 3..4, do: %Worker{id: id, colour: :violet}
+    game = %{game | workers: game.workers ++ bards}
+    {:ok, report, game} = Game.run_week(game)
+
+    assert %{product: :culture, due_week: 9, project_id: project_id} = report.demand
+    {:ok, game} = Game.place_worker(game, 3, project_id)
+    {:ok, game} = Game.place_worker(game, 4, project_id)
+    {reports, game} = EngineFixtures.run_weeks(game, 4)
+
+    # week 2 travel; from week 3, 2 × 3 culture a week into the project (amount 9.6)
+    assert Enum.map(reports, & &1.demand_progress) == [0, 6_000, 9_600, nil]
+    assert Enum.map(reports, & &1.demand_outcome) == [nil, nil, :delivered, nil]
+    assert game.misses == 0
+    assert game.stocks.culture == 0
+    refute Enum.any?(game.places, &(&1.id == project_id))
+    # released at the end of week 4, back unplaced and travelling
+    assert %Worker{place: nil} = find_worker(game, 3)
+    assert %Worker{place: nil} = find_worker(game, 4)
+    assert Enum.at(reports, 2).travelling == 2
   end
 
   defp find_worker(game, id), do: Enum.find(game.workers, &(&1.id == id))

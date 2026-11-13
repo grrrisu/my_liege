@@ -131,6 +131,40 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
     end
   end
 
+  describe "check_enter/3 on a king's demand project" do
+    test "it takes any number of workers of any colour; only travel is checked", context do
+      %{facts: facts} = context
+      project = EngineFixtures.new_demand_project(3, :culture)
+
+      crowd =
+        for colour <- [:green, :blue, :red], _ <- 1..20, do: worker(colour, true, project.id)
+
+      facts = %{facts | workers: crowd}
+
+      assert Placement.capacity(project, facts.config) == :unlimited
+      assert Placement.check_enter(project, worker(:green, true), facts) == :ok
+      assert Placement.check_enter(project, worker(:blue), facts) == :ok
+
+      assert Placement.check_enter(project, %{worker(:violet) | travel: 1}, facts) ==
+               {:error, :travelling}
+
+      refute Placement.trains?(project)
+    end
+  end
+
+  describe "release/3" do
+    test "every worker at the place becomes unplaced and travels; the others stay", context do
+      config = %{context.config | travel_weeks: 2}
+      workers = [worker(:green, false, 3), worker(:red, false, 1), worker(:blue, false, 3)]
+
+      assert [
+               %Worker{place: nil, travel: 2},
+               %Worker{place: 1, travel: 0},
+               %Worker{place: nil, travel: 2}
+             ] = Placement.release(workers, 3, config)
+    end
+  end
+
   describe "capacity/2" do
     test "a building takes its capacity, a site build_capacity", context do
       %{config: config, farm: farm} = context

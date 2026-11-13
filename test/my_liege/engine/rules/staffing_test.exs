@@ -36,6 +36,18 @@ defmodule MyLiege.Engine.Rules.StaffingTest do
       refute Staffing.works?(site, 0)
       refute Staffing.works?(EngineFixtures.new_site(5, :farm, progress: 1), 99)
     end
+
+    test "a king's demand project works, like a building of its colour" do
+      assert Staffing.works?(EngineFixtures.new_demand_project(6, :knowledge), 0)
+    end
+  end
+
+  test "a worker on a demand project works; a builder on a site doesn't", %{places: places} do
+    project = EngineFixtures.new_demand_project(5, :culture)
+    on_project = worker(5)
+
+    assert Staffing.working([on_project, worker(4)], places ++ [project], 0) ==
+             [{on_project, project}]
   end
 
   defp worker(place_id), do: %Worker{colour: :green, place: place_id}

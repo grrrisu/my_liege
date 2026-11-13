@@ -66,13 +66,23 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
   `Place.Building` (always finished) and `Place.Project`, later `Place.Trade`. Each holds
   its `id` and its `blueprint`; `Place.next_id/1` gives the next free id over all places.
 - A **project** (`Place.Project`: `id`, `blueprint`, `target`, `gives`, `progress`) collects
-  progress until `done?/1` (`progress >= target`), then gives `gives` once and is replaced
-  in `game.places` by what it gives. Its blueprint is not in the catalogue (which lists only
-  types that can stand and be ordered, with config keys): a project builds its own. The
-  first projects are construction sites: blueprint `type: :site`, no colour, no good,
-  `engine: :project`; `gives: {:building, type}`, target `build_work`. A finished site
-  becomes a `%Building{}` with a new id (`Rules.Construction`). The king's knowledge and
-  culture demands are still `game.demand`, not places.
+  progress until `done?/1` (`progress >= target`), then gives `gives` once and leaves
+  `game.places`. Its blueprint is not in the catalogue (which lists only types that can stand
+  and be ordered, with config keys): a project builds its own. Projects are told apart by
+  `gives`, and rules match on it (`%Project{gives: {:building, _}}`):
+  - a **construction site** gives `{:building, type}`: blueprint `type: :site`, no colour,
+    no good; target `build_work`; up to `build_capacity` builders, who produce nothing. Once
+    done it is replaced by a `%Building{}` with a new id (`Rules.Construction`).
+  - a **king's demand project** gives `{:demand, due_week}`: blueprint `type: :demand`, the
+    colour of the good's home place (`Blueprint.home_colour/1`) and the good; target the
+    demand's amount; any number of workers, who produce and make mana as in a building of
+    that colour and good (`Rules.Production.project_output/4`), into the project. Opened by
+    `Rules.Demands.open_project/2`; removed when the demand is settled or refused.
+- The **demand** (`game.demand`, `%{product, amount, due_week, project_id}`) is the king's
+  obligation, not a place; `project_id` points to its project (`Demands.project/2`), `nil`
+  for a demand from the stock.
+- When a place ends, its workers leave with `Rules.Placement.release/3` (unplaced,
+  travelling): a finished site, a settled or refused demand project.
 - `game.places` is one list of all places, whatever their kind. Workers point to their place
   by id (`worker.place`, `nil` when unplaced).
 - `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,

@@ -522,7 +522,7 @@ defmodule MyLiege.AutoRun do
 
   defp staff_sites(game) do
     game.places
-    |> Enum.filter(&match?(%Project{}, &1))
+    |> Enum.filter(&match?(%Project{gives: {:building, _}}, &1))
     |> Enum.reduce(game, &staff_site(&2, &1))
   end
 
@@ -586,7 +586,9 @@ defmodule MyLiege.AutoRun do
   end
 
   # the type of a building, or of the building a site gives; a waiting worker may also be
-  # placed on a site of its type, as a builder
+  # placed on a site of its type, as a builder. AutoRun places no workers on a king's demand
+  # project (no strategy for them yet), so it builds nothing.
   defp builds(%Building{} = building), do: Place.type(building)
   defp builds(%Project{gives: {:building, type}}), do: type
+  defp builds(%Project{gives: {:demand, _}}), do: nil
 end

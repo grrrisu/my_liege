@@ -76,15 +76,10 @@ defmodule MyLiege.ReportingTest do
   test "demand_progress shows a project's total in every week it is open" do
     game = EngineFixtures.game_without_demands(EngineFixtures.config(), 1)
     monastery = EngineFixtures.new_building(3, :monastery)
-    monk = %Worker{id: 3, colour: :blue, place: 3}
-    project = %{product: :knowledge, amount: 9_000, due_week: 2, progress: 0}
-
-    game = %{
-      game
-      | places: game.places ++ [monastery],
-        workers: game.workers ++ [monk],
-        demand: project
-    }
+    # the knowledge project gets id 4, with the monk on it
+    monk = %Worker{id: 3, colour: :blue, place: 4}
+    game = %{game | places: game.places ++ [monastery], workers: game.workers ++ [monk]}
+    game = EngineFixtures.open_demand(game, :knowledge, 9_000, 2)
 
     {reports, _game} = EngineFixtures.run_weeks(game, 3)
 

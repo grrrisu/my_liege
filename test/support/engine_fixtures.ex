@@ -3,6 +3,7 @@ defmodule MyLiege.EngineFixtures do
 
   alias MyLiege.Engine.{Config, Game, Manameter, Place}
   alias MyLiege.Engine.Place.{Blueprint, Building, Project}
+  alias MyLiege.Engine.Rules.Demands
 
   def config(overrides \\ []) do
     struct!(
@@ -88,6 +89,31 @@ defmodule MyLiege.EngineFixtures do
 
     struct!(site, fields)
   end
+
+  @doc "A king's demand project for `good` with id `id`, target 10, due week 8 unless `fields` say otherwise."
+  def new_demand_project(id, good, fields \\ []) do
+    project = %Project{
+      id: id,
+      blueprint: Project.demand_blueprint(good),
+      target: 10_000,
+      gives: {:demand, 8}
+    }
+
+    struct!(project, fields)
+  end
+
+  @doc """
+  Opens a king's demand of `amount` `product` due in `due_week`; for knowledge and culture
+  with its project among the places (`Demands.open_project/2`).
+  """
+  def open_demand(game, product, amount, due_week) do
+    demand = %{product: product, amount: amount, due_week: due_week, project_id: nil}
+    {places, demand} = Demands.open_project(game.places, demand)
+    %{game | places: places, demand: demand}
+  end
+
+  @doc "The open demand's project, or `nil`."
+  def demand_project(game), do: Demands.project(game.demand, game.places)
 
   @doc "A new game without king's demands, for tests about other rules."
   def game_without_demands(config, seed), do: %{Game.new(config, seed) | demand_weeks: []}

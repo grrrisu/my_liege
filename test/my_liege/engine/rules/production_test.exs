@@ -83,6 +83,45 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
     |> Enum.map(fn {type, id} -> EngineFixtures.new_building(id, type) end)
   end
 
+  describe "R7: production on a king's demand project" do
+    setup do
+      config = EngineFixtures.config()
+      tavern = EngineFixtures.new_building(1, :tavern)
+      project = EngineFixtures.new_demand_project(2, :culture)
+      %{config: config, tavern: tavern, project: project}
+    end
+
+    test "a worker produces as in a building of the project's colour and good", context do
+      %{config: config, tavern: tavern, project: project} = context
+
+      for worker <- [worker(:violet), worker(:violet, true), worker(:blue), worker(:green, true)] do
+        assert Production.worker_output(worker, project, config) ==
+                 Production.worker_output(worker, tavern, config)
+      end
+
+      # same colour 100% of 3, opposite (blue on violet) 50%
+      assert Production.worker_output(worker(:violet), project, config) == 3_000
+      assert Production.worker_output(worker(:blue), project, config) == 1_500
+    end
+
+    test "its output goes to project_output, not to the stock's output", context do
+      %{config: config, tavern: tavern, project: project} = context
+      workers = [worker(:violet, false, 2), worker(:blue, false, 2), worker(:violet, false, 1)]
+      places = [tavern, project]
+
+      assert Production.output(workers, places, 1, config).culture == 3_000
+      assert Production.project_output(workers, places, 1, config) == %{2 => 4_500}
+    end
+
+    test "builders on a site produce nothing anywhere", %{config: config} do
+      site = EngineFixtures.new_site(3, :tavern)
+      workers = [worker(:violet, false, 3)]
+
+      assert Production.output(workers, [site], 1, config).culture == 0
+      assert Production.project_output(workers, [site], 1, config) == %{}
+    end
+  end
+
   defp worker(colour, trained \\ false, place_id \\ nil),
     do: %Worker{colour: colour, trained: trained, place: place_id}
 end

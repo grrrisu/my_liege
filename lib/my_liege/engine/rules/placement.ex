@@ -1,9 +1,10 @@
 defmodule MyLiege.Engine.Rules.Placement do
   @moduledoc """
-  R2, placement: who may enter a place and how many it takes.
+  R2, placement: who may enter a place, how many it takes, and releasing its workers.
 
   An unplaced worker can only be placed once it has arrived. A building takes workers up to
-  its capacity; a site (a `Place.Project`) takes up to `build_capacity` builders of any
+  its capacity; a site (a `Place.Project` giving a building) takes up to `build_capacity`
+  builders of any colour; a king's demand project (R7) takes any number of workers of any
   colour. Entering the guildhouse starts training, which the worker must be allowed (see
   `Training.check/3`). Leaving a place changes no place.
   """
@@ -22,12 +23,18 @@ defmodule MyLiege.Engine.Rules.Placement do
   @doc """
   Whether `worker` may enter `place` while the game stands at `week`; the worker arrives at
   the earliest the week after. `workers` in `facts` are the others, without `worker` itself.
-  Returns `:ok` or `{:error, reason}`. On a site the reason is `:travelling` or `:full`; in a
-  building one of `:travelling`, `:full`, `:already_trained` and `:below_threshold`, checked
-  in this order.
+  Returns `:ok` or `{:error, reason}`. On a demand project the reason can only be
+  `:travelling`; on a site `:travelling` or `:full`; in a building one of `:travelling`,
+  `:full`, `:already_trained` and `:below_threshold`, checked in this order.
   """
   @spec check_enter(Place.t(), Worker.t(), facts()) :: :ok | {:error, atom()}
-  def check_enter(%Project{} = site, %Worker{} = worker, facts) do
+  def check_enter(%Project{gives: {:demand, _}}, %Worker{} = worker, _facts) do
+    if is_nil(worker.place) and Travel.travelling?(worker),
+      do: {:error, :travelling},
+      else: :ok
+  end
+
+  def check_enter(%Project{gives: {:building, _}} = site, %Worker{} = worker, facts) do
     %{workers: workers, config: config} = facts
 
     cond do
@@ -52,12 +59,32 @@ defmodule MyLiege.Engine.Rules.Placement do
   def trains?(%Project{}), do: false
   def trains?(%Building{} = building), do: Place.type(building) == :guildhouse
 
-  @doc "How many workers the place takes: `build_capacity` on a site, else its capacity."
-  def capacity(%Project{}, %Config{} = config), do: config.build_capacity
+  @doc """
+  How many workers the place takes: `:unlimited` on a demand project, `build_capacity` on a
+  site, else the building's capacity.
+  """
+  def capacity(%Project{gives: {:demand, _}}, %Config{}), do: :unlimited
+  def capacity(%Project{gives: {:building, _}}, %Config{} = config), do: config.build_capacity
 
   def capacity(%Building{} = building, %Config{} = config),
     do: Map.fetch!(config.place_capacity, Place.type(building))
 
-  defp room?(place, workers, config),
-    do: length(Place.workers_at(workers, place.id)) < capacity(place, config)
+  @doc """
+  Releases every worker at the place with id `place_id`: unplaced, travelling
+  `travel_weeks`. Used when a place ends (a finished site, a settled or refused demand project).
+  """
+  def release(workers, place_id, %Config{} = config) do
+    Enum.map(workers, fn %Worker{} = worker ->
+      if worker.place == place_id,
+        do: Travel.depart(worker, nil, config),
+        else: worker
+    end)
+  end
+
+  defp room?(place, workers, config) do
+    case capacity(place, config) do
+      :unlimited -> true
+      capacity -> length(Place.workers_at(workers, place.id)) < capacity
+    end
+  end
 end

@@ -122,6 +122,17 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
                Enum.take(game.workers, 2)
     end
 
+    test "workers on a king's demand project are not counted as builders", context do
+      %{game: game, site: site} = context
+      project = EngineFixtures.new_demand_project(4, :culture)
+      game = %{game | places: game.places ++ [project]}
+      {:ok, game} = Game.place_worker(game, 1, site.id)
+      {:ok, game} = Game.place_worker(game, 2, project.id)
+      {[_week_1, week_2], _game} = EngineFixtures.run_weeks(game, 2)
+
+      assert week_2.builders == 1
+    end
+
     test "builders produce nothing and no mana, but eat", context do
       %{game: game, site: site} = context
       game = place_builders(game, site)
