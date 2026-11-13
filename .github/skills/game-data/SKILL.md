@@ -1,6 +1,6 @@
 ---
 name: game-data
-description: 'The game data of My Liege: every value, its shape and unit, where it comes from (the CSV config, a hardcoded constant, or state that changes during a game) and which modules read or write it. Use when: looking for where a number comes from; adding, renaming or removing a CSV key or Config field; adding a field to Game, Worker, a place (Place.Building, Place.Blueprint) or WeeklyReport; checking hard rule 2 (no game value outside the config); deciding whether a value belongs in the CSV; tracing who changes a piece of state.'
+description: 'The game data of My Liege: every value, its shape and unit, where it comes from (the CSV config, a hardcoded constant, or state that changes during a game) and which modules read or write it. Use when: looking for where a number comes from; adding, renaming or removing a CSV key or Config field; adding a field to Game, Worker, a place (Place.Building, Place.Project, Place.Blueprint) or WeeklyReport; checking hard rule 2 (no game value outside the config); deciding whether a value belongs in the CSV; tracing who changes a piece of state.'
 ---
 
 # Game data
@@ -11,7 +11,7 @@ All game data falls into four kinds:
 |------|-------|---------|
 | **Config**: balance values | `priv/balance_inputs.csv` → `LoadConfig` → `%Config{}` | never during a game; fixed at `Game.new/2`, kept in `game.config` |
 | **Hardcoded**: structure and constants | module attributes in the engine | never; changing one is a code change |
-| **State**: the village now | `%Game{}` and its `%Worker{}`, `%Place.Building{}`, `%Manameter{}` | every week (steps) and between weeks (player actions) |
+| **State**: the village now | `%Game{}` and its `%Worker{}`, `%Place.Building{}`, `%Place.Project{}`, `%Manameter{}` | every week (steps) and between weeks (player actions) |
 | **Report**: what one week did | `%WeeklyReport{}` in `game.report` | rebuilt each week; history kept by callers |
 
 `Forecast` is read-only and derived from state and the last report. Elixir app config
@@ -48,8 +48,8 @@ How the week runs is in the `weekly-step` skill. Layers and where code goes are 
 - `GameLive.mount/3` uses `Config.from_csv/0`, and AutoRun takes a config argument. Tests
   never use the CSV: they use `EngineFixtures.config/1`
   ([engine_fixtures.ex](../../../test/support/engine_fixtures.ex)), whose explicit values
-  include `king_grace_weeks: 0`, `build_builders: 0`, `travel_weeks: 0` and very high bandit
-  values.
+  include `king_grace_weeks: 0`, `travel_weeks: 0` and very high bandit values; a test that
+  needs a finished building adds one with `EngineFixtures.add_building/2`.
 - Rules receive `%Config{}` as an explicit argument. Steps pass `game.config`.
 
 ### Key names
@@ -85,9 +85,9 @@ is left out when a group has only one thing (`travel.weeks`).
 | `birth_interval_weeks` | int | `birth.interval_weeks` | `Rules.Births.birth_week?/2` |
 | `birth_min_food_left` | int | `birth.min_food_left` | `Rules.Births.attempt/5` |
 | `good_food_eaten_per_worker` | int | `good.food.eaten_per_worker` | `Rules.Food.eat/3`, `AutoRun` (`food_low?`) |
-| `build_weeks` | int | `build.weeks` | `Rules.Construction`, GameLive |
+| `build_work` | int | `build.work` | `Rules.Construction.new_site/3` (a site's target), `AutoRun` (`earnings`), GameLive |
 | `build_cost_gold` | int | `build.cost_gold` | `Game.build_cost/1`, `Game.construct/2`, GameLive |
-| `build_builders` | int | `build.builders` | `Rules.Placement.capacity/2` (sites), `Rules.Construction`, GameLive |
+| `build_capacity` | int | `build.capacity` | `Rules.Placement.capacity/2` (sites), `AutoRun` (`earnings`), GameLive |
 | `travel_weeks` | int | `travel.weeks` | `Rules.Travel.depart/3`, `Rules.Training.first_week/2` |
 | `training_min_share` | ‰ | `training.min_share_permille` | `Rules.Training.check/3` |
 | `training_weeks` | int | `training.weeks` | `Rules.Training.last_week/2` |
@@ -155,7 +155,7 @@ you add one, ask the designer whether it should be a CSV key.
 | `week` | int, last week run | 0 | `run_week/1` (+1) |
 | `demand_weeks` | `[week]`, one per half year at most | `Demands.schedule/3` in `new/2` | never (tests: `EngineFixtures.game_without_demands/2` sets `[]`) |
 | `workers` | `[%Worker{}]` | `Worker.starting/2` | `place_worker/3`, `unplace_worker/2` (between weeks); steps `Travel`, `Birth` (appends), `Construction` and `TrainingEnd` (release) |
-| `places` | `[%Place.Building{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Place.Building.add_site/2`, between weeks), `place/unplace` (`Rules.Placement.leave/1` resets site progress), `Construction` step |
+| `places` | `[%Place.Building{} \| %Place.Project{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `Construction` step (progress; replaces a done site by a building with a new id) |
 | `manameter` | `%Manameter{}` ‰ | `config.manameter_start` | `ManameterUpdate` step |
 | `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2` (gold); steps `Production` (+), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
 | `report` | `%WeeklyReport{}` | week-0 report | `run_week/1`; `construct/2` adds to `gold_spent_buildings` |
@@ -177,9 +177,16 @@ guildhouse (`Rules.Training.first_week/2`) and cleared on a move or at the end o
 
 ### `%Place.Building{}` ([place/building.ex](../../../lib/my_liege/engine/place/building.ex))
 
-`id` and `blueprint` (from `Place.Blueprint`, giving type, colour and good) never change. A site has `ready_week: nil` and a `progress` count. The
-`Construction` step advances `progress` and sets `ready_week`, and moving a builder off a
-site resets `progress` to 0. Once `ready_week` is set the building is finished for good.
+`id` and `blueprint` (from `Place.Blueprint`, giving type, colour and good) never change. A
+building is always finished.
+
+### `%Place.Project{}` ([place/project.ex](../../../lib/my_liege/engine/place/project.ex))
+
+`id`, `blueprint`, `target` and `gives` never change; `progress` starts at 0. A
+construction site has the site blueprint (`type: :site`, no colour, no good), `target:
+build_work` and `gives: {:building, type}`. The `Construction` step adds 1 to `progress` per
+arrived builder; a builder leaving doesn't change it. Once `done?/1`, the step replaces the
+site by a `%Place.Building{}` of `type` with a new id.
 
 ## 4. The weekly report
 

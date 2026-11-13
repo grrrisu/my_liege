@@ -5,6 +5,7 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-13: R2, construction sites are projects: progress counts work (one per arrived builder and week) up to `build.work`; any number of builders up to `build.capacity`; leaving keeps the progress; a finished site becomes a new building.
 - 2026-11-12: Config keys renamed to `group.item.attribute` (units: `_permille`, `_weeks`, else whole amounts); no rule or value changes. Unused keys removed and R6 (improved plough) dropped from this file. Entertainment renamed culture, also in the export (`production_culture`, `spoiled_culture`, demand product `culture`). Export lists only the columns exported today.
 - 2026-11-09: R11 (new), happiness: each week the entertainment production against the population sets a step from −3 to +3 that changes the week's food and defence production (0 in the grace period); computed and applied in step 1, so eating and bandits (R10) use the changed values; UI shows the last week's step and ratio (no forecast); export columns `happiness_ratio`, `happiness_step`. New CSV keys `happiness_*`.
 - 2026-11-06: Forecasts (T77, UI only, no rule change): food, gold, next tax, open demand or project and bandits each show what happens if the last week's change repeats; computed in the engine, used by the UI and the AutoRun bots (their results unchanged). No new CSV keys or export columns.
@@ -60,11 +61,11 @@ The player acts between weeks; changes take effect the following week. Productio
 - Market workers produce gold directly (prototype simplification).
 
 ### Builders
-- An ordered building is a site. It needs `build.builders` builders: unplaced workers the player places on the site, any colour, colour has no effect. A site takes no more.
-- A site advances one week in every week in which all its builders are on it and have arrived (travel 0). After `build.weeks` such weeks it is finished: workers can be placed in it from then on, and its builders become unplaced (travelling).
-- A builder leaving the site before it is finished (moved or unplaced) resets its progress to 0. The site stays; the gold isn't refunded or paid again.
+- An ordered building is a site, a project: it needs `build.work` work. Builders are workers the player places on it, any colour (colour has no effect), at most `build.capacity`.
+- Each week, every builder on the site who has arrived (travel 0 at the start of the week) adds 1 to its progress. When the progress reaches `build.work`, the site is finished: a new building (with a new id) stands in its place, and its builders become unplaced (travelling).
+- A builder leaving the site (moved or unplaced) doesn't change its progress. The gold isn't refunded.
 - Builders eat and count toward taxes, but produce nothing and no mana.
-- UI: each site shows its arrived builders (arrived / `build.builders`) and progress (weeks done / `build.weeks`).
+- UI: each site shows its arrived builders (arrived / `build.capacity`) and progress (progress / `build.work`).
 
 ### Travel
 - A worker's travel is set to `travel.weeks` whenever it is placed from unplaced (into a building, a site or the guildhouse), moved directly from one building to another (once), unplaced by the player, or released as a finished trainee or builder. Moving a worker that is still travelling sets it to `travel.weeks` again.

@@ -53,7 +53,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
 | 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
 | 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
-| 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/5` | sites, builders as at the **start** of the week (before step 3) | `progress`, `ready_week`, finished builders `place: nil` with `travel_weeks` |
+| 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/4` | sites (`%Place.Project{}`), builders as at the **start** of the week (before step 3) | `progress` (+1 per arrived builder); a done site replaced by its `%Place.Building{}` with a new id; its builders `place: nil` with `travel_weeks` |
 | 8 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
 | 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
 | 10 | Demand delivery (R7), deadline weeks, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/3` | stocks, `demand`, `deliver_demand` | stocks (not for projects), `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
@@ -80,13 +80,14 @@ Consequences of the order:
 
 ## Rules each step relies on
 
-- **Sites and readiness:** a building ordered at state N (paid then, `build_cost_gold`) is a
-  site: `ready_week: nil`, `progress: 0`, room for `build_builders` builders (any
-  unplaced worker that has arrived). It advances in each week in which all builders were on
-  it with travel 0 at the start of the week; when `progress` reaches `build_weeks` at
-  the end of week M, `ready_week = M + 1`. A builder leaving (moved or unplaced) resets
-  `progress` to 0 (`Rules.Placement.leave/1`). Placement in a finished building needs
-  `ready?(place, game.week + 1)` and room (`Rules.Placement.check_enter/3`).
+- **Sites:** a building ordered at state N (paid then, `build_cost_gold`) is a site, a
+  `%Place.Project{}` with `target: build_work`, `progress: 0` and room for `build_capacity`
+  builders (any colour). Each week, every builder on it with travel 0 at the start of the
+  week adds 1 to `progress`; when `progress` reaches the target at the end of week M, the
+  site is replaced by a `%Place.Building{}` with the next free id, which takes workers from
+  then on and produces from M + 1 (production runs before construction). A builder leaving
+  (moved or unplaced) keeps the progress. Placement needs room
+  (`Rules.Placement.check_enter/3`); a building is always finished.
 - **Travel:** `Rules.Travel.depart/3` sets `travel = travel_weeks` on every place, move, unplace and
   release. Unplaced workers with travel above 0 can't be placed (`{:error, :travelling}`).
   `Rules.Staffing.working/3` leaves travelling workers out.
@@ -179,8 +180,9 @@ writes one row per report.
 4. Add what the step produces to `WeeklyReport`, then to `Reporting` if it belongs in the
    export.
 5. Tests: one describe block per rule with `EngineFixtures.config/1` (it sets
-   `build_builders` and `travel_weeks` to 0; tests about R2 builders or travel pass
-   their own values) in `test/my_liege/engine/rules/`, a test of the step in
+   `travel_weeks` to 0, and a site needs builders: a test that needs a finished building adds
+   one with `EngineFixtures.add_building/2`; tests about R2 builders or travel pass their
+   own values) in `test/my_liege/engine/rules/`, a test of the step in
    `test/my_liege/engine/sim_steps/`, and the new step in the `Game.pipeline/0` test in
    `game_test.exs`. To run many weeks in a test, use
    `EngineFixtures.run_weeks/2` (pays every tax). Update this skill, and update

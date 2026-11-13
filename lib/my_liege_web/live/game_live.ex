@@ -578,8 +578,8 @@ defmodule MyLiegeWeb.GameLive do
             id={"site-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            builders arrived {length(Construction.arrived(@game.workers, place.id))}/{@game.config.build_builders},
-            progress {place.progress}/{@game.config.build_weeks} weeks
+            builders arrived {length(Construction.arrived(@game.workers, place.id))}/{@game.config.build_capacity},
+            progress {place.progress}/{@game.config.build_work}
           </span>
           <span
             :for={worker <- Place.workers_at(@game.workers, place.id)}

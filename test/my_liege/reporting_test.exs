@@ -100,7 +100,7 @@ defmodule MyLiege.ReportingTest do
 
   test "the trained column lists the colours of workers who finished training" do
     config = EngineFixtures.config()
-    {:ok, game} = config |> Game.new(1) |> Game.construct(:guildhouse)
+    game = config |> Game.new(1) |> EngineFixtures.add_building(:guildhouse)
     {_reports, game} = EngineFixtures.run_weeks(game, 2)
     guildhouse = Enum.find(game.places, &(Place.type(&1) == :guildhouse))
     {:ok, game} = Game.place_worker(game, 1, guildhouse.id)
@@ -130,7 +130,7 @@ defmodule MyLiege.ReportingTest do
   end
 
   test "the builders and travelling columns count arrived builders and travelling workers" do
-    config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
+    config = EngineFixtures.config(build_capacity: 2, travel_weeks: 1)
     {:ok, game} = config |> Game.new(1) |> Game.construct(:market)
     site = List.last(game.places)
     {:ok, game} = Game.place_worker(game, 1, site.id)

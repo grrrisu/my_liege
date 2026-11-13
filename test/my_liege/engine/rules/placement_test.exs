@@ -2,12 +2,11 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Manameter, Worker}
-  alias MyLiege.Engine.Place.Project
   alias MyLiege.Engine.Rules.Placement
   alias MyLiege.EngineFixtures
 
   setup do
-    config = EngineFixtures.config(build_builders: 2)
+    config = EngineFixtures.config(build_capacity: 2)
     farm = EngineFixtures.new_building(1, :farm)
     %{config: config, farm: farm, facts: facts(config)}
   end
@@ -44,7 +43,7 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
     test "a site refuses a travelling unplaced worker, then a builder over capacity", context do
       %{config: config, facts: facts} = context
       site = EngineFixtures.new_site(3, :market)
-      builders = for _ <- 1..config.build_builders, do: worker(:green, false, site.id)
+      builders = for _ <- 1..config.build_capacity, do: worker(:green, false, site.id)
       travelling = %{worker(:green) | travel: 1}
 
       assert Placement.check_enter(site, travelling, %{facts | workers: builders}) ==
@@ -133,24 +132,12 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
   end
 
   describe "capacity/2" do
-    test "a building takes its capacity, a site build_builders", context do
+    test "a building takes its capacity, a site build_capacity", context do
       %{config: config, farm: farm} = context
       site = EngineFixtures.new_site(3, :farm)
 
       assert Placement.capacity(farm, config) == config.place_capacity.farm
       assert Placement.capacity(site, config) == 2
-    end
-  end
-
-  describe "leave/1" do
-    test "a builder leaving a site resets its progress" do
-      site = EngineFixtures.new_site(3, :market, progress: 1)
-
-      assert %Project{progress: 0} = Placement.leave(site)
-    end
-
-    test "leaving a building leaves it unchanged", %{farm: farm} do
-      assert Placement.leave(farm) == farm
     end
   end
 

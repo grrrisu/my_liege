@@ -58,8 +58,8 @@ defmodule MyLiege.Engine.Actions.PlaceWorkerTest do
     assert PlaceWorker.run(game, 1, 2) == {:error, :full}
   end
 
-  test "a site takes up to build_builders builders" do
-    config = EngineFixtures.config(build_builders: 1)
+  test "a site takes up to build_capacity builders" do
+    config = EngineFixtures.config(build_capacity: 1)
     {:ok, game} = config |> EngineFixtures.game_without_demands(1) |> Game.construct(:market)
     site = List.last(game.places)
 
@@ -67,14 +67,14 @@ defmodule MyLiege.Engine.Actions.PlaceWorkerTest do
     assert PlaceWorker.run(game, 2, site.id) == {:error, :full}
   end
 
-  test "moving a builder off a site resets its progress", %{game: game} do
+  test "moving a builder off a site keeps its progress", %{game: game} do
     {:ok, game} = Game.construct(game, :market)
     site = List.last(game.places)
     game = update_building(game, site.id, &%{&1 | progress: 1})
     game = update_worker(game, 1, &%{&1 | place: site.id})
 
     assert {:ok, game} = PlaceWorker.run(game, 1, 2)
-    assert %Project{progress: 0} = find_place(game, site.id)
+    assert %Project{progress: 1} = find_place(game, site.id)
   end
 
   test "in a finished guildhouse the worker starts training after its travel", context do

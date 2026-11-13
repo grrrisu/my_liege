@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.Actions.PlaceWorker do
   (see `Rules.Travel`), also when it was still travelling. Whether it may enter is decided by
   `Rules.Placement.check_enter/3`. In the guildhouse the worker starts training after its
   travel (see `Rules.Training`). Moving a trainee out loses its progress; moving a builder
-  off a site resets the site's progress to 0 (`Rules.Placement.leave/1`).
+  off a site leaves the site's progress as it is.
 
   Returns `{:ok, game}` on success, or `{:error, reason}` with reason `:unknown_worker`,
   `:unknown_place`, `:travelling`, `:full`, `:already_trained` or
@@ -42,13 +42,6 @@ defmodule MyLiege.Engine.Actions.PlaceWorker do
   defp move(game, worker, place_id, training_started) do
     worker = %{worker | training_started: training_started}
     moved = Travel.depart(worker, place_id, game.config)
-    game |> leave(worker.place) |> Game.put_worker(moved)
-  end
-
-  defp leave(game, nil), do: game
-
-  defp leave(game, place_id) do
-    {:ok, place} = Game.fetch_place(game, place_id)
-    Game.put_place(game, Placement.leave(place))
+    Game.put_worker(game, moved)
   end
 end

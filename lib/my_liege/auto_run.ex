@@ -171,7 +171,8 @@ defmodule MyLiege.AutoRun do
   forecast gold for the next tax week (`Forecast.next_tax/1`; in week 0 the gold now) minus
   the price plus what the building is expected to earn until that week still covers the tax.
   Only a market earns gold: from its first producing week, ordered now + 1 + 2 ×
-  `travel_weeks` (builders, then workers) + `build_weeks`, to the tax week, with the
+  `travel_weeks` (builders, then workers) + the weeks with full builders
+  (`build_work` ÷ `build_capacity`, rounded up), to the tax week, with the
   waiting workers up to its capacity. With no tax left in the game, always.
   """
   def invest_allowed?(%Game{} = game, type, waiting) do
@@ -191,7 +192,8 @@ defmodule MyLiege.AutoRun do
 
   defp earnings(game, :market, waiting, due_week) do
     config = game.config
-    first_week = game.week + 1 + 2 * config.travel_weeks + config.build_weeks
+    weeks_to_build = div(config.build_work + config.build_capacity - 1, config.build_capacity)
+    first_week = game.week + 1 + 2 * config.travel_weeks + weeks_to_build
     market = %Building{id: 0, blueprint: Blueprint.fetch!(:market)}
 
     per_week =

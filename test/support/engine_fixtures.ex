@@ -1,7 +1,7 @@
 defmodule MyLiege.EngineFixtures do
   @moduledoc "Explicit engine configuration for tests, independent of the designer's CSV."
 
-  alias MyLiege.Engine.{Config, Game, Manameter}
+  alias MyLiege.Engine.{Config, Game, Manameter, Place}
   alias MyLiege.Engine.Place.{Blueprint, Building, Project}
 
   def config(overrides \\ []) do
@@ -25,10 +25,12 @@ defmodule MyLiege.EngineFixtures do
           untrained: %{same: 1000, neighbour: 800, opposite: 500},
           trained: %{same: 1250, neighbour: 600, opposite: 300}
         },
-        build_weeks: 2,
+        # a site needs builders (R2): tests that need a finished building add one
+        # (`add_building/2`) instead of building it
+        build_work: 4,
         build_cost_gold: 30,
-        # no builders and no travel, so tests about other rules stay independent of R2 sites
-        build_builders: 0,
+        build_capacity: 2,
+        # no travel, so tests about other rules see placements take effect at once
         travel_weeks: 0,
         mana: %{
           untrained: %{place_colour: 2, worker_colour: 1},
@@ -71,12 +73,16 @@ defmodule MyLiege.EngineFixtures do
   @doc "A building of `type` with id `id`."
   def new_building(id, type), do: %Building{id: id, blueprint: Blueprint.fetch!(type)}
 
-  @doc "A site with id `id` that gives a building of `type`, target 2 unless `fields` say otherwise."
+  @doc "Adds a finished building of `type` to the game, with the next free id, as if built."
+  def add_building(game, type),
+    do: %{game | places: game.places ++ [new_building(Place.next_id(game.places), type)]}
+
+  @doc "A site with id `id` that gives a building of `type`, target 4 unless `fields` say otherwise."
   def new_site(id, type, fields \\ []) do
     site = %Project{
       id: id,
       blueprint: Project.site_blueprint(),
-      target: 2,
+      target: 4,
       gives: {:building, type}
     }
 

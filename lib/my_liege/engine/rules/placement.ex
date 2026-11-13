@@ -1,11 +1,11 @@
 defmodule MyLiege.Engine.Rules.Placement do
   @moduledoc """
-  R2, placement: who may enter a place, how many it takes, and what leaving does to it.
+  R2, placement: who may enter a place and how many it takes.
 
   An unplaced worker can only be placed once it has arrived. A building takes workers up to
-  its capacity; a site (a `Place.Project`) takes up to `build_builders` builders, and a
-  builder leaving a site resets its progress to 0. Entering the guildhouse starts training,
-  which the worker must be allowed (see `Training.check/3`).
+  its capacity; a site (a `Place.Project`) takes up to `build_capacity` builders of any
+  colour. Entering the guildhouse starts training, which the worker must be allowed (see
+  `Training.check/3`). Leaving a place changes no place.
   """
 
   alias MyLiege.Engine.{Config, Manameter, Place, Worker}
@@ -52,15 +52,11 @@ defmodule MyLiege.Engine.Rules.Placement do
   def trains?(%Project{}), do: false
   def trains?(%Building{} = building), do: Place.type(building) == :guildhouse
 
-  @doc "How many workers the place takes: `build_builders` on a site, else its capacity."
-  def capacity(%Project{}, %Config{} = config), do: config.build_builders
+  @doc "How many workers the place takes: `build_capacity` on a site, else its capacity."
+  def capacity(%Project{}, %Config{} = config), do: config.build_capacity
 
   def capacity(%Building{} = building, %Config{} = config),
     do: Map.fetch!(config.place_capacity, Place.type(building))
-
-  @doc "A worker leaves `place`: a site's progress goes back to 0; a building is unchanged."
-  def leave(%Project{} = site), do: %{site | progress: 0}
-  def leave(%Building{} = building), do: building
 
   defp room?(place, workers, config),
     do: length(Place.workers_at(workers, place.id)) < capacity(place, config)

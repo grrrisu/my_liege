@@ -200,11 +200,6 @@ defmodule MyLiege.Engine.Game do
   end
 
   @doc false
-  def put_place(%__MODULE__{} = game, place) do
-    %{game | places: Enum.map(game.places, &if(&1.id == place.id, do: place, else: &1))}
-  end
-
-  @doc false
   def put_worker(%__MODULE__{} = game, worker) do
     %{game | workers: Enum.map(game.workers, &if(&1.id == worker.id, do: worker, else: &1))}
   end
