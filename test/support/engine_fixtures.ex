@@ -77,7 +77,7 @@ defmodule MyLiege.EngineFixtures do
 
   @doc "Adds a finished building of `type` to the game, with the next free id, as if built."
   def add_building(game, type),
-    do: %{game | places: game.places ++ [new_building(Place.next_id(game.places), type)]}
+    do: %{game | places: game.places ++ [game.places |> Place.next_id() |> new_building(type)]}
 
   @doc "A site with id `id` that gives a building of `type`, target 4 unless `fields` say otherwise."
   def new_site(id, type, fields \\ []) do

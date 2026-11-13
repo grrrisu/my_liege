@@ -292,7 +292,7 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
     end
 
     test "the deadline doesn't wait for a decision", %{game: game} do
-      {_reports, game} = EngineFixtures.run_weeks(with_project(game, 7_000, 2), 1)
+      {_reports, game} = game |> with_project(7_000, 2) |> EngineFixtures.run_weeks(1)
 
       refute Game.demand_decision_due?(game)
       assert {:ok, %{demand_outcome: :missed}, _game} = Game.run_week(game)

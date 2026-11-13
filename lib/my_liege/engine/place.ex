@@ -22,7 +22,7 @@ defmodule MyLiege.Engine.Place do
   def type(%{blueprint: blueprint}), do: blueprint.type
 
   @doc "Whether the place has no colour."
-  def neutral?(place), do: is_nil(colour(place))
+  def neutral?(place), do: place |> colour() |> is_nil()
 
   @doc "The next free place id: one more than the highest id in `places`."
   def next_id(places), do: (places |> Enum.map(& &1.id) |> Enum.max(fn -> 0 end)) + 1

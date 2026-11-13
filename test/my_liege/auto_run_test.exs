@@ -52,7 +52,7 @@ defmodule MyLiege.AutoRunTest do
       buildings = Map.new(game.places, &{&1.id, &1})
 
       for worker <- game.workers, worker.place do
-        assert Place.colour(Map.fetch!(buildings, worker.place)) == worker.colour
+        assert buildings |> Map.fetch!(worker.place) |> Place.colour() == worker.colour
       end
     end
 
@@ -105,7 +105,7 @@ defmodule MyLiege.AutoRunTest do
             do: :red,
             else: worker.colour
 
-        assert Place.colour(Map.fetch!(buildings, worker.place)) == expected
+        assert buildings |> Map.fetch!(worker.place) |> Place.colour() == expected
       end
     end
 
@@ -234,7 +234,7 @@ defmodule MyLiege.AutoRunTest do
       buildings = Map.new(game.places, &{&1.id, &1})
 
       for worker <- game.workers, worker.born_week, worker.place do
-        assert Place.type(Map.fetch!(buildings, worker.place)) == :watchtower
+        assert buildings |> Map.fetch!(worker.place) |> Place.type() == :watchtower
       end
     end
   end
@@ -293,7 +293,7 @@ defmodule MyLiege.AutoRunTest do
 
     test "not after a week in which gold left the stock, but again in the week after" do
       config = EngineFixtures.config(start_gold: 1000, king_demand_population_share: 0)
-      {_reports, game} = EngineFixtures.run_weeks(Game.new(config, 1), 24)
+      {_reports, game} = config |> Game.new(1) |> EngineFixtures.run_weeks(24)
 
       assert game.report.tax == :paid
       refute AutoRun.tax_safe_to_build?(game)
@@ -306,7 +306,7 @@ defmodule MyLiege.AutoRunTest do
       config =
         EngineFixtures.config(start_gold: 0, game_years: 1, king_tax_interval_weeks: 100)
 
-      assert AutoRun.tax_safe_to_build?(Game.new(config, 1))
+      assert config |> Game.new(1) |> AutoRun.tax_safe_to_build?()
     end
   end
 
@@ -383,7 +383,7 @@ defmodule MyLiege.AutoRunTest do
       config =
         EngineFixtures.config(start_gold: 0, game_years: 1, king_tax_interval_weeks: 100)
 
-      assert AutoRun.invest_allowed?(Game.new(config, 1), :tavern, [])
+      assert config |> Game.new(1) |> AutoRun.invest_allowed?(:tavern, [])
     end
   end
 
@@ -425,9 +425,9 @@ defmodule MyLiege.AutoRunTest do
 
       for [pattern, seed | _] = row <- rows, seed != "total" do
         {reports, _game} =
-          AutoRun.run(String.to_existing_atom(pattern), config, String.to_integer(seed),
-            weeks: 30
-          )
+          pattern
+          |> String.to_existing_atom()
+          |> AutoRun.run(config, String.to_integer(seed), weeks: 30)
 
         assert parse(row) == expected_row(pattern, seed, reports)
       end

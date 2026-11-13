@@ -60,7 +60,7 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
 
     test "a site produces nothing; the building that replaces it does", context do
       %{config: config, buildings: buildings} = context
-      site = EngineFixtures.new_site(Place.next_id(buildings), :farm, progress: 1)
+      site = buildings |> Place.next_id() |> EngineFixtures.new_site(:farm, progress: 1)
       workers = [worker(:green, false, site.id)]
 
       assert Production.output(workers, buildings ++ [site], 99, config).food == 0

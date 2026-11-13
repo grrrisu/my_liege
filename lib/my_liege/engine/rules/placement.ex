@@ -86,7 +86,7 @@ defmodule MyLiege.Engine.Rules.Placement do
   defp room?(place, workers, config) do
     case capacity(place, config) do
       :unlimited -> true
-      capacity -> length(Place.workers_at(workers, place.id)) < capacity
+      capacity -> workers |> Place.workers_at(place.id) |> length() < capacity
     end
   end
 end

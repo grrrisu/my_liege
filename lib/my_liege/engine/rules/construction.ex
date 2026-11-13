@@ -64,7 +64,7 @@ defmodule MyLiege.Engine.Rules.Construction do
   end
 
   defp advance(%Project{gives: {:building, type}} = site, start_workers, next_id) do
-    site = %{site | progress: site.progress + length(arrived(start_workers, site.id))}
+    site = %{site | progress: site.progress + (start_workers |> arrived(site.id) |> length())}
 
     if Project.done?(site),
       do: {:finished, site.id, %Building{id: next_id, blueprint: Blueprint.fetch!(type)}},

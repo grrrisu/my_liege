@@ -38,7 +38,7 @@ defmodule MyLiege.Engine.Place.BuildingTest do
   test "workers_at lists the workers placed at a place" do
     workers = [%{id: 1, place: 1}, %{id: 2, place: 2}, %{id: 3, place: 1}, %{id: 4, place: nil}]
 
-    assert Enum.map(Place.workers_at(workers, 1), & &1.id) == [1, 3]
-    assert Enum.map(Place.workers_at(workers, nil), & &1.id) == [4]
+    assert workers |> Place.workers_at(1) |> Enum.map(& &1.id) == [1, 3]
+    assert workers |> Place.workers_at(nil) |> Enum.map(& &1.id) == [4]
   end
 end

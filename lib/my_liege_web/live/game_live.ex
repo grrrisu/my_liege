@@ -243,7 +243,7 @@ defmodule MyLiegeWeb.GameLive do
                 <div :for={colour <- Pentagon.colours()} id={"share-#{colour}"} class="text-center">
                   <div class={["mx-auto h-8 w-8 rounded", colour_class(colour)]}></div>
                   <div class="mt-1 text-sm tabular-nums">
-                    {per_mille(Map.fetch!(@game.manameter, colour))}
+                    {@game.manameter |> Map.fetch!(colour) |> per_mille()}
                   </div>
                 </div>
               </div>
@@ -254,7 +254,7 @@ defmodule MyLiegeWeb.GameLive do
               <table class="text-sm tabular-nums">
                 <tr :for={product <- Blueprint.goods()} id={"stock-#{product}"}>
                   <td class="pr-4">{product}</td>
-                  <td class="text-right">{units(Map.fetch!(@game.stocks, product))}</td>
+                  <td class="text-right">{@game.stocks |> Map.fetch!(product) |> units()}</td>
                   <td :if={product == :gold} id="protected-gold" class="pl-4 opacity-70">
                     protected {units(@report.bandit_protected)}
                   </td>
@@ -373,9 +373,9 @@ defmodule MyLiegeWeb.GameLive do
                 class="flex flex-wrap items-center gap-3 text-sm"
               >
                 <span :if={@project} class="tabular-nums">
-                  Project: {units(@project.progress)}/{units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}, {length(
-                    Place.workers_at(@game.workers, @project.id)
-                  )} worker(s) on it
+                  Project: {units(@project.progress)}/{units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}, {@game.workers
+                  |> Place.workers_at(@project.id)
+                  |> length()} worker(s) on it
                 </span>
                 <span :if={!@project} class="tabular-nums">
                   Project: {units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}
@@ -463,7 +463,7 @@ defmodule MyLiegeWeb.GameLive do
                   <td class="pr-4">production</td>
                   <td>
                     <span :for={product <- Blueprint.goods()} class="mr-3">
-                      {product} {units(Map.fetch!(@report.production, product))}
+                      {product} {@report.production |> Map.fetch!(product) |> units()}
                     </span>
                   </td>
                 </tr>
@@ -566,7 +566,7 @@ defmodule MyLiegeWeb.GameLive do
           id={"building-#{place.id}"}
           class="flex flex-wrap items-center gap-3"
         >
-          <div class={["h-4 w-4 rounded-sm", colour_class(card_colour(place))]}></div>
+          <div class={["h-4 w-4 rounded-sm", place |> card_colour() |> colour_class()]}></div>
           <span class="min-w-24 text-sm">
             {place_name(place)}<span :if={site?(place)} class="opacity-60"> site</span>
           </span>
@@ -597,7 +597,7 @@ defmodule MyLiegeWeb.GameLive do
             id={"site-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            builders arrived {length(Construction.arrived(@game.workers, place.id))}/{@game.config.build_capacity},
+            builders arrived {@game.workers |> Construction.arrived(place.id) |> length()}/{@game.config.build_capacity},
             progress {place.progress}/{@game.config.build_work}
           </span>
           <span
@@ -621,7 +621,7 @@ defmodule MyLiegeWeb.GameLive do
         <div id="unplaced" class="flex flex-wrap items-center gap-3">
           <div class="h-4 w-4"></div>
           <span class="w-24 text-sm">unplaced</span>
-          <span class="w-10 text-sm tabular-nums">{length(Place.workers_at(@game.workers, nil))}</span>
+          <span class="w-10 text-sm tabular-nums">{@game.workers |> Place.workers_at(nil) |> length()}</span>
           <.worker
             :for={worker <- Place.workers_at(@game.workers, nil)}
             worker={worker}
@@ -658,7 +658,7 @@ defmodule MyLiegeWeb.GameLive do
     <section id="build">
       <h2 class="mb-2 font-semibold">Build</h2>
       <p id="build-cost" class="mb-2 text-sm opacity-60">
-        Every building costs {units(Game.build_cost(@game))} gold.
+        Every building costs {@game |> Game.build_cost() |> units()} gold.
       </p>
       <div class="flex flex-wrap gap-2">
         <button
@@ -669,7 +669,7 @@ defmodule MyLiegeWeb.GameLive do
           disabled={!@affordable?}
           class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
-          <span class={["inline-block h-3 w-3 rounded-sm", colour_class(type_colour(type))]}></span>
+          <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
           {type}
         </button>
       </div>
@@ -752,7 +752,7 @@ defmodule MyLiegeWeb.GameLive do
 
   # workers / capacity; a demand project takes any number
   defp workers_label(game, place) do
-    count = length(Place.workers_at(game.workers, place.id))
+    count = game.workers |> Place.workers_at(place.id) |> length()
 
     case Placement.capacity(place, game.config) do
       :unlimited -> "#{count}"
@@ -899,7 +899,7 @@ defmodule MyLiegeWeb.GameLive do
 
   defp units(amount) do
     if rem(amount, Fixed.scale()) == 0 do
-      Integer.to_string(div(amount, Fixed.scale()))
+      amount |> div(Fixed.scale()) |> Integer.to_string()
     else
       :erlang.float_to_binary(amount / Fixed.scale(), [:compact, decimals: 3])
     end

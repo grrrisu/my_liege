@@ -176,7 +176,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
 
       assert %Building{id: 5, blueprint: %{type: :guildhouse}} = List.last(game.places)
       assert Enum.all?(reports, &(&1.trained == []))
-      assert Enum.all?(Enum.take(game.workers, 2), &(&1.place == nil and not &1.trained))
+      assert game.workers |> Enum.take(2) |> Enum.all?(&(&1.place == nil and not &1.trained))
     end
 
     test "a finished building at week M takes workers at M; they produce from M + 2", context do
@@ -204,7 +204,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
   defp weekly(game, site, count) do
     Enum.map_reduce(1..count, game, fn _, game ->
       {[report], game} = EngineFixtures.run_weeks(game, 1)
-      {%{progress: progress(find_place(game, site.id)), builders: report.builders}, game}
+      {%{progress: game |> find_place(site.id) |> progress(), builders: report.builders}, game}
     end)
   end
 

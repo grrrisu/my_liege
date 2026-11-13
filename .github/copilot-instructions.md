@@ -7,6 +7,9 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 - Elixir, Phoenix LiveView. Engine: pure functions, no LiveView/process/DB code inside. ExUnit, one describe block per rule (R1, R2, …).
 - Random numbers always seeded; store the seed with every run.
 
+## Code style
+- Pipes, not nested calls: `place |> colour() |> is_nil()`, not `is_nil(colour(place))`. Keep the nesting when the pipe would start from a literal, a zero-arity call, a keyword list or an arithmetic expression.
+
 ## Numbers
 - All game values come from `priv/balance_inputs.csv` (`key,value`), read by key at compile time with `@external_resource`. The designer exports it; never edit it.
 - Fail at compile time on a missing key, a key `LoadConfig` doesn't read, or a value that isn't a whole number. No defaults, no rounding.

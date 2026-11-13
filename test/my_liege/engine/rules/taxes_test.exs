@@ -64,7 +64,7 @@ defmodule MyLiege.Engine.Rules.TaxesTest do
     test "the village is counted at the start of week 20, before its birth", %{config: config} do
       # a birth in every week, so week 20 has one
       config = %{config | birth_interval_weeks: 1, start_food: 10_000}
-      game = run_weeks(Game.new(config, 1), 19)
+      game = config |> Game.new(1) |> run_weeks(19)
       workers_before = length(game.workers)
       {[report], game} = EngineFixtures.run_weeks(game, 1)
 
@@ -74,7 +74,7 @@ defmodule MyLiege.Engine.Rules.TaxesTest do
     end
 
     test "the due week waits for the player's decision", %{config: config} do
-      game = run_weeks(Game.new(config, 1), 23)
+      game = config |> Game.new(1) |> run_weeks(23)
 
       assert Game.tax_decision_due?(game)
       assert Game.run_week(game) == {:error, :tax_undecided}
@@ -82,14 +82,14 @@ defmodule MyLiege.Engine.Rules.TaxesTest do
     end
 
     test "no decision outside the week before a due week", %{config: config} do
-      game = run_weeks(Game.new(config, 1), 22)
+      game = config |> Game.new(1) |> run_weeks(22)
 
       refute Game.tax_decision_due?(game)
       assert Game.decide_tax(game, true) == {:error, :no_tax_due}
     end
 
     test "the amount fixed at the count is paid in week 24", %{config: config} do
-      game = run_weeks(Game.new(config, 1), 19)
+      game = config |> Game.new(1) |> run_weeks(19)
       due = length(game.workers) * 10_000
       {reports, game} = EngineFixtures.run_weeks(game, 5)
       week_20 = Enum.find(reports, &(&1.week == 20))
@@ -129,7 +129,7 @@ defmodule MyLiege.Engine.Rules.TaxesTest do
 
     test "the player can skip a payment on purpose; the decision resets", %{config: config} do
       config = %{config | start_gold: 1000}
-      game = run_weeks(Game.new(config, 1), 23)
+      game = config |> Game.new(1) |> run_weeks(23)
       %{tax_due: due, misses: misses} = game
       {:ok, game} = Game.decide_tax(game, false)
       {:ok, report, game} = Game.run_week(game)

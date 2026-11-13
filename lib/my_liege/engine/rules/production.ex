@@ -66,5 +66,5 @@ defmodule MyLiege.Engine.Rules.Production do
   defp base_type(%Building{} = building), do: Place.type(building)
 
   defp base_type(%Project{gives: {kind, _}} = project) when kind in [:demand, :book],
-    do: Blueprint.home_type(Place.colour(project))
+    do: project |> Place.colour() |> Blueprint.home_type()
 end

@@ -165,7 +165,7 @@ defmodule MyLiege.ReportingTest do
   test "the bandit columns show pressure, threat, weeks to the raid and gold robbed" do
     # without its soldier the tower makes no defence: the bandits set out in week 1 and raid in 5
     config = EngineFixtures.config(bandit_threshold: 10, bandit_warning_weeks: 4)
-    {:ok, game} = Game.unplace_worker(EngineFixtures.game_without_demands(config, 1), 2)
+    {:ok, game} = config |> EngineFixtures.game_without_demands(1) |> Game.unplace_worker(2)
     {reports, _game} = EngineFixtures.run_weeks(game, 6)
 
     rows = reports |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()

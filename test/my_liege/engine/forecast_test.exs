@@ -11,7 +11,7 @@ defmodule MyLiege.Engine.ForecastTest do
 
   # the game after a week whose stocks changed by `changes`, with `stocks` now
   defp after_change(game, changes, stocks \\ %{}) do
-    stock_change = Map.merge(Map.new(game.stocks, fn {p, _} -> {p, 0} end), changes)
+    stock_change = game.stocks |> Map.new(fn {p, _} -> {p, 0} end) |> Map.merge(changes)
 
     %{
       game

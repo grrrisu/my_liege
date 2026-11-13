@@ -32,7 +32,7 @@ defmodule MyLiege.Engine.ConfigTest do
       inputs = "priv/balance_inputs.csv" |> File.read!() |> LoadConfig.parse!()
 
       assert_raise ArgumentError, ~r/keys not read: \["place.farm.colour"\]/, fn ->
-        LoadConfig.read!(Map.put(inputs, "place.farm.colour", 1))
+        inputs |> Map.put("place.farm.colour", 1) |> LoadConfig.read!()
       end
     end
 

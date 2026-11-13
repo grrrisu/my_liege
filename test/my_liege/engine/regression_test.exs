@@ -29,7 +29,7 @@ defmodule MyLiege.Engine.RegressionTest do
         happiness_change: %{level1: 100, level2: 200, level3: 300}
       )
 
-    {reports, game} = EngineFixtures.run_weeks(Game.new(config, 42), 48)
+    {reports, game} = config |> Game.new(42) |> EngineFixtures.run_weeks(48)
 
     assert game.week == 48
     refute game.game_over
@@ -37,9 +37,9 @@ defmodule MyLiege.Engine.RegressionTest do
     assert Enum.any?(reports, & &1.demand)
     assert Enum.any?(reports, & &1.demand_outcome)
     assert Enum.any?(reports, &(&1.bandit_raid == :robbed))
-    assert Enum.map(Enum.take(reports, 5), & &1.happiness.step) == [0, 0, 0, 0, -3]
+    assert reports |> Enum.take(5) |> Enum.map(& &1.happiness.step) == [0, 0, 0, 0, -3]
 
-    csv = Reporting.to_csv([Game.report(Game.new(config, 42)) | reports])
+    csv = Reporting.to_csv([config |> Game.new(42) |> Game.report() | reports])
     assert csv == File.read!(@fixture)
   end
 end

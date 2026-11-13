@@ -58,7 +58,7 @@ defmodule MyLiege.AutoRun do
 
   Export one run as CSV:
 
-      File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
+      File.write!("pivot_1.csv", runs |> hd() |> MyLiege.Reporting.to_csv())
 
   Summary of Feed and "Feed, save for tax" over 20 seeds, 48 weeks each (see `summary_csv/4`):
 
@@ -108,7 +108,7 @@ defmodule MyLiege.AutoRun do
     may_build? = may_build?(pattern)
     start = Game.new(config, seed)
 
-    last_week = min(Keyword.get(opts, :weeks, Game.last_week(start)), Game.last_week(start))
+    last_week = opts |> Keyword.get(:weeks, Game.last_week(start)) |> min(Game.last_week(start))
 
     # a week's report is kept after the pattern has acted on it, so it includes the gold spent
     # on buildings ordered then
@@ -243,7 +243,7 @@ defmodule MyLiege.AutoRun do
   # defence produced in the raid week by workers already in watchtowers
   defp raid_defence(game) do
     raid_week = game.bandits.raid_week
-    towers = Map.new(watchtowers(game), &{&1.id, &1})
+    towers = game |> watchtowers() |> Map.new(&{&1.id, &1})
 
     game.workers
     |> Enum.filter(&(Map.has_key?(towers, &1.place) and game.week + 1 + &1.travel <= raid_week))
@@ -265,7 +265,7 @@ defmodule MyLiege.AutoRun do
   end
 
   defp next_defender(game, surplus) do
-    case Enum.sort_by(available(game), &(&1.colour != :red)) do
+    case game |> available() |> Enum.sort_by(&(&1.colour != :red)) do
       [worker | _] -> {worker, surplus}
       [] -> spare_worker(game, surplus)
     end
@@ -462,11 +462,11 @@ defmodule MyLiege.AutoRun do
   defp always_pay(game) do
     game =
       if Game.tax_decision_due?(game),
-        do: elem(Game.decide_tax(game, true), 1),
+        do: game |> Game.decide_tax(true) |> elem(1),
         else: game
 
     if Game.demand_decision_due?(game),
-      do: elem(Game.decide_demand(game, true), 1),
+      do: game |> Game.decide_demand(true) |> elem(1),
       else: game
   end
 

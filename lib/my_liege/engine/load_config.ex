@@ -162,7 +162,7 @@ defmodule MyLiege.Engine.LoadConfig do
   end
 
   # reads one value per item: `key_or_reader.(item)` gives its key or reader
-  defp by(items, key_or_reader), do: all(Enum.map(items, &{&1, key_or_reader.(&1)}))
+  defp by(items, key_or_reader), do: items |> Enum.map(&{&1, key_or_reader.(&1)}) |> all()
 
   defp then_apply(reader, fun) do
     fn inputs ->
