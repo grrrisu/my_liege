@@ -52,6 +52,7 @@ a step:
 | `StaffSites` | arrived unplaced workers fill sites short of builders, in worker order | – |
 | `Defend` | while bandits are on their way, workers move to watchtowers until the raid's gold is protected | – |
 | `Feed` | while food is low (`food_low?/1`), workers go to a farm (placing) | – |
+| `DemandProject` | while a king's demand project is open, only workers of its colour (violet for culture, blue for knowledge) go to it: first all unplaced, arrived ones; then, as many as needed for the expected output by the due week to cover what is missing, from finished buildings (not watchtowers, guildhouse or sites; not travelling), in worker order, only if they can work before the due week; starts and refuses nothing (placing, `{:place, id}`, `after_pass/2`) | – |
 | `SaveGold` | while gold is below the next tax (`gold_low?/1`), workers go to a market (placing) | `born_before: week` |
 | `Pivot` | workers born from `from_week` go to type `to` (placing) | `to:`, `from_week:` |
 | `PlaceOwn` | workers go to their own colour's home type (placing) | – |
@@ -66,9 +67,13 @@ over the strategy's `build` and the run options (`pivot_week:`, `weeks:`). Named
 The shared helper for every action that places workers: the available workers (unplaced,
 arrived), a building of the type with room or a site that gives one, ordering a building
 when the sites under construction can't take all waiting workers and the build condition
-allows it, and waiting otherwise. A placing action implements `target(worker, game, opts)`
-(a type, or `nil` to leave the worker to the next action), and its `run/2` calls
-`Placing.run/2` with itself as the only rule. New placing actions use it.
+allows it, and waiting otherwise. A placing action implements `target(worker, game, opts)`:
+a building type, `{:place, place_id}` for one specific place (e.g. a demand project: placed
+if `Rules.Placement.check_enter/3` allows it, else left unplaced; no building is ordered),
+or `nil` to leave the worker to the next action. Its `run/2` calls
+`Placing.run/2` with itself as the only rule. New placing actions use it. After the pass,
+each rule's optional `after_pass(game, opts)` runs in rule order: for decisions that move
+placed workers (`DemandProject`), so the action stays in the shared pass.
 
 ## The named strategies
 
@@ -76,13 +81,16 @@ allows it, and waiting otherwise. A placing action implements `target(worker, ga
 
 | Pattern | Actions, in order | `build` |
 |---|---|---|
-| `:stay` | StaffSites, PlaceOwn, PayAndDeliver | `:always` |
-| `:pivot` | StaffSites, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
-| `:feed` | StaffSites, Feed, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
-| `:feed_pivot` | StaffSites, Feed, {SaveGold, born_before: pivot_week}, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
+| `:stay` | StaffSites, DemandProject, PlaceOwn, PayAndDeliver | `:always` |
+| `:pivot` | StaffSites, DemandProject, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
+| `:feed` | StaffSites, Feed, DemandProject, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
+| `:feed_pivot` | StaffSites, Feed, DemandProject, {SaveGold, born_before: pivot_week}, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
 | `:feed_save_tax` | as `:feed` | `:tax_safe` |
-| `:feed_defend` | Defend, StaffSites, Feed, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
+| `:feed_defend` | Defend, StaffSites, Feed, DemandProject, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
 | `:feed_invest_defend` | as `:feed_defend` | `:invest` |
+
+`DemandProject` comes right after survival (`Feed`, `Defend`); in `:stay` and `:pivot`,
+which have no `Feed`, right after `StaffSites`.
 
 ## Adding a bot action
 
@@ -119,6 +127,7 @@ delegates to them. `summary_csv/4` takes named strategies only.
 
 ## Projects and books
 
-The bots place no workers on the king's demand projects or on books yet, and start no
-books (`Placing` skips those projects). A bot action for demand projects follows; the
-designer decides which workers it sends.
+The bots place workers of the project's colour on the king's demand projects
+(`DemandProject`): unplaced, arrived ones first, then as many as needed from buildings. Workers released when a project ends are
+unplaced and travelling; once arrived, later actions place them as usual. The bots still
+write no books: they start none and place nobody on one.

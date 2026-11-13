@@ -70,8 +70,12 @@ defmodule MyLiege.BotTest do
       end
     end
 
-    test "places no workers on a king's demand project; the demand is missed", %{config: config} do
-      # blue leads, so the year-1 demand is for knowledge; enough gold, so taxes are paid
+    test "takes workers of the project's colour out of buildings for a king's demand project; it is delivered",
+         %{config: config} do
+      # blue leads, so the year-1 demand is for knowledge; with plenty of gold every blue
+      # newborn gets a monastery. Food runs out after week 7, so no worker is born after
+      # it: when the demand opens in week 12, every blue worker is in the monastery, and
+      # DemandProject moves as many of them to the project as it needs
       config = %{
         config
         | game_years: 1,
@@ -85,8 +89,35 @@ defmodule MyLiege.BotTest do
                reports |> Enum.map(& &1.demand) |> Enum.reject(&is_nil/1)
 
       assert id != nil
-      assert Enum.find(reports, &(&1.week == due_week)).demand_outcome == :missed
-      assert Enum.all?(reports, &(&1.demand_progress in [nil, 0]))
+
+      progress = for %{demand_progress: p} <- reports, p, do: p
+      assert progress == Enum.sort(progress) and List.last(progress) > 0
+
+      delivered = Enum.find(reports, &(&1.demand_outcome == :delivered))
+      assert delivered.week <= due_week
+    end
+
+    test "unplaced workers of the project's colour go to a king's demand project; it is delivered",
+         %{config: config} do
+      # as above, but without gold no monastery is built: the blue newborns wait unplaced,
+      # so when the knowledge demand opens they go to its project
+      config = %{
+        config
+        | game_years: 1,
+          start_gold: 0,
+          manameter_start: %Manameter{green: 50, yellow: 50, blue: 800, red: 50, violet: 50}
+      }
+
+      {reports, _game} = Bot.run(:stay, config, 1, weeks: 24)
+
+      assert [%{product: :knowledge, due_week: due_week}] =
+               reports |> Enum.map(& &1.demand) |> Enum.reject(&is_nil/1)
+
+      progress = for %{demand_progress: p} <- reports, p, do: p
+      assert progress == Enum.sort(progress) and List.last(progress) > 0
+
+      delivered = Enum.find(reports, &(&1.demand_outcome == :delivered))
+      assert delivered.week <= due_week
     end
 
     test "the same seed replays the same run", %{config: config} do

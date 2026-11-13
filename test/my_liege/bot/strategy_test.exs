@@ -1,7 +1,17 @@
 defmodule MyLiege.Bot.StrategyTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Bot.BotActions.{Feed, PayAndDeliver, Pivot, PlaceOwn}
+  alias MyLiege.Bot.BotActions.{
+    Defend,
+    DemandProject,
+    Feed,
+    PayAndDeliver,
+    Pivot,
+    PlaceOwn,
+    SaveGold,
+    StaffSites
+  }
+
   alias MyLiege.Bot.{Strategies, Strategy}
 
   describe "new/2" do
@@ -47,6 +57,34 @@ defmodule MyLiege.Bot.StrategyTest do
                feed_defend: :always,
                feed_invest_defend: :invest
              }
+    end
+
+    test "DemandProject comes right after Feed and Defend, or after StaffSites" do
+      modules = fn name ->
+        name |> Strategies.named() |> Strategy.actions() |> Enum.map(&elem(&1, 0))
+      end
+
+      assert modules.(:stay) == [StaffSites, DemandProject, PlaceOwn, PayAndDeliver]
+      assert modules.(:pivot) == [StaffSites, DemandProject, Pivot, PlaceOwn, PayAndDeliver]
+
+      for name <- [:feed, :feed_save_tax] do
+        assert modules.(name) == [
+                 StaffSites,
+                 Feed,
+                 DemandProject,
+                 SaveGold,
+                 PlaceOwn,
+                 PayAndDeliver
+               ]
+      end
+
+      assert modules.(:feed_pivot) ==
+               [StaffSites, Feed, DemandProject, SaveGold, Pivot, PlaceOwn, PayAndDeliver]
+
+      for name <- [:feed_defend, :feed_invest_defend] do
+        assert modules.(name) ==
+                 [Defend, StaffSites, Feed, DemandProject, SaveGold, PlaceOwn, PayAndDeliver]
+      end
     end
 
     test "the pivot week comes from the run options" do

@@ -1,7 +1,7 @@
 defmodule MyLiege.Bot.PlacingTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Bot.BotActions.{Feed, PayAndDeliver, PlaceOwn, StaffSites}
+  alias MyLiege.Bot.BotActions.{DemandProject, Feed, PayAndDeliver, PlaceOwn, StaffSites}
   alias MyLiege.Bot.Placing
   alias MyLiege.Engine.{Game, Worker}
   alias MyLiege.Engine.Place.Project
@@ -64,6 +64,19 @@ defmodule MyLiege.Bot.PlacingTest do
                Enum.filter(game.places, &match?(%Project{}, &1))
 
       assert places(game) == [1, 2, nil, 3]
+    end
+
+    test "a {:place, id} target places the worker on that place; type targets as before" do
+      game =
+        %{game() | workers: game().workers ++ [%Worker{id: 5, colour: :violet}]}
+        |> EngineFixtures.open_demand(:culture, 10_000, 8)
+
+      project_id = EngineFixtures.demand_project(game).id
+
+      placed =
+        Placing.run(game, rules: [{DemandProject, []}, {PlaceOwn, []}], build: :always)
+
+      assert places(placed) == [1, 2, 1, 2, project_id]
     end
 
     test "orders no building when the build condition doesn't allow it" do

@@ -2,16 +2,25 @@ defmodule MyLiege.Bot.Placing do
   @moduledoc """
   The shared helper for every bot action that places workers.
 
-  A placing action implements `target/3`: the building type it sends a worker to, or `nil`
-  if it leaves the worker to the next action. Its `run/2` is `Placing.run(game, opts)` with
-  `rules: [{__MODULE__, opts}]`.
+  A placing action implements `target/3`: where it sends a worker, or `nil` if it leaves the
+  worker to the next action. A target is either
+  - a building type (e.g. `:farm`): a building of that type with room, or a site that gives
+    one, as below; or
+  - `{:place, place_id}`: that one place (e.g. a king's demand project). The worker goes
+    there if `Game.place_worker/3` allows it (`Rules.Placement.check_enter/3`); otherwise it
+    stays unplaced. No building is ordered for such a target.
+
+  Its `run/2` is `Placing.run(game, opts)` with `rules: [{__MODULE__, opts}]`.
 
   `run/2` takes the arrived unplaced workers in worker order. For each, the first rule that
-  names a type gets the worker: it goes to a finished building of that type with room, or a
+  names a target gets the worker. For a type it goes to a finished building of that type with room, or a
   site that gives one (as a builder). If there is none, the worker waits unplaced; a new
   building is ordered only when the sites already under construction can't take all
   workers waiting for that type, and only if the strategy's build condition allows it
   (`may_build?/4`) and `Game.construct/2` succeeds (the gold covers `build_cost_gold`).
+
+  After the pass, every rule that implements the optional `after_pass/2` runs it, in rule
+  order (e.g. `DemandProject` moves workers out of buildings there).
 
   The runner runs consecutive placing actions of a strategy as one pass (`group/1`), so an
   earlier action gets each worker first and the workers waiting for a type are counted
@@ -25,11 +34,21 @@ defmodule MyLiege.Bot.Placing do
 
   @behaviour MyLiege.Bot.BotAction
 
-  @callback target(Worker.t(), Game.t(), opts :: keyword()) :: atom() | nil
+  @type target :: atom() | {:place, pos_integer()}
+
+  @callback target(Worker.t(), Game.t(), opts :: keyword()) :: target() | nil
+
+  @doc """
+  Optional: what the action does after the pass, e.g. moving placed workers
+  (`DemandProject`). Runs once per pass, in rule order.
+  """
+  @callback after_pass(Game.t(), opts :: keyword()) :: Game.t()
+
+  @optional_callbacks after_pass: 2
 
   @doc """
   Places the available workers by `rules` (`[{module, opts}]`, in priority order) under the
-  build condition `build`.
+  build condition `build`, then runs each rule's `after_pass/2`, if it has one.
   """
   @impl MyLiege.Bot.BotAction
   def run(%Game{} = game, opts) do
@@ -42,11 +61,16 @@ defmodule MyLiege.Bot.Placing do
       |> Enum.reduce({game, %{}}, fn worker, {game, waiting} ->
         case target(rules, worker, game) do
           nil -> {game, waiting}
+          {:place, place_id} -> {place_on(game, worker, place_id), waiting}
           type -> place_or_wait(game, worker, type, waiting, build)
         end
       end)
 
-    game
+    Enum.reduce(rules, game, fn {module, opts}, game -> after_pass(module, game, opts) end)
+  end
+
+  defp after_pass(module, game, opts) do
+    if function_exported?(module, :after_pass, 2), do: module.after_pass(game, opts), else: game
   end
 
   @doc "Whether `module` is a placing action (implements `target/3`)."
@@ -153,6 +177,13 @@ defmodule MyLiege.Bot.Placing do
   defp target(rules, worker, game),
     do: Enum.find_value(rules, fn {module, opts} -> module.target(worker, game, opts) end)
 
+  defp place_on(game, worker, place_id) do
+    case Game.place_worker(game, worker.id, place_id) do
+      {:ok, game} -> game
+      {:error, _reason} -> game
+    end
+  end
+
   defp place_or_wait(game, worker, type, waiting, build) do
     case place_in_any(game, worker, type) do
       {:ok, game} ->
@@ -189,8 +220,8 @@ defmodule MyLiege.Bot.Placing do
   end
 
   # the type of a building, or of the building a site gives; a waiting worker may also be
-  # placed on a site of its type, as a builder. The bots place no workers on a king's demand
-  # project (no bot action for them yet), so it builds nothing.
+  # placed on a site of its type, as a builder. A king's demand project is no type: only a
+  # `{:place, id}` target (`DemandProject`) sends workers there.
   defp builds(%Building{} = building), do: Place.type(building)
   defp builds(%Project{gives: {:building, type}}), do: type
   defp builds(%Project{gives: {:demand, _}}), do: nil
