@@ -4,14 +4,19 @@ defmodule MyLiege.Engine.Rules.Production do
 
   A worker on a king's demand project (R7) produces as in a building of the project's colour
   and good; that output goes into the project (`project_output/4`), not to the stock
-  (`output/4`). Amounts are in thousandths (see `Fixed`), so the result is exact.
+  (`output/4`). A worker on a book (R12) writes as in a blue building, times the book colour's
+  experience factor (`Rules.Books`), into the book. Amounts are in thousandths (see `Fixed`),
+  so the result is exact.
   """
 
-  alias MyLiege.Engine.{Config, Fixed, Pentagon, Place, Worker}
+  alias MyLiege.Engine.{Config, Fixed, Manameter, Pentagon, Place, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Building, Project}
-  alias MyLiege.Engine.Rules.Staffing
+  alias MyLiege.Engine.Rules.{Books, Staffing}
 
-  @doc "One worker's output per week in a building or on a demand project."
+  @doc """
+  One worker's output per week in a building or on a project of a colour (a demand project, a
+  book's blue method), before a book's experience factor.
+  """
   def worker_output(%Worker{} = worker, place, %Config{} = config) do
     training = if worker.trained, do: :trained, else: :untrained
     relation = Pentagon.relation(worker.colour, Place.colour(place))
@@ -37,23 +42,29 @@ defmodule MyLiege.Engine.Rules.Production do
   end
 
   @doc """
-  Output in `week` of the workers on demand projects, `%{project_id => amount}` (thousandths);
-  a project without working workers is left out.
+  Output in `week` of the workers on projects that take output (demand projects and books),
+  `%{project_id => amount}` (thousandths); a project without working workers is left out.
+  `manameter` is the one at the start of the week, for the books' experience factor.
   """
-  def project_output(workers, places, week, %Config{} = config) do
+  def project_output(workers, places, week, %Manameter{} = manameter, %Config{} = config) do
     workers
     |> Staffing.working(places, week)
-    |> Enum.filter(fn {_worker, place} -> match?(%Project{gives: {:demand, _}}, place) end)
+    |> Enum.filter(fn {_worker, place} -> match?(%Project{}, place) end)
     |> Enum.reduce(%{}, fn {worker, place}, totals ->
-      Map.update(totals, place.id, worker_output(worker, place, config), fn total ->
-        total + worker_output(worker, place, config)
-      end)
+      made = project_worker_output(worker, place, manameter, config)
+      Map.update(totals, place.id, made, &(&1 + made))
     end)
   end
+
+  defp project_worker_output(worker, %Project{gives: {:book, colour}} = book, manameter, config),
+    do: worker |> worker_output(book, config) |> Books.written(manameter, colour)
+
+  defp project_worker_output(worker, %Project{gives: {:demand, _}} = project, _manameter, config),
+    do: worker_output(worker, project, config)
 
   # the type whose base output applies: the building's, or that of the project's home place
   defp base_type(%Building{} = building), do: Place.type(building)
 
-  defp base_type(%Project{gives: {:demand, _}} = project),
+  defp base_type(%Project{gives: {kind, _}} = project) when kind in [:demand, :book],
     do: Blueprint.home_type(Place.colour(project))
 end

@@ -2,7 +2,7 @@ defmodule MyLiege.Engine.Rules.Staffing do
   @moduledoc """
   R2, staffing: which workers work in a week. A placed worker works once it has arrived
   (travel 0) and its place is a path building (one with a colour) or a king's demand project
-  (R7), which works like a building of its colour. Workers in the neutral guildhouse or on
+  (R7) or a book (R12), which work like a building of their colour (blue for a book). Workers in the neutral guildhouse or on
   sites produce nothing and make no mana.
   """
 
@@ -24,10 +24,11 @@ defmodule MyLiege.Engine.Rules.Staffing do
   end
 
   @doc """
-  Whether workers at `place` produce and make mana: in a path building or on a demand
-  project, not on a site.
+  Whether workers at `place` produce and make mana: in a path building, on a demand project or
+  on a book (R12), not on a site.
   """
   def works?(%Project{gives: {:demand, _}}, _week), do: true
+  def works?(%Project{gives: {:book, _}}, _week), do: true
   def works?(%Project{gives: {:building, _}}, _week), do: false
   def works?(%Building{} = building, _week), do: not Place.neutral?(building)
 end

@@ -28,7 +28,8 @@ lib/my_liege/engine/
   manameter.ex       data
   pentagon.ex        data
   rules/             what happens: MyLiege.Engine.Rules.*
-    placement.ex     R2: who may enter a place, its capacity
+    placement.ex     R2: who may enter a place, its capacity, releasing its workers
+    books.ex         R12: books, their experience factor, finishing
     staffing.ex      R2: which workers work in a week
     …
   sim_steps/         when it happens: MyLiege.Engine.SimSteps.*
@@ -78,11 +79,18 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
     demand's amount; any number of workers, who produce and make mana as in a building of
     that colour and good (`Rules.Production.project_output/4`), into the project. Opened by
     `Rules.Demands.open_project/2`; removed when the demand is settled or refused.
+  - a **book** (R12) gives `{:book, colour}`: `Project.book_blueprint/0` (`type: :book`,
+    blue, knowledge — the method is blue, the book's own colour is in `gives`); target
+    `book_work` knowledge; one writer, who produces and makes mana as in a blue building,
+    his output scaled by the experience factor of the book's colour (its Manameter share ÷
+    200, `Rules.Books.written/3`). Started by `Actions.StartBook`; once done, step 8
+    (`Rules.Books.finish/4`) adds it to `game.books` (colour => count) and removes the
+    project.
 - The **demand** (`game.demand`, `%{product, amount, due_week, project_id}`) is the king's
   obligation, not a place; `project_id` points to its project (`Demands.project/2`), `nil`
   for a demand from the stock.
 - When a place ends, its workers leave with `Rules.Placement.release/3` (unplaced,
-  travelling): a finished site, a settled or refused demand project.
+  travelling): a finished site, a settled or refused demand project, a finished book.
 - `game.places` is one list of all places, whatever their kind. Workers point to their place
   by id (`worker.place`, `nil` when unplaced).
 - `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,
@@ -128,7 +136,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 - Contract: `@behaviour MyLiege.Engine.SimStep`, `run(game, report) :: {game, report}`.
 - A step is a thin adapter: it picks the inputs, calls a rule and writes the results to the
   game and the report. The rule itself stays in `rules/`.
-- The moduledoc names its place in the week and its rule ("Step 9 of the week, R7 tax
+- The moduledoc names its place in the week and its rule ("Step 10 of the week, R7 tax
   payment: …").
 - A step decides itself whether it applies this week, and otherwise returns `{game, report}`
   unchanged. Steps can't fail.

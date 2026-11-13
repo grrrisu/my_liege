@@ -591,4 +591,6 @@ defmodule MyLiege.AutoRun do
   defp builds(%Building{} = building), do: Place.type(building)
   defp builds(%Project{gives: {:building, type}}), do: type
   defp builds(%Project{gives: {:demand, _}}), do: nil
+  # nor on a book (R12): AutoRun starts no books
+  defp builds(%Project{gives: {:book, _}}), do: nil
 end

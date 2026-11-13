@@ -1,6 +1,6 @@
 defmodule MyLiege.Engine.SimSteps.DemandMade do
   @moduledoc """
-  Step 11 of the week, R7 demand made: in a demand week, the amount uses the workers at the
+  Step 12 of the week, R7 demand made: in a demand week, the amount uses the workers at the
   start of the week. A knowledge or culture demand opens its project among the places
   (`Demands.open_project/2`), at progress 0, shown in the report.
   """

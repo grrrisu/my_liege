@@ -21,6 +21,9 @@ defmodule MyLiege.Engine.WeeklyReport do
   `step_without_grace` (the step the ratio gives); `nil` in week 0.
   `production` holds food and defence after the step.
 
+  R12: `books` are the books held at the end of the week (colour => count); `books_finished`
+  the colours of the books finished that week.
+
   For the forecasts (`Forecast`): `stock_change` is every stock at the end of the week minus at
   its start (one-off payments, the king's takings and robbery included; gold spent on buildings
   between weeks is not), `nil` in week 0. `project_change` is what an open king's project gained
@@ -32,6 +35,9 @@ defmodule MyLiege.Engine.WeeklyReport do
   alias MyLiege.Engine.Place.Blueprint
 
   @enforce_keys [:week]
+  # one field per thing a week reports; a report is built once a week, so the larger map
+  # above 31 fields costs nothing that matters
+  # credo:disable-for-next-line Credo.Check.Warning.StructFieldAmount
   defstruct [
     :week,
     :start,
@@ -60,6 +66,8 @@ defmodule MyLiege.Engine.WeeklyReport do
     bandit_raid: nil,
     gold_robbed: 0,
     happiness: nil,
+    books: nil,
+    books_finished: [],
     stock_change: nil,
     project_change: nil,
     game_over: false
@@ -94,6 +102,8 @@ defmodule MyLiege.Engine.WeeklyReport do
           gold_robbed: integer(),
           happiness:
             %{ratio: non_neg_integer(), step: integer(), step_without_grace: integer()} | nil,
+          books: %{atom() => non_neg_integer()} | nil,
+          books_finished: [atom()],
           stock_change: %{atom() => integer()} | nil,
           project_change: integer() | nil,
           game_over: boolean()

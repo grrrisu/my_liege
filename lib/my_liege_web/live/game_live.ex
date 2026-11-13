@@ -76,6 +76,11 @@ defmodule MyLiegeWeb.GameLive do
     {:noreply, apply_result(socket, result)}
   end
 
+  def handle_event("start_book", %{"colour" => colour}, socket) do
+    colour = Enum.find(Pentagon.colours(), &(Atom.to_string(&1) == colour))
+    {:noreply, apply_result(socket, Game.start_book(socket.assigns.game, colour))}
+  end
+
   def handle_event("decide_tax", %{"pay" => pay}, socket) do
     result = Game.decide_tax(socket.assigns.game, pay == "true")
     {:noreply, apply_result(socket, result)}
@@ -159,6 +164,7 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_worker), do: "Select a worker first."
   defp error_message(:unknown_place), do: "Unknown place."
   defp error_message(:unknown_type), do: "Unknown building type."
+  defp error_message(:unknown_colour), do: "Unknown colour."
   defp error_message(:not_enough_gold), do: "Not enough gold to build."
   defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
   defp error_message(:game_over), do: "The game is over."
@@ -262,6 +268,17 @@ defmodule MyLiegeWeb.GameLive do
                   </td>
                 </tr>
               </table>
+              <p id="books-held" class="mt-2 flex flex-wrap items-center gap-3 text-sm tabular-nums">
+                <span>books</span>
+                <span
+                  :for={colour <- Pentagon.colours()}
+                  id={"books-#{colour}"}
+                  class="inline-flex items-center gap-1"
+                >
+                  <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>
+                  {Map.fetch!(@game.books, colour)}
+                </span>
+              </p>
               <.happiness happiness={@report.happiness} />
             </section>
 
@@ -549,7 +566,7 @@ defmodule MyLiegeWeb.GameLive do
           id={"building-#{place.id}"}
           class="flex flex-wrap items-center gap-3"
         >
-          <div class={["h-4 w-4 rounded-sm", colour_class(Place.colour(place))]}></div>
+          <div class={["h-4 w-4 rounded-sm", colour_class(card_colour(place))]}></div>
           <span class="min-w-24 text-sm">
             {place_name(place)}<span :if={site?(place)} class="opacity-60"> site</span>
           </span>
@@ -561,6 +578,13 @@ defmodule MyLiegeWeb.GameLive do
             worker={worker}
             selected={@selected == worker.id}
           />
+          <span
+            :if={book?(place)}
+            id={"book-#{place.id}"}
+            class="text-sm tabular-nums opacity-60"
+          >
+            progress {units(place.progress)}/{units(place.target)} knowledge
+          </span>
           <span
             :if={demand_project?(place)}
             id={"demand-project-#{place.id}"}
@@ -649,6 +673,20 @@ defmodule MyLiegeWeb.GameLive do
           {type}
         </button>
       </div>
+      <h2 class="mt-4 mb-2 font-semibold">Write a book</h2>
+      <p class="mb-2 text-sm opacity-60">Free; one writer per book.</p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          :for={colour <- Pentagon.colours()}
+          id={"start-book-#{colour}"}
+          phx-click="start_book"
+          phx-value-colour={colour}
+          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100"
+        >
+          <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>
+          write a {colour} book
+        </button>
+      </div>
     </section>
     """
   end
@@ -696,12 +734,19 @@ defmodule MyLiegeWeb.GameLive do
 
   defp site?(place), do: match?(%Project{gives: {:building, _}}, place)
   defp demand_project?(place), do: match?(%Project{gives: {:demand, _}}, place)
+  defp book?(place), do: match?(%Project{gives: {:book, _}}, place)
+
+  # a book shows its own colour, not its blue method
+  defp card_colour(%Project{gives: {:book, colour}}), do: colour
+  defp card_colour(place), do: Place.colour(place)
 
   # a site is named after the building it gives, a demand project after its good
   defp place_name(%Project{gives: {:building, type}}), do: type
 
   defp place_name(%Project{gives: {:demand, _}} = project),
     do: "king's demand: #{Place.good(project)}"
+
+  defp place_name(%Project{gives: {:book, colour}}), do: "#{colour} book"
 
   defp place_name(place), do: Place.type(place)
 

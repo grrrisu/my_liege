@@ -1,6 +1,6 @@
 defmodule MyLiege.Engine.SimSteps.DemandDelivery do
   @moduledoc """
-  Step 10 of the week, R7 demand delivery: settles the open demand in its deadline week; a
+  Step 11 of the week, R7 demand delivery: settles the open demand in its deadline week; a
   project demand also as soon as its project is done (delivered), and in the week after the
   player refused it (refused, whatever its deadline). Settling a project demand removes the
   project from the places, if still there, and releases its workers. On a refused or missed

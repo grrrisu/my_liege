@@ -31,6 +31,7 @@ defmodule MyLiege.EngineFixtures do
         build_work: 4,
         build_cost_gold: 30,
         build_capacity: 2,
+        book_work: 96,
         # no travel, so tests about other rules see placements take effect at once
         travel_weeks: 0,
         mana: %{
@@ -100,6 +101,18 @@ defmodule MyLiege.EngineFixtures do
     }
 
     struct!(project, fields)
+  end
+
+  @doc "A book of `colour` with id `id`, target 96 unless `fields` say otherwise."
+  def new_book(id, colour, fields \\ []) do
+    book = %Project{
+      id: id,
+      blueprint: Project.book_blueprint(),
+      target: 96_000,
+      gives: {:book, colour}
+    }
+
+    struct!(book, fields)
   end
 
   @doc """

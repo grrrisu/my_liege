@@ -2,7 +2,8 @@ defmodule MyLiege.Engine.Rules.Mana do
   @moduledoc """
   R3: mana per worker per week. Untrained: 2 in the building's colour and 1 in their own;
   trained: 1 and 2. Same colour gives 3 of that colour. Unplaced workers make no mana. A
-  worker on a king's demand project (R7) makes mana as in a building of the project's colour.
+  worker on a king's demand project (R7) makes mana as in a building of the project's colour,
+  a worker on a book (R12) as in a blue building.
   """
 
   alias MyLiege.Engine.{Config, Pentagon, Place, Worker}

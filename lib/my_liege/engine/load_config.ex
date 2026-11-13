@@ -126,6 +126,7 @@ defmodule MyLiege.Engine.LoadConfig do
       build_cost_gold: "build.cost_gold",
       build_work: "build.work",
       build_capacity: "build.capacity",
+      book_work: "book.work",
       travel_weeks: "travel.weeks",
       king_grace_weeks: "king.grace_weeks",
       king_misses_forgiven: "king.misses_forgiven",

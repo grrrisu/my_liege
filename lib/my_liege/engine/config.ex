@@ -24,6 +24,7 @@ defmodule MyLiege.Engine.Config do
     :build_work,
     :build_cost_gold,
     :build_capacity,
+    :book_work,
     :travel_weeks,
     :mana,
     :manameter_points_per_week,
