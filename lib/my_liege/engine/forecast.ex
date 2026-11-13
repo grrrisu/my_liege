@@ -6,7 +6,7 @@ defmodule MyLiege.Engine.Forecast do
   or a raid counts them in; gold spent on buildings between weeks does not.
 
   There are no forecasts in week 0, which has no week before it; only the amount and week of the
-  next tax are known then. A forecast only reads the game: it never changes it. The AutoRun bots
+  next tax are known then. A forecast only reads the game: it never changes it. The bots
   use the same functions.
 
   Amounts are in thousandths (see `Fixed`).

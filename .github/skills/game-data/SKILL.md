@@ -45,7 +45,7 @@ How the week runs is in the `weekly-step` skill. Layers and where code goes are 
   out of the parsed inputs as it reads it; whatever is left over is unread. The
   `manameter.<colour>.start_permille` keys must sum to 1000.
 - The designer exports the CSV. Never edit it.
-- `GameLive.mount/3` uses `Config.from_csv/0`, and AutoRun takes a config argument. Tests
+- `GameLive.mount/3` uses `Config.from_csv/0`, and `Bot.run/4` takes a config argument. Tests
   never use the CSV: they use `EngineFixtures.config/1`
   ([engine_fixtures.ex](../../../test/support/engine_fixtures.ex)), whose explicit values
   include `king_grace_weeks: 0`, `travel_weeks: 0` and very high bandit values; a test that
@@ -72,22 +72,22 @@ is left out when a group has only one thing (`travel.weeks`).
 
 | Config field | Shape | CSV key(s) | Read by |
 |---|---|---|---|
-| `game_years` | int | `game.years` | `Game.last_week/1`, `Rules.Demands.schedule/3`, `AutoRun.leading/2`, GameLive |
+| `game_years` | int | `game.years` | `Game.last_week/1`, `Rules.Demands.schedule/3`, `Bot.Analysis.leading/2`, GameLive |
 | `start_farmers`, `start_soldiers` | int | `start.farmers`, `start.soldiers` | `Worker.starting/2` |
 | `start_food` | int | `start.food` | `Rules.Food.starting/1` (via `Game.new/2`) |
 | `start_gold` | int | `start.gold` | `Game.new/2` (`starting_stocks`) |
 | `manameter_start` | `%Manameter{}` | `manameter.<colour>.start_permille` ×5 | `Game.new/2` |
 | `place_output_per_worker` | `%{farm, market, monastery, watchtower, tavern}` | `place.<type>.output_per_worker` ×5 | `Rules.Production.worker_output/3`, `Rules.Demands.make/5` |
 | `efficiency` | `%{untrained \| trained => %{same \| neighbour \| opposite => ‰}}` | `efficiency.<training>.<relation>_permille` ×6 | `Rules.Production.worker_output/3` |
-| `place_capacity` | `%{type => int}`, guildhouse included | `place.<type>.capacity` ×6 | `Rules.Placement.capacity/2` and `check_enter/3`, `AutoRun` (ordering), GameLive |
+| `place_capacity` | `%{type => int}`, guildhouse included | `place.<type>.capacity` ×6 | `Rules.Placement.capacity/2` and `check_enter/3`, `Bot.Placing` (ordering), GameLive |
 | `mana` | `%{untrained \| trained => %{place_colour, worker_colour}}` | `mana.<training>.place_colour`, `mana.<training>.worker_colour` | `Rules.Mana.worker_mana/3` |
 | `manameter_points_per_week` | ‰ | `manameter.points_per_week_permille` | `Rules.ManameterUpdate.update/3` |
 | `birth_interval_weeks` | int | `birth.interval_weeks` | `Rules.Births.birth_week?/2` |
 | `birth_min_food_left` | int | `birth.min_food_left` | `Rules.Births.attempt/5` |
-| `good_food_eaten_per_worker` | int | `good.food.eaten_per_worker` | `Rules.Food.eat/3`, `AutoRun` (`food_low?`) |
-| `build_work` | int | `build.work` | `Rules.Construction.new_site/3` (a site's target), `AutoRun` (`earnings`), GameLive |
+| `good_food_eaten_per_worker` | int | `good.food.eaten_per_worker` | `Rules.Food.eat/3`, `Bot.BotActions.Feed` (`food_low?`) |
+| `build_work` | int | `build.work` | `Rules.Construction.new_site/3` (a site's target), `Bot.Placing` (`earnings`), GameLive |
 | `build_cost_gold` | int | `build.cost_gold` | `Game.build_cost/1`, `Game.construct/2`, GameLive |
-| `build_capacity` | int | `build.capacity` | `Rules.Placement.capacity/2` (sites), `AutoRun` (`earnings`), GameLive |
+| `build_capacity` | int | `build.capacity` | `Rules.Placement.capacity/2` (sites), `Bot.Placing` (`earnings`), GameLive |
 | `book_work` | int (knowledge units) | `book.work` | `Rules.Books.new_book/3` (a book's target, `Fixed.from`) |
 | `travel_weeks` | int | `travel.weeks` | `Rules.Travel.depart/3`, `Rules.Training.first_week/2` |
 | `training_min_share` | ‰ | `training.min_share_permille` | `Rules.Training.check/3` |
@@ -124,7 +124,7 @@ you add one, ask the designer whether it should be a CSV key.
 
 | Value | Where | Used by |
 |---|---|---|
-| 48 weeks per year (the designer's only sanctioned exception) | `Game` `@weeks_per_year`, `Game.weeks_per_year/0` | `Game.last_week/1`, `Demands`, `Bandits`, AutoRun |
+| 48 weeks per year (the designer's only sanctioned exception) | `Game` `@weeks_per_year`, `Game.weeks_per_year/0` | `Game.last_week/1`, `Demands`, `Bandits`, the bots |
 | The order of the pipeline steps | `Game` `@pipeline` | `run_week/1` |
 | Colours in pentagon order `green, yellow, blue, red, violet` (Growth, Wealth, Wisdom, Strength, Culture) | `Pentagon` `@colours`, `colours/0` | everything that iterates colours, the `Manameter` struct keys, `LoadConfig`, `Reporting` |
 | Manameter total 1000 | `Manameter.total_shares/0` | `LoadConfig` (validation) |
@@ -141,7 +141,7 @@ you add one, ask the designer whether it should be a CSV key.
 | 2 demands a year; project products `knowledge, culture`; takeable `food, gold`; Manameter rank by year `[0, 2, 4]` | `Rules.Demands` `@half_years_per_year`, `@project_products`, `@takeable_products`, `@ranks` | `Demands` |
 | Bandits: 2 half years a year, floor 0 for the first 2 half years; pressure 1000 is the break-even and the repel limit | `Rules.Bandits` `@half_years_per_year`, `@floorless_half_years`, inline `1000` | `Bandits`, `Forecast.bandits/1` |
 | Bandit starting state `%{threat: 0, raid_week: nil}` | `Rules.Bandits.starting/0` | `Game` defaults |
-| AutoRun: pivot measure 200 ‰, default `pivot_week` 48 | `AutoRun` `@points`, opts | AutoRun only (not the game) |
+| Bots: pivot measure 200 ‰, default `pivot_week` 48 | `Bot.Analysis` `@points`, opts | the bots only (not the game) |
 | UI colour classes | `GameLive` `@colour_classes` | UI only |
 
 ## 3. State that changes over time
@@ -209,7 +209,7 @@ remove it and release its workers.
 `WeeklyReport.new/2` starts each week empty, with zero maps over products and colours, and
 the steps fill it. The field-by-step mapping is the "Order inside a week" table in
 `weekly-step`. `game.report` holds the last report only. The history lives in callers:
-`GameLive` (`@reports`), `AutoRun.run/4` and `EngineFixtures.run_weeks/2`.
+`GameLive` (`@reports`), `Bot.run/4` and `EngineFixtures.run_weeks/2`.
 
 - **Exported** by `Reporting.to_csv/1`: week, production, mana, manameter, food_left,
   newborn, trained, builders, travelling, gold, tax_due, tax, demand (product, amount),
@@ -229,7 +229,7 @@ The export format is fixed. Ask before changing a column (hard rule 5).
 - `Forecast` ([forecast.ex](../../../lib/my_liege/engine/forecast.ex)) is computed from
   `game.stocks`, `game.demand`, `game.bandits`, `game.tax_due`, `report.stock_change`,
   `report.project_change`, `report.bandit_pressure` and the config. It never changes the game.
-  GameLive (`assign_game/2`) and AutoRun (`food_low?`, `gold_low?`) read it.
+  GameLive (`assign_game/2`) and the bots (`Feed.food_low?/1`, `SaveGold.gold_low?/1`, `Bot.Placing`) read it.
 - Predicates on `Game` (`tax_decision_due?/1`, `demand_decision_due?/1`,
   `project_refusable?/1`, `won?/1`, `can_afford_building?/1`, `build_cost/1`) are derived
   from state and config too.
@@ -239,7 +239,7 @@ The export format is fixed. Ask before changing a column (hard rule 5).
 | Module | Reads | Writes |
 |---|---|---|
 | `MyLiegeWeb.GameLive` | `Config.from_csv/0`, game fields, config fields (see the tables), `Forecast`, `Rules.Bandits`, `Rules.Construction`, `Rules.Placement`, `Place`, `Place.Blueprint`, `Manameter`, `Fixed.scale/0` | only through `Game` actions and `run_week/1` |
-| `MyLiege.AutoRun` | the config it is given, `Forecast`, `Place`, `Place.Blueprint`, `game.workers`, `game.places`, `game.stocks` | only through `Game` actions |
+| `MyLiege.Bot` (`lib/my_liege/bot/`) | the config it is given, `Forecast`, `Place`, `Place.Blueprint`, `game.workers`, `game.places`, `game.stocks` | only through `Game` actions |
 | `MyLiege.Reporting` | `WeeklyReport` fields, `Place.Blueprint.goods/0`, `Pentagon.colours/0` | none |
 | `EngineFixtures` (tests) | builds its own `%Config{}` | none |
 

@@ -1,23 +1,23 @@
-defmodule MyLiege.AutoRun.BotActions.SaveGold do
+defmodule MyLiege.Bot.BotActions.SaveGold do
   @moduledoc """
   While gold is below the next tax (`gold_low?/1`), unplaced workers go to a market.
-  A placing action (`MyLiege.AutoRun.Placing`).
+  A placing action (`MyLiege.Bot.Placing`).
 
   Option `born_before: week`: only workers born before that week (and the starting
   workers) go.
   """
 
-  @behaviour MyLiege.AutoRun.BotAction
-  @behaviour MyLiege.AutoRun.Placing
+  @behaviour MyLiege.Bot.BotAction
+  @behaviour MyLiege.Bot.Placing
 
-  alias MyLiege.AutoRun.Placing
+  alias MyLiege.Bot.Placing
   alias MyLiege.Engine.{Forecast, Game}
 
-  @impl MyLiege.AutoRun.BotAction
+  @impl MyLiege.Bot.BotAction
   def run(%Game{} = game, opts),
     do: Placing.run(game, Keyword.put(opts, :rules, [{__MODULE__, opts}]))
 
-  @impl MyLiege.AutoRun.Placing
+  @impl MyLiege.Bot.Placing
   def target(worker, game, opts) do
     if born_before?(worker, Keyword.get(opts, :born_before)) and gold_low?(game), do: :market
   end

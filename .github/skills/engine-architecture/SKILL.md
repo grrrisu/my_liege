@@ -1,6 +1,6 @@
 ---
 name: engine-architecture
-description: 'How the My Liege engine is structured: layers (Game → SimSteps → Rules), places (blueprint, building), where a function goes (model, rule, orchestration), the SimStep contract, rules on plain data, config, and the regression test. Use when: adding, moving or renaming engine modules; deciding where new code goes; refactoring; calling engine code from GameLive or AutoRun; reviewing a change for structure.'
+description: 'How the My Liege engine is structured: layers (Game → SimSteps → Rules), places (blueprint, building), where a function goes (model, rule, orchestration), the SimStep contract, rules on plain data, config, and the regression test. Use when: adding, moving or renaming engine modules; deciding where new code goes; refactoring; calling engine code from GameLive or the bots; reviewing a change for structure.'
 ---
 
 # Engine architecture
@@ -36,10 +36,20 @@ lib/my_liege/engine/
   actions/           player actions between weeks: MyLiege.Engine.Actions.*
 ```
 
+Outside the engine, in `lib/my_liege/`: `bot.ex` and `bot/` (the bots, `MyLiege.Bot.*`),
+`reporting.ex` (CSV export); the UI is `MyLiegeWeb.GameLive`.
+
 Dependencies: `Game → SimSteps → Rules` and `Game → Actions → Rules`. Actions never call
 `SimSteps`, and rules never reference `Actions`. Rules depend only on data and infrastructure
-modules. `GameLive` and `AutoRun` call `Game` and `Rules` (e.g. `Rules.Taxes`, `Rules.Training`
+modules. `GameLive` and the bots (`MyLiege.Bot`) call `Game` and `Rules` (e.g. `Rules.Taxes`, `Rules.Training`
 for display or decisions), never `SimSteps` or `Actions.*`.
+
+## Clients
+
+`GameLive` and the bots (`MyLiege.Bot`, in `lib/my_liege/bot/`) are clients outside the
+engine: they decide like a player and change the game only through `Game`. The three kinds
+below (model, rule, orchestration) apply only inside the engine. The bots are described in
+the `bots` skill.
 
 ## Where a function goes
 
@@ -158,7 +168,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 - `Game.new/2` builds the week-0 report by passing `WeeklyReport.new(0, game)` through
   `EndOfWeek`.
 - `game.report` is the last report only; the history of weeks is kept by the callers
-  (`GameLive`, `AutoRun`, `EngineFixtures.run_weeks/2`).
+  (`GameLive`, `Bot.run/4`, `EngineFixtures.run_weeks/2`).
 - `report.start` is `nil` in every report that leaves `run_week/1` and is never exported
   (`Reporting` doesn't read it).
 
@@ -177,7 +187,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 [regression_seed_42.csv](../../../test/fixtures/regression_seed_42.csv)
 
 - One year with a fixed test config and seed 42 must export exactly the fixture. It uses
-  `EngineFixtures.config/1`, never `Config.from_csv/0`, and no AutoRun.
+  `EngineFixtures.config/1`, never `Config.from_csv/0`, and no bot run.
 - A refactor never changes the fixture: if the test fails, the refactor is wrong.
 - Re-record it only in a commit that deliberately changes a rule, and give the reason in the
   commit message.

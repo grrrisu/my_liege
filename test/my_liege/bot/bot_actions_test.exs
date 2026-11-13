@@ -1,7 +1,7 @@
-defmodule MyLiege.AutoRun.BotActionsTest do
+defmodule MyLiege.Bot.BotActionsTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.AutoRun.BotActions.{Feed, PayAndDeliver, Pivot, PlaceOwn, SaveGold}
+  alias MyLiege.Bot.BotActions.{Feed, PayAndDeliver, Pivot, PlaceOwn, SaveGold}
   alias MyLiege.Engine.{Game, Worker}
   alias MyLiege.EngineFixtures
 

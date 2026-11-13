@@ -1,8 +1,8 @@
-defmodule MyLiege.AutoRun.PlacingTest do
+defmodule MyLiege.Bot.PlacingTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.AutoRun.BotActions.{Feed, PayAndDeliver, PlaceOwn, StaffSites}
-  alias MyLiege.AutoRun.Placing
+  alias MyLiege.Bot.BotActions.{Feed, PayAndDeliver, PlaceOwn, StaffSites}
+  alias MyLiege.Bot.Placing
   alias MyLiege.Engine.{Game, Worker}
   alias MyLiege.Engine.Place.Project
   alias MyLiege.EngineFixtures

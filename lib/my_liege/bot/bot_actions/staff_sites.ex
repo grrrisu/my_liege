@@ -1,13 +1,13 @@
-defmodule MyLiege.AutoRun.BotActions.StaffSites do
+defmodule MyLiege.Bot.BotActions.StaffSites do
   @moduledoc """
   Arrived unplaced workers fill every site that is short of builders, whatever their
   colour, in worker order. A site ordered before a week gets its builders before the week
   after.
   """
 
-  @behaviour MyLiege.AutoRun.BotAction
+  @behaviour MyLiege.Bot.BotAction
 
-  alias MyLiege.AutoRun.Placing
+  alias MyLiege.Bot.Placing
   alias MyLiege.Engine.Game
   alias MyLiege.Engine.Place.Project
 

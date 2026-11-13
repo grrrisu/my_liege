@@ -29,7 +29,7 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 3. Only what `rules/rules.md` lists. No map, trade, raids, combat, culture effects, scoring or graphics.
 4. Bare UI: coloured squares, buttons, numbers.
 5. Ask before adding a dependency or changing the export or decision-log format.
-6. Never use AutoRun as a check: not to verify a change, not in `mix precommit` beyond AutoRun's own tests, not with the CSV values. The tests in `auto_run_test.exs` test the AutoRun module itself with small fixture configs and stay. If an AutoRun would help, ask the designer and say which pattern, how many seeds and how many weeks. Other tests use small explicit runs (`EngineFixtures.run_weeks/2`).
+6. Never use the bots (`MyLiege.Bot`) as a check: not to verify a change, not in `mix precommit` beyond the bots' own tests, not with the CSV values. The tests in `test/my_liege/bot/` test the bots themselves with small fixture configs and stay. If a bot run would help, ask the designer and say which pattern, how many seeds and how many weeks. Other tests use small explicit runs (`EngineFixtures.run_weeks/2`). See the `bots` skill.
 
 ## Engine structure
 - `Game` runs the week as a pipeline of `SimSteps.*` (when); each step calls `Rules.*` (what).
@@ -37,6 +37,7 @@ The rules to implement are in `rules/rules.md`. Read it only when a task touches
 - Rules are pure functions on plain data and `%Config{}`; they never reference `Game`,
   `WeeklyReport` or `SimSteps`.
 - Refactors must not change `test/fixtures/regression_seed_42.csv`.
+- The bots live in `lib/my_liege/bot/` and use the engine only through `Game`.
 - Read the `engine-architecture` skill before adding, moving or renaming engine modules.
 
 ## When a feature is agreed

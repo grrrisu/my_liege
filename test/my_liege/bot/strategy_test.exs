@@ -1,8 +1,8 @@
-defmodule MyLiege.AutoRun.StrategyTest do
+defmodule MyLiege.Bot.StrategyTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.AutoRun.BotActions.{Feed, PayAndDeliver, Pivot, PlaceOwn}
-  alias MyLiege.AutoRun.{Strategies, Strategy}
+  alias MyLiege.Bot.BotActions.{Feed, PayAndDeliver, Pivot, PlaceOwn}
+  alias MyLiege.Bot.{Strategies, Strategy}
 
   describe "new/2" do
     test "build condition :always by default" do

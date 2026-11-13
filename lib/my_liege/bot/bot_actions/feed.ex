@@ -1,20 +1,20 @@
-defmodule MyLiege.AutoRun.BotActions.Feed do
+defmodule MyLiege.Bot.BotActions.Feed do
   @moduledoc """
   While food is low (`food_low?/1`), unplaced workers go to a farm, whatever their colour.
-  A placing action (`MyLiege.AutoRun.Placing`).
+  A placing action (`MyLiege.Bot.Placing`).
   """
 
-  @behaviour MyLiege.AutoRun.BotAction
-  @behaviour MyLiege.AutoRun.Placing
+  @behaviour MyLiege.Bot.BotAction
+  @behaviour MyLiege.Bot.Placing
 
-  alias MyLiege.AutoRun.Placing
+  alias MyLiege.Bot.Placing
   alias MyLiege.Engine.{Fixed, Forecast, Game}
 
-  @impl MyLiege.AutoRun.BotAction
+  @impl MyLiege.Bot.BotAction
   def run(%Game{} = game, opts),
     do: Placing.run(game, Keyword.put(opts, :rules, [{__MODULE__, opts}]))
 
-  @impl MyLiege.AutoRun.Placing
+  @impl MyLiege.Bot.Placing
   def target(_worker, game, _opts), do: if(food_low?(game), do: :farm)
 
   @doc """

@@ -1,4 +1,4 @@
-defmodule MyLiege.AutoRun.BotActions.Defend do
+defmodule MyLiege.Bot.BotActions.Defend do
   @moduledoc """
   While bandits are on their way, moves workers to finished watchtowers with room until
   the protected gold in the raid week (the watchtowers' expected defence production ×
@@ -13,9 +13,9 @@ defmodule MyLiege.AutoRun.BotActions.Defend do
   worker's output.
   """
 
-  @behaviour MyLiege.AutoRun.BotAction
+  @behaviour MyLiege.Bot.BotAction
 
-  alias MyLiege.AutoRun.Placing
+  alias MyLiege.Bot.Placing
   alias MyLiege.Engine.{Forecast, Game, Place}
   alias MyLiege.Engine.Place.{Blueprint, Building, Project}
   alias MyLiege.Engine.Rules.{Bandits, Production, Travel}

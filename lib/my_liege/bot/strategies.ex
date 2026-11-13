@@ -1,4 +1,4 @@
-defmodule MyLiege.AutoRun.Strategies do
+defmodule MyLiege.Bot.Strategies do
   @moduledoc """
   The named strategies of Test A: today's patterns as ordered lists of bot actions.
 
@@ -15,7 +15,7 @@ defmodule MyLiege.AutoRun.Strategies do
   `pivot_week` is the run option `:pivot_week` (default #{MyLiege.Engine.Game.weeks_per_year()}).
   """
 
-  alias MyLiege.AutoRun.BotActions.{
+  alias MyLiege.Bot.BotActions.{
     Defend,
     Feed,
     PayAndDeliver,
@@ -25,7 +25,7 @@ defmodule MyLiege.AutoRun.Strategies do
     StaffSites
   }
 
-  alias MyLiege.AutoRun.Strategy
+  alias MyLiege.Bot.Strategy
   alias MyLiege.Engine.Game
 
   @names [:stay, :pivot, :feed, :feed_pivot, :feed_save_tax, :feed_defend, :feed_invest_defend]

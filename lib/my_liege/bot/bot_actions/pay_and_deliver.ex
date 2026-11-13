@@ -1,7 +1,7 @@
-defmodule MyLiege.AutoRun.BotActions.PayAndDeliver do
+defmodule MyLiege.Bot.BotActions.PayAndDeliver do
   @moduledoc "Always pays the tax and delivers the king's demands when the decision is due."
 
-  @behaviour MyLiege.AutoRun.BotAction
+  @behaviour MyLiege.Bot.BotAction
 
   alias MyLiege.Engine.Game
 

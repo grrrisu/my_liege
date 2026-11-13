@@ -33,7 +33,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 - Week 0 is the starting state from the config (`Game.new/2`); nothing has happened yet.
 - `run_week` runs `game.week + 1`. Every rule in it sees that same week number.
 - A full game is weeks 1 to 48 × `game_years`.
-- Between two weeks the player (or an `AutoRun` pattern) acts on the state of week N through
+- Between two weeks the player (or a bot, `MyLiege.Bot`) acts on the state of week N through
   `Game`: `Game.place_worker/3` (`Actions.PlaceWorker`), `Game.unplace_worker/2`
   (`Actions.UnplaceWorker`), `Game.construct/2` (`Actions.Construct`),
   `Game.decide_tax/2` (`Actions.DecideTax`), `Game.decide_demand/2`
@@ -121,8 +121,8 @@ Consequences of the order:
   `:paid` (full amount), `:skipped` (on purpose), `:missed` (not enough gold); no partial
   payments. On `:skipped` and `:missed` the king takes the gold there is, up to the amount
   (`Rules.Taxes.settle/3` returns it as `taken`). More than `king_misses_forgiven` misses set `game_over`, which blocks further
-  weeks. The count `misses` is shared with the king's demands. `AutoRun` always tries to pay
-  and deliver; its runs end at game over.
+  weeks. The count `misses` is shared with the king's demands. The bots always try to pay
+  and deliver; their runs end at game over.
 - **Bandits (R10):** `game.bandits` is `%{threat, raid_week}` (threat in thousandths).
   Not affected by the grace period. Protected gold = defence production × `bandit_cover_weeks`;
   pressure = gold × 1000 ÷ protected (0 without gold, `:unbounded` without defence); the

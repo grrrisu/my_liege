@@ -1,4 +1,4 @@
-defmodule MyLiege.AutoRun.Placing do
+defmodule MyLiege.Bot.Placing do
   @moduledoc """
   The shared helper for every bot action that places workers.
 
@@ -18,12 +18,12 @@ defmodule MyLiege.AutoRun.Placing do
   together, whichever action sent them.
   """
 
-  alias MyLiege.AutoRun.BotActions.Feed
+  alias MyLiege.Bot.BotActions.Feed
   alias MyLiege.Engine.{Forecast, Game, Place, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Building, Project}
   alias MyLiege.Engine.Rules.{Production, Travel}
 
-  @behaviour MyLiege.AutoRun.BotAction
+  @behaviour MyLiege.Bot.BotAction
 
   @callback target(Worker.t(), Game.t(), opts :: keyword()) :: atom() | nil
 
@@ -31,7 +31,7 @@ defmodule MyLiege.AutoRun.Placing do
   Places the available workers by `rules` (`[{module, opts}]`, in priority order) under the
   build condition `build`.
   """
-  @impl MyLiege.AutoRun.BotAction
+  @impl MyLiege.Bot.BotAction
   def run(%Game{} = game, opts) do
     rules = Keyword.fetch!(opts, :rules)
     build = Keyword.fetch!(opts, :build)

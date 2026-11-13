@@ -1,6 +1,6 @@
-defmodule MyLiege.AutoRun.Strategy do
+defmodule MyLiege.Bot.Strategy do
   @moduledoc """
-  A bot strategy: an ordered list of bot actions (`MyLiege.AutoRun.BotAction`), run before
+  A bot strategy: an ordered list of bot actions (`MyLiege.Bot.BotAction`), run before
   each week, and the build condition.
 
   - `actions`: `{module, opts}` or a bare module, Plug-style. Order is priority: the actions

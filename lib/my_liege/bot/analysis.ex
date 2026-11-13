@@ -1,10 +1,10 @@
-defmodule MyLiege.AutoRun.Analysis do
+defmodule MyLiege.Bot.Analysis do
   @moduledoc """
   Reading bot runs: the summary CSV over patterns and seeds, the leading colour, the pivot
   weeks and the spread between runs.
   """
 
-  alias MyLiege.AutoRun
+  alias MyLiege.Bot
   alias MyLiege.Engine.{Config, Fixed, Game, Pentagon}
 
   @weeks_per_year Game.weeks_per_year()
@@ -27,7 +27,7 @@ defmodule MyLiege.AutoRun.Analysis do
   @doc """
   Runs every pattern with every seed and returns a CSV: one row per pattern and seed, then
   a row per pattern with `seed` = `total` that sums the columns over its seeds. Takes the
-  same options as `AutoRun.run/4`.
+  same options as `Bot.run/4`.
 
   - `first_tax_week`: the week of the first tax payment (empty if the run ended before it;
     empty in the totals).
@@ -46,7 +46,7 @@ defmodule MyLiege.AutoRun.Analysis do
       Enum.flat_map(patterns, fn pattern ->
         runs =
           for seed <- seeds,
-              do: summary(pattern, seed, AutoRun.play(pattern, config, seed, opts))
+              do: summary(pattern, seed, Bot.play(pattern, config, seed, opts))
 
         runs ++ [totals(pattern, runs)]
       end)

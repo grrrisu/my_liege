@@ -53,32 +53,41 @@ Export a run as CSV, one row per week (engine units: thousandths and per mille):
 File.write!("run_42.csv", MyLiege.Reporting.to_csv([Game.report(Game.new(config, 42)) | reports]))
 ```
 
-### Test A (auto-run)
+### Test A (bots)
 
-Plays a fixed pattern (`:stay`, `:pivot`, `:feed`, `:feed_pivot`, `:feed_save_tax`, `:feed_defend` or `:feed_invest_defend`) with random births from a seed. The pattern always tries to pay taxes; a run ends early at game over. `:feed_save_tax` ("Feed, save for tax") plays like `:feed` but only orders a building if the forecast gold for the next tax week, minus the price, still covers that tax, and never right after a week in which gold left the stock (tax, the king's takings, a delivered demand, robbery). `:feed_defend` ("Feed, defend") plays like `:feed`, but while bandits are on their way it moves workers to watchtowers (unplaced ones first, red first, then from the product with the largest surplus) until the protected gold covers the gold forecast for the raid week; the moved workers stay there afterwards. `:feed_invest_defend` ("Feed, invest and defend") defends the same way and orders a building only if the forecast gold at the next tax week, minus the price, plus a new market's expected gold until then, still covers the tax; a farm is always allowed while food is low. Add `weeks: 48` to `AutoRun.run/4` to stop a run after 48 weeks:
+The bots (`MyLiege.Bot`, in `lib/my_liege/bot/`) play a whole game with random births from a seed. A strategy is an ordered list of bot actions (staff sites, feed, save gold, defend, pivot, place in the own colour, pay and deliver) and a build condition (`:always`, `:tax_safe`, `:invest`); an earlier action gets the workers first. The named strategies are `:stay`, `:pivot`, `:feed`, `:feed_pivot`, `:feed_save_tax`, `:feed_defend` and `:feed_invest_defend`; see the `bots` skill (`.github/skills/bots/SKILL.md`). The bots always try to pay taxes and deliver demands; a run ends early at game over. `:feed_save_tax` ("Feed, save for tax") plays like `:feed` but only orders a building if the forecast gold for the next tax week, minus the price, still covers that tax, and never right after a week in which gold left the stock (tax, the king's takings, a delivered demand, robbery). `:feed_defend` ("Feed, defend") plays like `:feed`, but while bandits are on their way it moves workers to watchtowers (unplaced ones first, red first, then from the product with the largest surplus) until the protected gold covers the gold forecast for the raid week; the moved workers stay there afterwards. `:feed_invest_defend` ("Feed, invest and defend") defends the same way and orders a building only if the forecast gold at the next tax week, minus the price, plus a new market's expected gold until then, still covers the tax; a farm is always allowed while food is low. Add `weeks: 48` to `Bot.run/4` to stop a run after 48 weeks:
 
 ```elixir
-alias MyLiege.AutoRun
+alias MyLiege.Bot
 alias MyLiege.Engine.Config
 
 config = Config.from_csv()
-runs = for seed <- 1..20, do: elem(AutoRun.run(:pivot, config, seed), 0)
+runs = for seed <- 1..20, do: elem(Bot.run(:pivot, config, seed), 0)
 
-AutoRun.leading(hd(runs), config)      # leading colour and share at weeks 48, 96, 144
-AutoRun.pivot_weeks(hd(runs))          # weeks red needs to gain 20 points, or nil
-AutoRun.spread(runs, 144)              # lowest and highest share per colour across runs
+Bot.leading(hd(runs), config)      # leading colour and share at weeks 48, 96, 144
+Bot.pivot_weeks(hd(runs))          # weeks red needs to gain 20 points, or nil
+Bot.spread(runs, 144)              # lowest and highest share per colour across runs
 File.write!("pivot_1.csv", MyLiege.Reporting.to_csv(hd(runs)))
 ```
+
+An ad hoc strategy as a list of bot actions:
+
+```elixir
+alias MyLiege.Bot.BotActions.{Defend, Feed, PayAndDeliver, PlaceOwn, StaffSites}
+
+Bot.run([Defend, StaffSites, Feed, PlaceOwn, PayAndDeliver], config, 1)
+```
+
 or multiple game runs
 
 ```elixir
-alias MyLiege.AutoRun
+alias MyLiege.Bot
 alias MyLiege.Engine.Config
 
 config = Config.from_csv()
 
 Enum.each(0..20, fn seed ->
-  {runs, _game} = AutoRun.run(:feed, config, seed)
+  {runs, _game} = Bot.run(:feed, config, seed)
   File.write!("feed_#{seed}.csv", MyLiege.Reporting.to_csv(runs))
 end)
 ```
@@ -86,11 +95,11 @@ end)
 Summary of several patterns over the same seeds, e.g. Feed and the defending patterns with 20 seeds for 48 weeks:
 
 ```elixir
-alias MyLiege.AutoRun
+alias MyLiege.Bot
 alias MyLiege.Engine.Config
 
 config = Config.from_csv()
-csv = AutoRun.summary_csv([:feed, :feed_defend, :feed_invest_defend], config, 1..20, weeks: 48)
+csv = Bot.summary_csv([:feed, :feed_defend, :feed_invest_defend], config, 1..20, weeks: 48)
 File.write!("summary.csv", csv)
 ```
 
