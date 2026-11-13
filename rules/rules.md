@@ -5,6 +5,10 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-14: R13–R15 (new), ways: a way (a colour making another colour's home good) unlocks with one book of its colour and one of its good's home colour (R12 books now have this effect, never used up). R14 granary (violet way to food, a building): while a keeper works, food spoils at `place.granary.food_spoilage_permille`; each working granary takes `place.granary.culture_upkeep` culture a week from the stock. R15 improved plough (blue way to food, an invention): a free project of `way.plough.work` knowledge, up to `way.plough.capacity` workers; once invented farm workers produce × (1000 + `way.plough.bonus_permille`) ÷ 1000. New keys `place.granary.*`, `way.plough.*`; export columns `plough_done`, `granary_working`, `culture_upkeep`; weekly order: step 1 takes the upkeep and applies the bonus, step 8 also finishes inventions, step 14 uses the granary's rate.
+- 2026-11-14: R11, happiness counts the culture made in buildings minus the culture spent (the granaries' upkeep, R14), never below 0.
+- 2026-11-14: R3, mana comes from the place, not the worker: every working worker makes `mana.place_colour` of the place's colour and `mana.good_colour` of the colour of the good's home place; the worker's colour and training no longer matter. Keys `mana.place_colour`, `mana.good_colour` replace `mana.<training>.*`.
+- 2026-11-14: R2, efficiency values changed in the CSV (untrained neighbour, trained neighbour and opposite); no rule change.
 - 2026-11-13: R12 (new), books: the player writes books of any colour as projects (capacity 1); a worker writes as in a blue building × the colour's Manameter share ÷ 200; finished books are held, with no effect yet; new key `book.work`; export columns `books_<colour>`.
 - 2026-11-13: R7, knowledge and culture demands are worker projects: workers placed on them produce into them as in a building; delivered when the target is reached at or before the deadline; workers released when the project ends or is refused; production no longer flows in automatically.
 - 2026-11-13: R2, construction sites are projects: progress counts work (one per arrived builder and week) up to `build.work`; any number of builders up to `build.capacity`; leaving keeps the progress; a finished site becomes a new building.
@@ -25,29 +29,30 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 ## Terms
 - Paths/colours, pentagon order: Growth (green) – Wealth (yellow) – Wisdom (blue) – Strength (red) – Culture (violet) – back to green. Neighbours: green–yellow, yellow–blue, blue–red, red–violet, violet–green; all other pairs are opposites. Ties (Manameter rounding, demand colour ranks) and the colour order in the UI and exports follow this order.
 - Relation of a worker's colour to a building's colour: same; neighbour (adjacent on the pentagon); opposite (not adjacent).
-- Buildings and their output: farm → food, monastery → knowledge, watchtower → defence, market → gold, tavern → culture. Guildhouse: neutral, trains workers, produces nothing.
+- Buildings and their output: farm → food, monastery → knowledge, watchtower → defence, market → gold, tavern → culture. These are the home places, one per colour. Guildhouse: neutral, trains workers, produces nothing. Granary: a way (R14), produces nothing.
+- Way (R13): a place type with a colour and a good that are not each other's home, e.g. the granary (violet, food) or the improved plough (blue, food).
 - The concept says "wisdom" for knowledge.
-- place: anything a worker is placed at (a building, later a project or trade); in v1 every place is a building.
+- place: anything a worker is placed at: a building or a project (a site, a king's project, a book, an invention); later a trade.
 - Week: one simulation step. 48 weeks per year (hardcoded); game length `game.years`.
 
 ## Weekly order
 0. Tax count (R7), count weeks only
-1. Production (R2), changed by happiness (R11): buildings into the stock, workers on a project (R7) into the project; a worker on a book writes into it (R12)
+1. Production (R2), the plough's bonus (R15), the granaries' culture upkeep (R14), changed by happiness (R11): buildings into the stock, workers on a project (R7) into the project; a worker on a book or an invention writes into it (R12, R15)
 2. Mana (R3)
 3. Travel (R2): every travelling worker's travel goes down by 1
 4. Manameter update (R4)
 5. Eating (R8)
 6. Birth (R1), drawn from the Manameter updated in step 4
 7. Construction (R2): sites advance; finished buildings release their builders
-8. Books finished (R12)
+8. Books finished (R12), then inventions finished (R15)
 9. Training ends (R5)
 10. Tax payment (R7), due weeks only
 11. Demand delivery (R7): in the deadline week; a project also in the week its target is reached, and in the week after it was refused
 12. Demand made (R7), demand weeks only
 13. Bandits (R10): threat, setting out, raid; every week from week 1
-14. Spoilage (R9)
+14. Spoilage (R9), at the granary's rate for food while a granary works (R14)
 
-The player acts between weeks; changes take effect the following week. Production, mana, construction and training use travel as it was when the week started, so a worker placed while the game stands at week N does nothing in week N+1 and works from week N+2. Code-level detail: the `weekly-step` skill.
+The player acts between weeks; changes take effect the following week. Production, mana, construction, training and whether a granary works use travel as it was when the week started, so a worker placed while the game stands at week N does nothing in week N+1 and works from week N+2. Code-level detail: the `weekly-step` skill.
 
 ## R1 Birth and start
 - Every `birth.interval_weeks`, one worker is born if at least `birth.min_food_left` food is left after eating.
@@ -62,6 +67,8 @@ The player acts between weeks; changes take effect the following week. Productio
 - Capacity per building: `place.<building>.capacity`.
 - Every building the player orders costs `build.cost_gold` gold, the same for every type, guildhouse included. Paid from the gold stock when ordering (between weeks, before the next week's production). Not possible with less gold than the price; the UI shows the price and disables ordering. The starting farm and tower are free, finished and need no builders.
 - Market workers produce gold directly (prototype simplification).
+- A way building (R13, the granary) produces nothing. The improved plough (R15) changes farm workers' output.
+- A way can be ordered only once it is unlocked (R13); the UI shows a locked way disabled with the books it still needs.
 
 ### Builders
 - An ordered building is a site, a project: it needs `build.work` work. Builders are workers the player places on it, any colour (colour has no effect), at most `build.capacity`.
@@ -78,8 +85,10 @@ The player acts between weeks; changes take effect the following week. Productio
 - UI: travelling workers are marked with their remaining travel.
 
 ## R3 Mana
-- Per worker per week: untrained `mana.untrained.place_colour` in the building's colour and `mana.untrained.worker_colour` in their own colour; trained `mana.trained.place_colour` and `mana.trained.worker_colour`. Same colour: the two add up.
-- Trainees, builders and travelling workers produce no mana.
+- Per working worker per week: `mana.place_colour` in the place's colour and `mana.good_colour` in the colour of the home place of the place's good. A home place (farm, market, monastery, watchtower, tavern) gives both to its own colour; they add up.
+- The worker's own colour and training play no part.
+- Places: a building of its colour and good; a king's project (R7) as the building of its colour and good; a book (R12) as a monastery (blue, knowledge); a granary (R14) violet and food (2 violet, 1 green); the improved plough (R15) blue and food (2 blue, 1 green).
+- Trainees, builders, unplaced and travelling workers produce no mana.
 
 ## R4 Manameter
 - Each week: remove `manameter.points_per_week_permille` points in proportion to the current shares, then add the same number in proportion to the mana produced that week. Shares always sum to 1000.
@@ -115,6 +124,7 @@ The player acts between weeks; changes take effect the following week. Productio
 - At the end of the week, every stock above 0 loses `good.<good>.spoilage_permille` per mille of itself, rounded down. Stocks at or below 0 don't spoil.
 - Births, tax payments, demand deliveries and what the king takes use stocks before spoilage.
 - Food, gold, defence, culture and knowledge are all stored. A king's project (R7) is not a stock and doesn't spoil.
+- While a granary works, food spoils at `place.granary.food_spoilage_permille` instead (R14).
 
 ## R10 Bandits
 Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
@@ -131,6 +141,7 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 ## R11 Happiness
 - Every week from week 1: ratio = this week's culture production ÷ (population × `happiness.need_per_worker_permille`), per mille, rounded down.
   - Culture production counts only from buildings; culture produced on a project (R7) doesn't count. The culture stock plays no part.
+  - The culture spent that week is subtracted from it: the granaries' upkeep (R14), as taken from the stock. The result is never below 0.
   - Population: every worker at the start of the week (placed, unplaced, builders, trainees, travelling); a newborn counts from the following week. A population of 0 is an error.
 - Step from the ratio: below `happiness.level3.penalty_below_permille` −3, below `happiness.level2.penalty_below_permille` −2, below `happiness.level1.penalty_below_permille` −1; from `happiness.level3.bonus_from_permille` +3, from `happiness.level2.bonus_from_permille` +2, from `happiness.level1.bonus_from_permille` +1; otherwise 0.
 - Effect: this week's food and defence production change by ± `happiness.level1.change_permille`, `happiness.level2.change_permille` or `happiness.level3.change_permille` per mille (step −2: production × (1000 − `happiness.level2.change_permille`) ÷ 1000). Applied once to each product's total, after the colour factors (R2), rounded down. Nothing else changes: gold, knowledge, culture, mana and births stay as they are.
@@ -144,9 +155,32 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 - The worker writes what he would produce in a blue building (`place.monastery.output_per_worker`, his colour's factor against blue, trained or not), × the book colour's Manameter share ÷ 200 (normal at 20%; linear, no floor, no cap), with the Manameter at the start of the week; rounded down per worker. It goes into the book, not the stock, and doesn't count toward happiness (R11); output beyond the target is lost.
 - Mana: as in a blue building (R3).
 - At the end of the week (step 8), a book whose progress reached `book.work` is finished: the village holds one more book of its colour, the project disappears and its worker becomes unplaced (travelling).
-- A game starts with no books. Books are held for good and have no effect yet.
+- A game starts with no books. Books are held for good and never used up. They unlock ways (R13).
 - UI: a button per colour to start a book; each book among the places with its colour, its progress / target and its worker; the books held per colour next to the stocks.
 - Export: `books_green`, `books_yellow`, `books_blue`, `books_red`, `books_violet`, the books held at the end of the week.
+
+## R13 Ways
+- A way is a place type in the catalogue with a colour and a good that are not each other's home: granary (violet, food; R14), improved plough (blue, food; R15).
+- One rule for every way: it is unlocked while the village holds at least one book (R12) of its colour and at least one book of the colour of its good's home place (granary: violet and green; plough: blue and green). Books are not used up, so a way once unlocked stays unlocked. No fixed week.
+- A locked way can't be ordered (a building) or started (an invention).
+- UI: a locked way is shown disabled with a lock and a swatch for each colour whose book is still missing; unlocked, it is ordered or started like the others.
+
+## R14 Granary
+- Violet's way to food, a building: ordered and built like any building (`build.cost_gold`, builders, `build.work`); capacity `place.granary.capacity`.
+- A granary works in a week while a keeper works there (placed, travel 0 at the start of the week).
+- The keeper produces nothing. Mana as in R3: 2 violet + 1 green with the current values.
+- While at least one granary works, food spoils at `place.granary.food_spoilage_permille` instead of `good.food.spoilage_permille` (R9). More granaries don't lower it further.
+- Upkeep: each working granary costs `place.granary.culture_upkeep` culture a week, taken from the culture stock after the week's production (step 1), never below 0. What is taken is culture spent: it is subtracted from the culture that counts for happiness (R11).
+- UI: whether a granary worked in the last week, the food spoilage then and the upkeep taken.
+
+## R15 Improved plough
+- Blue's way to food, an invention. Once unlocked (R13), the player starts it like a book, at no cost: a project among the places that needs `way.plough.work` knowledge. Only one at a time, and it can be invented only once.
+- Up to `way.plough.capacity` workers, any colour. Travel and leaving as for books: leaving keeps the progress.
+- Each worker writes what he would produce in a blue building (as for books, R12), × the experience factor of green, the colour of food's home place (its Manameter share ÷ 200, with the Manameter at the start of the week); rounded down per worker. Output beyond the target is lost; it doesn't count toward happiness.
+- Mana as in R3: 2 blue + 1 green with the current values.
+- At the end of the week (step 8), once the progress reaches the target, the plough is invented: the project disappears and its workers become unplaced (travelling).
+- From the next week for the rest of the game, every farm worker's output × (1000 + `way.plough.bonus_permille`) ÷ 1000, rounded down per worker, after the colour factors (R2) and before happiness (R11).
+- UI: a button to start it (locked, open, or invented); the project among the places with its progress and workers; once invented, the bonus next to the stocks.
 
 ## Forecasts
 UI only: forecasts change nothing in the game. Each one repeats the change of the last week run (its end minus its start) unchanged for every week ahead. The change is raw: taxes paid, demands delivered, what the king took and robbery in that week count in it; gold spent on buildings between weeks doesn't. No forecasts in week 0 (no week before it); the next tax's amount and week are shown from week 0. The bots use the same forecasts (food balance, next tax).
@@ -158,4 +192,4 @@ UI only: forecasts change nothing in the game. Each one repeats the change of th
 
 ## Export
 - Weekly CSV, one row per week, week 0 (the start) first. Amounts of goods and `bandit_threat` in thousandths; mana in whole points; Manameter shares per mille; counts and weeks as plain numbers. Product columns in the pentagon order of their buildings, colour columns in pentagon order.
-- Columns: week; production_food, production_gold, production_knowledge, production_defence, production_culture (what buildings produced; output on a project is not included); mana_<colour>; manameter_<colour>; food_left (after spoilage); newborn (the newborn's colour, empty if none); trained (colours of the workers who finished training that week); builders (arrived, at the end of the week); travelling (workers with travel above 0, at the end of the week); gold (after spoilage); tax_due (filled in the count week); tax (paid, skipped or missed, in the due week); demand_product and demand_amount (in the week the demand is made); demand_outcome (delivered, refused or missed, in the deadline week; for a project delivered early, in the week its target is reached; for a refused project, in the week after the refusal); demand_progress (a project's total at the end of every week it is open, the week it is made and the week it is delivered or missed included; empty for food, gold and defence demands and when no project is open); king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise); spoiled_food, spoiled_gold, spoiled_knowledge, spoiled_defence, spoiled_culture; gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold); bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0); bandit_threat (end of the week); bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week); gold_robbed (what the bandits took that week, before spoilage; 0 otherwise); happiness_ratio (per mille; empty in week 0); happiness_step (the step applied, −3 to +3, a plain number; 0 in the grace period; empty in week 0); game_over; books_green, books_yellow, books_blue, books_red, books_violet (books held at the end of the week, R12).
+- Columns: week; production_food, production_gold, production_knowledge, production_defence, production_culture (what buildings produced; output on a project is not included); mana_<colour>; manameter_<colour>; food_left (after spoilage); newborn (the newborn's colour, empty if none); trained (colours of the workers who finished training that week); builders (arrived, at the end of the week); travelling (workers with travel above 0, at the end of the week); gold (after spoilage); tax_due (filled in the count week); tax (paid, skipped or missed, in the due week); demand_product and demand_amount (in the week the demand is made); demand_outcome (delivered, refused or missed, in the deadline week; for a project delivered early, in the week its target is reached; for a refused project, in the week after the refusal); demand_progress (a project's total at the end of every week it is open, the week it is made and the week it is delivered or missed included; empty for food, gold and defence demands and when no project is open); king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise); spoiled_food, spoiled_gold, spoiled_knowledge, spoiled_defence, spoiled_culture; gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold); bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0); bandit_threat (end of the week); bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week); gold_robbed (what the bandits took that week, before spoilage; 0 otherwise); happiness_ratio (per mille; empty in week 0); happiness_step (the step applied, −3 to +3, a plain number; 0 in the grace period; empty in week 0); game_over; books_green, books_yellow, books_blue, books_red, books_violet (books held at the end of the week, R12); plough_done (true or false, at the end of the week, R15); granary_working (true or false: a granary worked that week, R14); culture_upkeep (the culture taken from the stock for the granaries that week, R14).

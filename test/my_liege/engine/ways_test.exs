@@ -1,0 +1,160 @@
+defmodule MyLiege.Engine.WaysTest do
+  @moduledoc "R13–R15 through `Game`: the granary and the improved plough over whole weeks."
+  use ExUnit.Case, async: true
+
+  alias MyLiege.Engine.{Game, Worker}
+  alias MyLiege.Engine.Rules.Production
+  alias MyLiege.EngineFixtures
+  alias MyLiege.Reporting
+
+  # farm (1) with green worker 1, tower (2) with red worker 2; no travel; manameter green 800
+  defp game(config_overrides) do
+    config = EngineFixtures.config(config_overrides)
+    game = EngineFixtures.game_without_demands(config, 1)
+    %{game | books: Map.new(game.books, fn {colour, _} -> {colour, 1} end)}
+  end
+
+  defp spoiling_food,
+    do: [good_spoilage: %{food: 50, knowledge: 0, defence: 0, gold: 0, culture: 0}]
+
+  describe "R14: granary" do
+    setup do
+      game = spoiling_food() |> game() |> EngineFixtures.add_building(:granary)
+      {:ok, game} = Game.place_worker(game, 2, 3)
+      %{game: game}
+    end
+
+    test "its keeper produces nothing, makes 2 violet and 1 green mana, and food spoils at the granary's rate",
+         %{game: game} do
+      {:ok, report, game} = Game.run_week(game)
+
+      assert report.granary_working
+      assert report.production.food == 9_000
+      assert report.production.defence == 0
+      assert report.mana == %{green: 4, yellow: 0, blue: 0, red: 0, violet: 2}
+      # 24 + 9 − 2 × 3 = 27 food; 10 per mille instead of 50
+      assert report.spoiled.food == 270
+      assert game.stocks.food == 26_730
+    end
+
+    test "an empty granary does nothing", %{game: game} do
+      {:ok, game} = Game.unplace_worker(game, 2)
+      {:ok, report, _game} = Game.run_week(game)
+
+      refute report.granary_working
+      assert report.culture_upkeep == 0
+      assert report.spoiled.food == 1_350
+    end
+
+    test "more granaries don't lower spoilage further, but each costs upkeep", %{game: game} do
+      game = EngineFixtures.add_building(game, :granary)
+      {:ok, game} = Game.place_worker(game, 1, 4)
+      game = %{game | stocks: %{game.stocks | culture: 20_000}}
+      {:ok, report, game} = Game.run_week(game)
+
+      # nobody farms: 24 − 6 = 18 food
+      assert report.spoiled.food == 180
+      assert report.culture_upkeep == 10_000
+      assert game.stocks.culture == 10_000
+    end
+
+    test "the upkeep comes from the stock, never below 0, and is spent before happiness",
+         %{game: game} do
+      game = EngineFixtures.add_building(game, :tavern)
+      # the farmer goes to the tavern: green in violet is a neighbour, 3 × 0.75 culture
+      {:ok, game} = Game.place_worker(game, 1, 4)
+      {:ok, report, game} = Game.run_week(game)
+
+      assert report.production.culture == 2_250
+      assert report.culture_upkeep == 2_250
+      assert game.stocks.culture == 0
+      assert report.happiness.ratio == 0
+
+      {:ok, report, game} = Game.run_week(%{game | stocks: %{game.stocks | culture: 20_000}})
+      assert report.culture_upkeep == 5_000
+      assert game.stocks.culture == 17_250
+      assert report.happiness.ratio == 0
+
+      {:ok, game} = Game.unplace_worker(game, 2)
+      {:ok, report, game} = Game.run_week(game)
+      assert report.culture_upkeep == 0
+      # all culture counts again; 3 workers since week 2's birth: 2.25 ÷ 3
+      assert length(game.workers) == 3
+      assert report.happiness.ratio == 750
+    end
+
+    test "exports granary_working and culture_upkeep", %{game: game} do
+      game = %{game | stocks: %{game.stocks | culture: 20_000}}
+      {:ok, report, _game} = Game.run_week(game)
+      [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
+
+      assert String.ends_with?(row, ",false,true,5000")
+    end
+  end
+
+  describe "R15: improved plough" do
+    setup do
+      game = game(way_plough_work: 5)
+      {:ok, game} = Game.start_invention(game, :plough)
+      {:ok, game} = Game.place_worker(game, 2, 3)
+      %{game: game}
+    end
+
+    test "is written as in a blue building × green's experience, makes 2 blue and 1 green mana",
+         %{game: game} do
+      {:ok, report, game} = Game.run_week(game)
+
+      # red in blue is a neighbour: 3 × 0.75 = 2.25, × green 800 ÷ 200 = 9 ≥ 5: done
+      assert report.mana == %{green: 4, yellow: 0, blue: 2, red: 0, violet: 0}
+      assert report.inventions_finished == [:plough]
+      assert game.inventions == [:plough]
+      refute Enum.any?(game.places, &match?(%{gives: {:invention, _}}, &1))
+      assert Enum.find(game.workers, &(&1.id == 2)).place == nil
+      # the bonus starts with the next week
+      assert report.production.food == 9_000
+      assert report.production.knowledge == 0
+
+      {:ok, report, game} = Game.run_week(game)
+      assert report.production.food == 11_250
+      assert Game.start_invention(game, :plough) == {:error, :already_invented}
+    end
+
+    test "only farm workers get the bonus" do
+      config = EngineFixtures.config()
+      places = [EngineFixtures.new_building(1, :farm), EngineFixtures.new_building(2, :tavern)]
+
+      workers = [
+        %Worker{id: 1, colour: :green, place: 1},
+        %Worker{id: 2, colour: :violet, place: 2}
+      ]
+
+      assert %{food: 11_250, culture: 3_000} =
+               Production.output(workers, places, 1, config, [:plough])
+    end
+
+    test "takes up to way.plough.capacity workers", %{game: game} do
+      game = game |> with_unplaced(4)
+      [a, b, c, d] = game.workers |> Enum.filter(&is_nil(&1.place)) |> Enum.map(& &1.id)
+
+      {:ok, game} = Game.place_worker(game, a, 3)
+      {:ok, game} = Game.place_worker(game, b, 3)
+      {:ok, game} = Game.place_worker(game, c, 3)
+      assert Game.place_worker(game, d, 3) == {:error, :full}
+    end
+
+    test "exports plough_done", %{game: game} do
+      {:ok, report, _game} = Game.run_week(game)
+      [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
+
+      assert String.ends_with?(row, ",true,false,0")
+    end
+  end
+
+  defp with_unplaced(game, count) do
+    extra =
+      for i <- 1..count,
+          do: %Worker{id: 100 + i, colour: :blue, place: nil}
+
+    %{game | workers: game.workers ++ extra}
+  end
+end

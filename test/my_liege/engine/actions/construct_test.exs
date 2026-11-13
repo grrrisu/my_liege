@@ -28,10 +28,31 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
   end
 
   test "every type costs the same, the guildhouse included", %{game: game} do
-    for type <- Blueprint.types() do
+    # every way unlocked: a book of each colour
+    game = %{game | books: Map.new(game.books, fn {colour, _} -> {colour, 1} end)}
+
+    for type <- Blueprint.building_types() do
       assert {:ok, built} = Construct.run(game, type)
       assert built.stocks.gold == 70_000
     end
+  end
+
+  test "R13: a granary is locked without a violet and a green book; locked costs nothing",
+       %{game: game} do
+    assert Construct.run(game, :granary) == {:error, :locked}
+
+    assert Construct.run(%{game | books: %{game.books | violet: 1}}, :granary) ==
+             {:error, :locked}
+
+    unlocked = %{game | books: %{game.books | violet: 1, green: 1}}
+    assert {:ok, built} = Construct.run(unlocked, :granary)
+    assert %Project{gives: {:building, :granary}} = List.last(built.places)
+    assert built.stocks.gold == 70_000
+  end
+
+  test "an invention is not a building", %{game: game} do
+    game = %{game | books: %{game.books | blue: 1, green: 1}}
+    assert Construct.run(game, :plough) == {:error, :unknown_type}
   end
 
   test "any number of buildings can be ordered, also of the same type", %{game: game} do

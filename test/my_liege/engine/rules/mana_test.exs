@@ -6,7 +6,7 @@ defmodule MyLiege.Engine.Rules.ManaTest do
   alias MyLiege.Engine.Rules.Mana
   alias MyLiege.EngineFixtures
 
-  describe "R3: mana per worker" do
+  describe "R3: mana per working worker" do
     setup do
       config = EngineFixtures.config()
       buildings = Building.starting()
@@ -14,37 +14,45 @@ defmodule MyLiege.Engine.Rules.ManaTest do
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type}
     end
 
-    test "untrained: 2 in the building's colour, 1 in their own", context do
+    test "a home place gives place and good colour mana to its own colour: 3", context do
       %{config: config, buildings_by_type: %{farm: farm}} = context
 
-      assert Mana.worker_mana(worker(:red), farm, config) == %{green: 2, red: 1}
+      assert Mana.worker_mana(farm, config) == %{green: 3}
     end
 
-    test "trained: 1 in the building's colour, 2 in their own", context do
-      %{config: config, buildings_by_type: %{farm: farm}} = context
+    test "a way gives 2 in its colour and 1 in the colour of its good's home place" do
+      config = EngineFixtures.config()
 
-      assert Mana.worker_mana(worker(:red, true), farm, config) == %{green: 1, red: 2}
+      assert Mana.worker_mana(EngineFixtures.new_building(1, :granary), config) ==
+               %{violet: 2, green: 1}
+
+      assert Mana.worker_mana(EngineFixtures.new_invention(2, :plough), config) ==
+               %{blue: 2, green: 1}
     end
 
-    test "same colour gives 3 of that colour, trained or not", context do
-      %{config: config, buildings_by_type: %{farm: farm}} = context
+    test "uses mana.place_colour and mana.good_colour" do
+      config = EngineFixtures.config(mana_place_colour: 5, mana_good_colour: 7)
 
-      assert Mana.worker_mana(worker(:green), farm, config) == %{green: 3}
-      assert Mana.worker_mana(worker(:green, true), farm, config) == %{green: 3}
+      assert Mana.worker_mana(EngineFixtures.new_building(1, :granary), config) ==
+               %{violet: 5, green: 7}
+
+      assert Mana.worker_mana(EngineFixtures.new_building(2, :tavern), config) == %{violet: 12}
     end
 
-    test "weekly totals per colour; unplaced workers make no mana", context do
+    test "weekly totals per colour; the worker's colour and training play no part; unplaced and travelling workers make none",
+         context do
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type} = context
 
       workers = [
         worker(:green, false, buildings_by_type.farm.id),
         worker(:red, false, buildings_by_type.farm.id),
         worker(:blue, true, buildings_by_type.watchtower.id),
+        %{worker(:red, false, buildings_by_type.watchtower.id) | travel: 1},
         worker(:violet)
       ]
 
       assert Mana.produced(workers, buildings, 0, config) ==
-               %{green: 5, blue: 2, red: 2, yellow: 0, violet: 0}
+               %{green: 6, blue: 0, red: 3, yellow: 0, violet: 0}
     end
   end
 
@@ -54,19 +62,14 @@ defmodule MyLiege.Engine.Rules.ManaTest do
       tavern = EngineFixtures.new_building(1, :tavern)
       project = EngineFixtures.new_demand_project(2, :culture)
 
-      for worker <- [worker(:violet), worker(:red), worker(:green, true)] do
-        assert Mana.worker_mana(worker, project, config) ==
-                 Mana.worker_mana(worker, tavern, config)
-      end
-
-      assert Mana.worker_mana(worker(:red), project, config) == %{violet: 2, red: 1}
+      assert Mana.worker_mana(project, config) == Mana.worker_mana(tavern, config)
 
       on_project = %{worker(:red) | place: 2}
       on_site = %{worker(:red) | place: 3}
       site = EngineFixtures.new_site(3, :farm)
 
       assert Mana.produced([on_project, on_site], [project, site], 1, config) ==
-               %{green: 0, yellow: 0, blue: 0, red: 1, violet: 2}
+               %{green: 0, yellow: 0, blue: 0, red: 0, violet: 3}
     end
   end
 
@@ -74,14 +77,21 @@ defmodule MyLiege.Engine.Rules.ManaTest do
     test "the same mana as in a blue building, whatever the book's colour" do
       config = EngineFixtures.config()
       monastery = EngineFixtures.new_building(1, :monastery)
-      book = EngineFixtures.new_book(2, :red)
 
-      for worker <- [worker(:blue), worker(:green), worker(:red, true)] do
-        assert Mana.worker_mana(worker, book, config) ==
-                 Mana.worker_mana(worker, monastery, config)
+      for colour <- [:red, :green, :violet] do
+        assert Mana.worker_mana(EngineFixtures.new_book(2, colour), config) ==
+                 Mana.worker_mana(monastery, config)
       end
+    end
+  end
 
-      assert Mana.worker_mana(worker(:green), book, config) == %{blue: 2, green: 1}
+  describe "R14: mana in a granary" do
+    test "a keeper makes mana though he produces nothing" do
+      config = EngineFixtures.config()
+      granary = EngineFixtures.new_building(1, :granary)
+
+      assert Mana.produced([worker(:red, false, 1)], [granary], 1, config) ==
+               %{green: 1, yellow: 0, blue: 0, red: 0, violet: 2}
     end
   end
 

@@ -30,6 +30,9 @@ lib/my_liege/engine/
   rules/             what happens: MyLiege.Engine.Rules.*
     placement.ex     R2: who may enter a place, its capacity, releasing its workers
     books.ex         R12: books, their experience factor, finishing
+    ways.ex          R13: when a way is unlocked (one rule for every way)
+    granary.ex       R14: working granaries, culture upkeep, food spoilage
+    inventions.ex    R15: starting, writing and finishing inventions; the plough's bonus
     staffing.ex      R2: which workers work in a week
     …
   sim_steps/         when it happens: MyLiege.Engine.SimSteps.*
@@ -70,16 +73,25 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 
 - A **blueprint** (`Place.Blueprint`) describes a type of place: its colour, the good it
   makes and which kind of place it becomes (`engine`). The catalogue has the five home
-  places in pentagon order, then the guildhouse; its test checks that order against
-  `Pentagon.colours/0`. It depends on no other module, so `LoadConfig` reads the types from
-  it at compile time.
+  places in pentagon order, then the ways, then the guildhouse; its test checks the home
+  order against `Pentagon.colours/0`. It depends on no other module, so `LoadConfig` reads
+  the types from it at compile time (`building_types/0` for capacities, `home_types/0` for
+  output per worker).
+- A **way** (R13) is a catalogue entry whose colour is not its good's home colour
+  (`Blueprint.way?/1`), decided by data alone: the granary (violet, food, `engine:
+  :building`) and the improved plough (blue, food, `engine: :project`, an invention). One
+  rule unlocks them all (`Rules.Ways`). A way building is ordered like any building but
+  produces nothing (`Production.produces?/1`); its effect is its own rule (`Rules.Granary`).
+  An invention is never ordered (`Construct` takes only `building_types/0`); it is started
+  with `Game.start_invention/2` and is a project with its catalogue blueprint.
 - A **place** is one that exists in the game. There is one struct per kind of place:
   `Place.Building` (always finished) and `Place.Project`, later `Place.Trade`. Each holds
   its `id` and its `blueprint`; `Place.next_id/1` gives the next free id over all places.
 - A **project** (`Place.Project`: `id`, `blueprint`, `target`, `gives`, `progress`) collects
   progress until `done?/1` (`progress >= target`), then gives `gives` once and leaves
-  `game.places`. Its blueprint is not in the catalogue (which lists only types that can stand
-  and be ordered, with config keys): a project builds its own. Projects are told apart by
+  `game.places`. Its blueprint is not in the catalogue (which lists the types that can stand
+  and be ordered and the inventions, with config keys): a project builds its own, except an
+  invention, which uses its way's catalogue entry. Projects are told apart by
   `gives`, and rules match on it (`%Project{gives: {:building, _}}`):
   - a **construction site** gives `{:building, type}`: blueprint `type: :site`, no colour,
     no good; target `build_work`; up to `build_capacity` builders, who produce nothing. Once
@@ -96,11 +108,19 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
     200, `Rules.Books.written/3`). Started by `Actions.StartBook`; once done, step 8
     (`Rules.Books.finish/4`) adds it to `game.books` (colour => count) and removes the
     project.
+  - an **invention** (R15) gives `{:invention, type}`: blueprint `Blueprint.fetch!(type)`
+    (the plough: blue, food); target `way_plough_work` knowledge; up to
+    `way_plough_capacity` workers, who write as in a blue building times the experience
+    of the good's home colour (`Rules.Inventions.written/3`) and make mana as at a blue
+    place for food (2 blue, 1 green). Started by `Actions.StartInvention`; once done, step 8
+    (`SimSteps.Inventions`, `Rules.Inventions.finish/4`) appends the type to
+    `game.inventions` and removes the project.
 - The **demand** (`game.demand`, `%{product, amount, due_week, project_id}`) is the king's
   obligation, not a place; `project_id` points to its project (`Demands.project/2`), `nil`
   for a demand from the stock.
 - When a place ends, its workers leave with `Rules.Placement.release/3` (unplaced,
-  travelling): a finished site, a settled or refused demand project, a finished book.
+  travelling): a finished site, a settled or refused demand project, a finished book or
+  invention.
 - `game.places` is one list of all places, whatever their kind. Workers point to their place
   by id (`worker.place`, `nil` when unplaced).
 - `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,

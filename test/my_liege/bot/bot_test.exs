@@ -61,7 +61,7 @@ defmodule MyLiege.BotTest do
       config = %{config | start_gold: 1_000_000}
       {_reports, game} = Bot.run(:stay, config, 1)
 
-      for type <- Blueprint.types() do
+      for type <- Blueprint.home_types() ++ [:guildhouse] do
         workers = Enum.count(game.workers, &(Blueprint.home_type(&1.colour) == type))
         buildings = Enum.count(game.places, &(Place.type(&1) == type))
 

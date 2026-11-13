@@ -8,7 +8,7 @@ defmodule MyLiege.Engine.Rules.Books do
   start of the week, rounded down per worker. What he writes goes into the book, up to its
   target; the rest is lost. Mana as in a blue building. Once done (at the end of the week),
   the book is held by the village (`game.books`, colour => count), the project disappears and
-  its worker is released, travelling. Books have no effect yet.
+  its worker is released, travelling. Books are never used up; they unlock ways (`Rules.Ways`).
   """
 
   alias MyLiege.Engine.{Config, Fixed, Manameter, Pentagon, Place}

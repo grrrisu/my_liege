@@ -41,6 +41,7 @@ defmodule MyLiege.Engine.GameTest do
                gold_spent_buildings: 0,
                bandit_threat: 0,
                books: %{green: 0, yellow: 0, blue: 0, red: 0, violet: 0},
+               inventions: [],
                game_over: false
              }
     end
@@ -73,6 +74,7 @@ defmodule MyLiege.Engine.GameTest do
                SimSteps.Birth,
                SimSteps.Construction,
                SimSteps.Books,
+               SimSteps.Inventions,
                SimSteps.TrainingEnd,
                SimSteps.TaxPayment,
                SimSteps.DemandDelivery,

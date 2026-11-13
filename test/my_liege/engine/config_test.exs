@@ -40,10 +40,10 @@ defmodule MyLiege.Engine.ConfigTest do
       assert LoadConfig.names() == %{trainings: Worker.trainings()}
     end
 
-    test "every blueprint type has its place.<type>.* keys" do
+    test "every building type has its place.<type>.* keys" do
       keys = "priv/balance_inputs.csv" |> File.read!() |> LoadConfig.parse!() |> Map.keys()
 
-      for type <- Blueprint.types() do
+      for type <- Blueprint.building_types() do
         assert Enum.any?(keys, &String.starts_with?(&1, "place.#{type}.")), "no keys for #{type}"
       end
     end
