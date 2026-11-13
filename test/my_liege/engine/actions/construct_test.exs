@@ -2,8 +2,7 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.Actions.Construct
-  alias MyLiege.Engine.Place
-  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Place.{Blueprint, Project}
   alias MyLiege.EngineFixtures
 
   # 100 gold, build_cost_gold 30
@@ -14,8 +13,7 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
   test "adds a site with the next id", %{game: game} do
     assert {:ok, game} = Construct.run(game, :market)
 
-    assert %Building{id: 3, blueprint: %{type: :market}, ready_week: nil, progress: 0} =
-             List.last(game.places)
+    assert %Project{id: 3, gives: {:building, :market}, progress: 0} = List.last(game.places)
   end
 
   test "pays build_cost_gold at once and adds it to the current report", %{game: game} do
@@ -40,7 +38,12 @@ defmodule MyLiege.Engine.Actions.ConstructTest do
     {:ok, game} = Construct.run(game, :market)
     {:ok, game} = Construct.run(game, :market)
 
-    assert Enum.map(game.places, &Place.type/1) == [:farm, :watchtower, :market, :market]
+    assert [
+             _farm,
+             _watchtower,
+             %Project{gives: {:building, :market}, id: 3},
+             %Project{gives: {:building, :market}, id: 4}
+           ] = game.places
   end
 
   test "exactly the price is enough", %{game: game} do

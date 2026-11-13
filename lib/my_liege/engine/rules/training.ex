@@ -41,11 +41,10 @@ defmodule MyLiege.Engine.Rules.Training do
   Returns `{workers, newly_trained}`.
   """
   def finish(workers, places, week, %Config{} = config) do
-    # workers on a guildhouse site are builders, not trainees
+    # workers on a site for a guildhouse are builders, not trainees
     guildhouses =
       for %Building{id: id} = place <- places,
           Place.type(place) == :guildhouse,
-          not Building.site?(place),
           into: MapSet.new(),
           do: id
 

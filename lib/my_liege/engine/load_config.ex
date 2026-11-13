@@ -42,6 +42,8 @@ defmodule MyLiege.Engine.LoadConfig do
   @doc "Maps parsed inputs to the configuration fields. Raises on a missing or an unread key."
   def read!(inputs) do
     {config, unread} = fields().(inputs)
+    {build, config} = Map.pop!(config, :build)
+    config = Map.merge(config, build_fields!(build))
 
     if unread != %{} do
       raise ArgumentError,
@@ -123,9 +125,8 @@ defmodule MyLiege.Engine.LoadConfig do
       manameter_points_per_week: "manameter.points_per_week_permille",
       training_min_share: "training.min_share_permille",
       training_weeks: "training.weeks",
-      build_weeks: "build.weeks",
       build_cost_gold: "build.cost_gold",
-      build_builders: "build.builders",
+      build: all(work: "build.work", capacity: "build.capacity"),
       travel_weeks: "travel.weeks",
       king_grace_weeks: "king.grace_weeks",
       king_misses_forgiven: "king.misses_forgiven",
@@ -168,6 +169,17 @@ defmodule MyLiege.Engine.LoadConfig do
       {value, rest} = reader.(inputs)
       {fun.(value), rest}
     end
+  end
+
+  # until R2 counts work (task 2b, part 2): the old rule's builders and weeks, from the new keys
+  defp build_fields!(%{work: work, capacity: capacity}) do
+    if capacity <= 0 or rem(work, capacity) != 0 do
+      raise ArgumentError,
+            "config inputs: build.work (#{work}) must be a whole multiple of " <>
+              "build.capacity (#{capacity})"
+    end
+
+    %{build_weeks: div(work, capacity), build_builders: capacity}
   end
 
   defp manameter_start!(shares) do

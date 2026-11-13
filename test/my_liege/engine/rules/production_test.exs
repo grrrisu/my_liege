@@ -2,7 +2,6 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Place, Worker}
-  alias MyLiege.Engine.Place.Building
   alias MyLiege.Engine.Rules.Production
   alias MyLiege.EngineFixtures
 
@@ -59,17 +58,15 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
                %{food: 13_500, knowledge: 3_000, defence: 0, gold: 0, culture: 0}
     end
 
-    test "a building produces from its ready_week; a site produces nothing", context do
+    test "a site produces nothing; the building that replaces it does", context do
       %{config: config, buildings: buildings} = context
-      buildings = Building.add_site(buildings, :farm)
-      site = List.last(buildings)
+      site = EngineFixtures.new_site(Place.next_id(buildings), :farm, progress: 1)
       workers = [worker(:green, false, site.id)]
 
-      assert Production.output(workers, buildings, 99, config).food == 0
+      assert Production.output(workers, buildings ++ [site], 99, config).food == 0
 
-      buildings = List.replace_at(buildings, -1, %{site | ready_week: 7})
-      assert Production.output(workers, buildings, 6, config).food == 0
-      assert Production.output(workers, buildings, 7, config).food == 9_000
+      farm = EngineFixtures.new_building(site.id, :farm)
+      assert Production.output(workers, buildings ++ [farm], 99, config).food == 9_000
     end
 
     test "a worker still travelling produces nothing", context do

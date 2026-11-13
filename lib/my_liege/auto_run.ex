@@ -67,7 +67,7 @@ defmodule MyLiege.AutoRun do
   """
 
   alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
-  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
   alias MyLiege.Engine.Rules.{Bandits, Production, Travel}
 
   @weeks_per_year Game.weeks_per_year()
@@ -241,15 +241,15 @@ defmodule MyLiege.AutoRun do
   # defence produced in the raid week by workers already in watchtowers
   defp raid_defence(game) do
     raid_week = game.bandits.raid_week
-    towers = Map.new(watchtowers(game, raid_week), &{&1.id, &1})
+    towers = Map.new(watchtowers(game), &{&1.id, &1})
 
     game.workers
     |> Enum.filter(&(Map.has_key?(towers, &1.place) and game.week + 1 + &1.travel <= raid_week))
     |> Enum.sum_by(&Production.worker_output(&1, Map.fetch!(towers, &1.place), game.config))
   end
 
-  defp watchtowers(game, week),
-    do: Enum.filter(game.places, &(Place.type(&1) == :watchtower and Building.ready?(&1, week)))
+  defp watchtowers(game),
+    do: for(%Building{} = place <- game.places, Place.type(place) == :watchtower, do: place)
 
   defp move_defenders(game, defence, gold, surplus) do
     with true <- Bandits.protected(defence, game.config) < gold,
@@ -277,7 +277,7 @@ defmodule MyLiege.AutoRun do
       for worker <- game.workers,
           place = places[worker.place],
           place != nil,
-          spare_building?(place, game.week),
+          spare_building?(place),
           not Travel.travelling?(worker),
           product = Place.good(place),
           output = Production.worker_output(worker, place, game.config),
@@ -292,17 +292,17 @@ defmodule MyLiege.AutoRun do
     end
   end
 
-  defp spare_building?(place, week),
-    do:
-      Place.type(place) not in [:watchtower, :guildhouse] and not Building.site?(place) and
-        Building.ready?(place, week + 1)
+  defp spare_building?(%Building{} = place),
+    do: Place.type(place) not in [:watchtower, :guildhouse]
+
+  defp spare_building?(%Project{}), do: false
 
   defp surplus(%Game{report: %{stock_change: nil}}), do: Map.new(Blueprint.goods(), &{&1, 0})
   defp surplus(%Game{report: report}), do: report.stock_change
 
   defp place_in_tower(game, worker) do
     game
-    |> watchtowers(game.week + 1)
+    |> watchtowers()
     |> Enum.find_value(fn tower ->
       case Game.place_worker(game, worker.id, tower.id) do
         {:ok, game} -> {:ok, game, tower}
@@ -520,7 +520,7 @@ defmodule MyLiege.AutoRun do
 
   defp staff_sites(game) do
     game.places
-    |> Enum.filter(&Building.site?/1)
+    |> Enum.filter(&match?(%Project{}, &1))
     |> Enum.reduce(game, &staff_site(&2, &1))
   end
 
@@ -561,7 +561,7 @@ defmodule MyLiege.AutoRun do
 
   defp place_in_any(game, worker, type) do
     game.places
-    |> Enum.filter(&(Place.type(&1) == type))
+    |> Enum.filter(&(builds(&1) == type))
     |> Enum.find_value(:none, fn place ->
       case Game.place_worker(game, worker.id, place.id) do
         {:ok, game} -> {:ok, game}
@@ -571,11 +571,8 @@ defmodule MyLiege.AutoRun do
   end
 
   defp order_if_needed(game, type, waiting, may_build?) do
-    room_under_construction =
-      game.places
-      |> Enum.filter(&(Place.type(&1) == type and not Building.ready?(&1, game.week + 1)))
-      |> Enum.map(&Map.fetch!(game.config.place_capacity, Place.type(&1)))
-      |> Enum.sum()
+    sites = Enum.count(game.places, &match?(%Project{gives: {:building, ^type}}, &1))
+    room_under_construction = sites * Map.fetch!(game.config.place_capacity, type)
 
     with true <- length(waiting) > room_under_construction,
          true <- may_build?.(game, type, waiting),
@@ -585,4 +582,9 @@ defmodule MyLiege.AutoRun do
       _ -> game
     end
   end
+
+  # the type of a building, or of the building a site gives; a waiting worker may also be
+  # placed on a site of its type, as a builder
+  defp builds(%Building{} = building), do: Place.type(building)
+  defp builds(%Project{gives: {:building, type}}), do: type
 end

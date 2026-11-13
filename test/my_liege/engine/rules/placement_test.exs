@@ -2,7 +2,7 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Manameter, Worker}
-  alias MyLiege.Engine.Place.Building
+  alias MyLiege.Engine.Place.Project
   alias MyLiege.Engine.Rules.Placement
   alias MyLiege.EngineFixtures
 
@@ -33,14 +33,25 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
       assert Placement.check_enter(farm, moving, facts) == :ok
     end
 
-    test "a building not ready next week is refused; a site is not", context do
+    test "an arrived worker of any colour may enter a site with room", context do
       %{facts: facts} = context
-      new_tavern = EngineFixtures.new_building(3, :tavern, ready_week: 2)
-      site = EngineFixtures.new_building(4, :tavern, ready_week: nil)
+      site = EngineFixtures.new_site(3, :tavern)
 
-      assert Placement.check_enter(new_tavern, worker(:violet), facts) == {:error, :not_ready}
-      assert Placement.check_enter(new_tavern, worker(:violet), %{facts | week: 1}) == :ok
       assert Placement.check_enter(site, worker(:violet), facts) == :ok
+      assert Placement.check_enter(site, worker(:blue, true), facts) == :ok
+    end
+
+    test "a site refuses a travelling unplaced worker, then a builder over capacity", context do
+      %{config: config, facts: facts} = context
+      site = EngineFixtures.new_site(3, :market)
+      builders = for _ <- 1..config.build_builders, do: worker(:green, false, site.id)
+      travelling = %{worker(:green) | travel: 1}
+
+      assert Placement.check_enter(site, travelling, %{facts | workers: builders}) ==
+               {:error, :travelling}
+
+      assert Placement.check_enter(site, worker(:green), %{facts | workers: builders}) ==
+               {:error, :full}
     end
 
     test "a full place is refused", context do
@@ -71,36 +82,35 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
 
     test "builders on a guildhouse site are not checked for training", context do
       %{facts: facts} = context
-      site = EngineFixtures.new_building(3, :guildhouse, ready_week: nil)
+      site = EngineFixtures.new_site(3, :guildhouse)
 
       assert Placement.check_enter(site, worker(:blue, true), facts) == :ok
     end
 
-    test "the reasons are checked in order: travelling, not ready, full, training", context do
+    test "the reasons are checked in order: travelling, full, training", context do
       %{config: config, facts: facts} = context
-      guildhouse = EngineFixtures.new_building(3, :guildhouse, ready_week: 5)
+      guildhouse = EngineFixtures.new_building(3, :guildhouse)
       trainee = worker(:green, false, guildhouse.id)
       trained = %{worker(:green, true) | travel: 1}
 
-      assert Placement.check_enter(guildhouse, trained, facts) == {:error, :travelling}
+      assert Placement.check_enter(guildhouse, trained, %{facts | workers: [trainee]}) ==
+               {:error, :travelling}
 
       trained = %{trained | travel: 0}
-      assert Placement.check_enter(guildhouse, trained, facts) == {:error, :not_ready}
-
-      facts = %{facts | week: 5, workers: [trainee]}
       assert config.place_capacity.guildhouse == 1
-      assert Placement.check_enter(guildhouse, trained, facts) == {:error, :full}
+
+      assert Placement.check_enter(guildhouse, trained, %{facts | workers: [trainee]}) ==
+               {:error, :full}
+
+      assert Placement.check_enter(guildhouse, trained, facts) == {:error, :already_trained}
     end
 
-    test "a worker can only be placed in a finished building with room", context do
+    test "a worker can only be placed in a building with room", context do
       %{config: config, farm: farm} = context
-      new_tavern = EngineFixtures.new_building(3, :tavern, ready_week: 7)
       full_farm = for _ <- 1..config.place_capacity.farm, do: worker(:green, false, farm.id)
 
-      refute can_place?(new_tavern, [], 6, config)
-      assert can_place?(new_tavern, [], 7, config)
-      assert can_place?(farm, [], 0, config)
-      refute can_place?(farm, full_farm, 0, config)
+      assert has_room?(farm, [], config)
+      refute has_room?(farm, full_farm, config)
     end
 
     test "each building has its own capacity", context do
@@ -125,7 +135,7 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
   describe "capacity/2" do
     test "a building takes its capacity, a site build_builders", context do
       %{config: config, farm: farm} = context
-      site = EngineFixtures.new_building(3, :farm, ready_week: nil)
+      site = EngineFixtures.new_site(3, :farm)
 
       assert Placement.capacity(farm, config) == config.place_capacity.farm
       assert Placement.capacity(site, config) == 2
@@ -134,20 +144,20 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
 
   describe "leave/1" do
     test "a builder leaving a site resets its progress" do
-      site = EngineFixtures.new_building(3, :market, ready_week: nil, progress: 1)
+      site = EngineFixtures.new_site(3, :market, progress: 1)
 
-      assert %Building{progress: 0} = Placement.leave(site)
+      assert %Project{progress: 0} = Placement.leave(site)
     end
 
-    test "leaving a finished building leaves it unchanged", %{farm: farm} do
+    test "leaving a building leaves it unchanged", %{farm: farm} do
       assert Placement.leave(farm) == farm
     end
   end
 
   describe "trains?/1" do
-    test "only a finished guildhouse trains", %{farm: farm} do
+    test "only the guildhouse trains, not a site for one", %{farm: farm} do
       assert Placement.trains?(EngineFixtures.new_building(3, :guildhouse))
-      refute Placement.trains?(EngineFixtures.new_building(3, :guildhouse, ready_week: nil))
+      refute Placement.trains?(EngineFixtures.new_site(3, :guildhouse))
       refute Placement.trains?(farm)
     end
   end
@@ -160,13 +170,6 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
       config: config
     }
   end
-
-  # a worker who has arrived can enter `place` at `week`, i.e. while the game stands at the
-  # week before
-  defp can_place?(place, workers, week, config),
-    do:
-      Placement.check_enter(place, worker(:green), %{facts(config, workers) | week: week - 1}) ==
-        :ok
 
   defp has_room?(place, workers, config),
     do: Placement.check_enter(place, worker(:green), facts(config, workers)) != {:error, :full}
