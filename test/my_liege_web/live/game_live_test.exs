@@ -66,8 +66,8 @@ defmodule MyLiegeWeb.GameLiveTest do
     view |> element("#build-market") |> render_click()
 
     assert has_element?(view, "#building-3", "market site")
-    assert has_element?(view, "#site-3", "builders arrived 0/#{config.build_builders}")
-    assert has_element?(view, "#site-3", "progress 0/#{config.build_weeks} weeks")
+    assert has_element?(view, "#site-3", "builders arrived 0/#{config.build_capacity}")
+    assert has_element?(view, "#site-3", "progress 0/#{config.build_work}")
   end
 
   test "the build price is shown; the buttons are disabled once gold is short", %{conn: conn} do
@@ -96,7 +96,7 @@ defmodule MyLiegeWeb.GameLiveTest do
     view |> element("#place-3") |> render_click()
 
     config = Config.from_csv()
-    needed = config.build_builders
+    needed = config.build_capacity
 
     assert has_element?(view, "#building-3 #worker-1")
     assert has_element?(view, "#travel-1", "#{config.travel_weeks}")

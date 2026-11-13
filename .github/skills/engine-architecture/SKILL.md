@@ -19,15 +19,16 @@ lib/my_liege/engine/
   load_config.ex     infrastructure: reads priv/balance_inputs.csv at compile time
   fixed.ex           infrastructure: thousandths
   random.ex          infrastructure: seeded random state
-  place.ex           model: what all kinds of place share (colour, good, type, workers_at)
+  place.ex           model: what all kinds of place share (colour, good, type, next_id, workers_at)
   place/
     blueprint.ex     model: the catalogue, one blueprint per type of place
-    building.ex      model: a building in the game (a site until finished)
+    building.ex      model: a building that stands in the game, always finished
+    project.ex       model: a project, collects progress to a target, then gives something once
   worker.ex          data
   manameter.ex       data
   pentagon.ex        data
   rules/             what happens: MyLiege.Engine.Rules.*
-    placement.ex     R2: who may enter a place, its capacity, what leaving does
+    placement.ex     R2: who may enter a place, its capacity
     staffing.ex      R2: which workers work in a week
     …
   sim_steps/         when it happens: MyLiege.Engine.SimSteps.*
@@ -43,8 +44,9 @@ for display or decisions), never `SimSteps` or `Actions.*`.
 
 Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
 
-- **Model** (`Place`, `Place.Building`, `Place.Blueprint`, `Worker`, …): only reads stored
-  data (`site?`, `ready?`, `colour`, `workers_at`). No `%Config{}`, no decision.
+- **Model** (`Place`, `Place.Building`, `Place.Project`, `Place.Blueprint`, `Worker`, …):
+  only reads stored data (`done?`, `colour`, `workers_at`). No `%Config{}`, no decision.
+  Creating a site is a rule (`Rules.Construction.new_site/3`), as its target is a config value.
 - **Rule** (`Rules.*`): decides (may this worker enter, how many fit, what is produced). Pure
   functions on plain data and an explicit `%Config{}`.
 - **Orchestration** (`Actions.*`, `SimSteps.*`): fetch what is needed, ask the rules, apply
@@ -60,9 +62,17 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
   places in pentagon order, then the guildhouse; its test checks that order against
   `Pentagon.colours/0`. It depends on no other module, so `LoadConfig` reads the types from
   it at compile time.
-- A **place** is one that exists in the game. There is one struct per kind of place; today
-  only `Place.Building` (a site until finished), later `Place.Project` and `Place.Trade`.
-  Each holds its `id` and its `blueprint`.
+- A **place** is one that exists in the game. There is one struct per kind of place:
+  `Place.Building` (always finished) and `Place.Project`, later `Place.Trade`. Each holds
+  its `id` and its `blueprint`; `Place.next_id/1` gives the next free id over all places.
+- A **project** (`Place.Project`: `id`, `blueprint`, `target`, `gives`, `progress`) collects
+  progress until `done?/1` (`progress >= target`), then gives `gives` once and is replaced
+  in `game.places` by what it gives. Its blueprint is not in the catalogue (which lists only
+  types that can stand and be ordered, with config keys): a project builds its own. The
+  first projects are construction sites: blueprint `type: :site`, no colour, no good,
+  `engine: :project`; `gives: {:building, type}`, target `build_work`. A finished site
+  becomes a `%Building{}` with a new id (`Rules.Construction`). The king's knowledge and
+  culture demands are still `game.demand`, not places.
 - `game.places` is one list of all places, whatever their kind. Workers point to their place
   by id (`worker.place`, `nil` when unplaced).
 - `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,

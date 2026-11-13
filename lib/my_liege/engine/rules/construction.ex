@@ -1,11 +1,10 @@
 defmodule MyLiege.Engine.Rules.Construction do
   @moduledoc """
-  R2, builders: an ordered building is a site, a `Place.Project` that gives the building. A
-  site needs `build_builders` builders. It advances one week in every week in which all of
-  them are on it and had arrived (travel 0) in `start_workers`, and is finished after
-  `build_weeks` such weeks: the building takes its place (same id) and produces from the next
-  week, and its builders return unplaced, travelling. A builder leaving early resets the
-  progress to 0 (`Placement.leave/1`).
+  R2, builders: an ordered building is a site, a `Place.Project` that needs `build_work`
+  work and gives the building. Up to `build_capacity` builders of any colour work on it. Each
+  week, every builder on the site who had arrived (travel 0) in `start_workers` adds 1 to its
+  progress. Once the progress reaches the target, the site is replaced by its building, with a
+  new id, and its builders return unplaced, travelling. A builder leaving keeps the progress.
   """
 
   alias MyLiege.Engine.{Config, Place, Worker}
@@ -17,7 +16,7 @@ defmodule MyLiege.Engine.Rules.Construction do
     site = %Project{
       id: Place.next_id(places),
       blueprint: Project.site_blueprint(),
-      target: config.build_weeks,
+      target: config.build_work,
       gives: {:building, type}
     }
 
@@ -39,46 +38,42 @@ defmodule MyLiege.Engine.Rules.Construction do
   end
 
   @doc """
-  Advances every site by one week of construction. `start_workers` are the workers as they
-  were when the week started, before travel went down; `workers` are the current ones, whose
-  finished builders are released. A finished site is replaced by its building.
-  Returns `{places, workers, finished_buildings}`.
+  Adds this week's work to every site. `start_workers` are the workers as they were when the
+  week started, before travel went down; `workers` are the current ones, whose finished
+  builders are released. A finished site is replaced, in its position, by its building with
+  the next free id. Returns `{places, workers, finished_buildings}`.
   """
   def advance_sites(places, start_workers, workers, %Config{} = config) do
-    {places, finished} =
-      Enum.map_reduce(places, [], fn place, finished ->
-        case advance(place, start_workers, config) do
-          {:finished, building} -> {building, finished ++ [building]}
-          {:as_is, place} -> {place, finished}
+    {places, {_next_id, finished}} =
+      Enum.map_reduce(places, {Place.next_id(places), []}, fn place, {next_id, finished} ->
+        case advance(place, start_workers, next_id) do
+          {:finished, site_id, building} ->
+            {building, {next_id + 1, finished ++ [{site_id, building}]}}
+
+          {:as_is, place} ->
+            {place, {next_id, finished}}
         end
       end)
 
-    finished_ids = MapSet.new(finished, & &1.id)
+    finished_sites = MapSet.new(finished, fn {site_id, _building} -> site_id end)
 
     workers =
       Enum.map(workers, fn %Worker{} = worker ->
-        if MapSet.member?(finished_ids, worker.place),
+        if MapSet.member?(finished_sites, worker.place),
           do: Travel.depart(worker, nil, config),
           else: worker
       end)
 
-    {places, workers, finished}
+    {places, workers, Enum.map(finished, fn {_site_id, building} -> building end)}
   end
 
-  defp advance(%Project{gives: {:building, type}} = site, start_workers, config) do
-    if working?(site, start_workers, config) do
-      site = %{site | progress: site.progress + 1}
+  defp advance(%Project{gives: {:building, type}} = site, start_workers, next_id) do
+    site = %{site | progress: site.progress + length(arrived(start_workers, site.id))}
 
-      if Project.done?(site),
-        do: {:finished, %Building{id: site.id, blueprint: Blueprint.fetch!(type)}},
-        else: {:as_is, site}
-    else
-      {:as_is, site}
-    end
+    if Project.done?(site),
+      do: {:finished, site.id, %Building{id: next_id, blueprint: Blueprint.fetch!(type)}},
+      else: {:as_is, site}
   end
 
-  defp advance(place, _start_workers, _config), do: {:as_is, place}
-
-  defp working?(site, start_workers, config),
-    do: length(arrived(start_workers, site.id)) == config.build_builders
+  defp advance(place, _start_workers, _next_id), do: {:as_is, place}
 end

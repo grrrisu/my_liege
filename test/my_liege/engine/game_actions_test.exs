@@ -28,10 +28,13 @@ defmodule MyLiege.Engine.GameActionsTest do
   end
 
   test "a finished building takes workers who produce from the next week", %{game: game} do
-    # no builders needed: ordered at week 1, built in weeks 2 and 3, produces from week 4
+    # no travel: ordered at week 1, 2 builders work in weeks 2 and 3, produces from week 4
     {:ok, game} = Game.construct(game, :market)
-    market = List.last(game.places)
+    site = List.last(game.places)
+    {:ok, game} = Game.place_worker(game, 1, site.id)
+    {:ok, game} = Game.place_worker(game, 2, site.id)
     {_reports, game} = EngineFixtures.run_weeks(game, 2)
+    market = List.last(game.places)
     {:ok, game} = Game.place_worker(game, 3, market.id)
     {:ok, report, _game} = Game.run_week(game)
 

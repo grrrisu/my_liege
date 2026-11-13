@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.SimSteps.ConstructionTest do
 
   # workers 1 and 2 are the builders of a market site
   setup do
-    config = EngineFixtures.config(build_builders: 2, travel_weeks: 1)
+    config = EngineFixtures.config(build_capacity: 2, travel_weeks: 1)
     {:ok, game} = config |> EngineFixtures.game_without_demands(1) |> Game.construct(:market)
     site = List.last(game.places)
     workers = Enum.map(game.workers, &%{&1 | place: site.id})
@@ -25,12 +25,12 @@ defmodule MyLiege.Engine.SimSteps.ConstructionTest do
     assert find(game, site.id).progress == 0
   end
 
-  test "builders arrived at the start of the week advance the site", context do
+  test "each builder arrived at the start of the week adds 1 to the site", context do
     %{game: game, site: site} = context
 
     {game, _report} = Construction.run(%{game | week: 1}, WeeklyReport.new(1, game))
 
-    assert find(game, site.id).progress == 1
+    assert find(game, site.id).progress == 2
   end
 
   defp find(game, id), do: Enum.find(game.places, &(&1.id == id))
