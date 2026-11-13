@@ -1,7 +1,8 @@
 defmodule MyLiege.Engine.SimSteps.DemandMade do
   @moduledoc """
   Step 11 of the week, R7 demand made: in a demand week, the amount uses the workers at the
-  start of the week. A project starts at progress 0, shown in the report.
+  start of the week. A knowledge or culture demand opens its project among the places
+  (`Demands.open_project/2`), at progress 0, shown in the report.
   """
   @behaviour MyLiege.Engine.SimStep
 
@@ -16,9 +17,11 @@ defmodule MyLiege.Engine.SimSteps.DemandMade do
       demand =
         Demands.make(game.week, Game.weeks_per_year(), game.manameter, population, game.config)
 
-      progress = if Demands.project?(demand), do: demand.progress
+      {places, demand} = Demands.open_project(game.places, demand)
+      progress = with %{progress: progress} <- Demands.project(demand, places), do: progress
 
-      {%{game | demand: demand}, %{report | demand: demand, demand_progress: progress}}
+      {%{game | places: places, demand: demand},
+       %{report | demand: demand, demand_progress: progress}}
     else
       {game, report}
     end

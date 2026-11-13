@@ -51,6 +51,9 @@ defmodule MyLiege.Engine.Place.Blueprint do
   @doc "The type of a colour's home place, e.g. `:green` -> `:farm`."
   def home_type(colour), do: Enum.find_value(@homes, &(&1.colour == colour && &1.type))
 
+  @doc "The colour whose home place makes `good`, e.g. `:culture` -> `:violet`."
+  def home_colour(good), do: Enum.find_value(@homes, &(&1.good == good && &1.colour))
+
   @doc "The goods in pentagon order of their home places."
   def goods, do: Enum.map(@homes, & &1.good)
 end

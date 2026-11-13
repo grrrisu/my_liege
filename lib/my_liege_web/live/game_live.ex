@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
-  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
+  alias MyLiege.Engine.Place.{Blueprint, Project}
   alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Placement, Taxes, Training}
   alias MyLiege.Reporting
 
@@ -196,6 +196,7 @@ defmodule MyLiegeWeb.GameLive do
     |> assign(:tax_decision_due?, decision_due?)
     |> assign(:demand_decision_due?, demand_due?)
     |> assign(:project_refusable?, Game.project_refusable?(game))
+    |> assign(:project, Demands.project(game.demand, game.places))
     |> assign(:won?, Game.won?(game))
     |> assign(
       :blocked?,
@@ -354,15 +355,13 @@ defmodule MyLiegeWeb.GameLive do
                 id="project"
                 class="flex flex-wrap items-center gap-3 text-sm"
               >
-                <span class="tabular-nums">
-                  Project: {units(@game.demand.progress)}/{units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}
+                <span :if={@project} class="tabular-nums">
+                  Project: {units(@project.progress)}/{units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}, {length(
+                    Place.workers_at(@game.workers, @project.id)
+                  )} worker(s) on it
                 </span>
-                <span
-                  :if={@game.demand.progress >= @game.demand.amount}
-                  id="project-reached"
-                  class="font-semibold text-green-700"
-                >
-                  target reached
+                <span :if={!@project} class="tabular-nums">
+                  Project: {units(@game.demand.amount)} {@game.demand.product} by week {@game.demand.due_week}
                 </span>
                 <button
                   :if={@project_refusable?}
@@ -551,14 +550,11 @@ defmodule MyLiegeWeb.GameLive do
           class="flex flex-wrap items-center gap-3"
         >
           <div class={["h-4 w-4 rounded-sm", colour_class(Place.colour(place))]}></div>
-          <span class="w-24 text-sm">
+          <span class="min-w-24 text-sm">
             {place_name(place)}<span :if={site?(place)} class="opacity-60"> site</span>
           </span>
           <span class="w-10 text-sm tabular-nums">
-            {length(Place.workers_at(@game.workers, place.id))}/{Placement.capacity(
-              place,
-              @game.config
-            )}
+            {workers_label(@game, place)}
           </span>
           <.worker
             :for={worker <- Place.workers_at(@game.workers, place.id)}
@@ -566,12 +562,11 @@ defmodule MyLiegeWeb.GameLive do
             selected={@selected == worker.id}
           />
           <span
-            :if={feeds_project?(@game, place)}
-            id={"feeds-project-#{place.id}"}
-            class="rounded bg-amber-100 px-1.5 text-xs text-amber-900"
-            title="this building's production goes into the king's project"
+            :if={demand_project?(place)}
+            id={"demand-project-#{place.id}"}
+            class="text-sm tabular-nums opacity-60"
           >
-            → project
+            progress {units(place.progress)}/{units(place.target)}, by week {elem(place.gives, 1)}
           </span>
           <span
             :if={site?(place)}
@@ -699,21 +694,26 @@ defmodule MyLiegeWeb.GameLive do
     |> Enum.join(", ")
   end
 
-  # the next week's production of this place goes into the open project
-  defp feeds_project?(game, place) do
-    project = game.demand
+  defp site?(place), do: match?(%Project{gives: {:building, _}}, place)
+  defp demand_project?(place), do: match?(%Project{gives: {:demand, _}}, place)
 
-    Demands.project?(project) and game.deliver_demand != false and
-      project.progress < project.amount and not Place.neutral?(place) and
-      match?(%Building{}, place) and
-      Place.good(place) == project.product
-  end
-
-  defp site?(place), do: match?(%Project{}, place)
-
-  # a site is named after the building it gives
+  # a site is named after the building it gives, a demand project after its good
   defp place_name(%Project{gives: {:building, type}}), do: type
+
+  defp place_name(%Project{gives: {:demand, _}} = project),
+    do: "king's demand: #{Place.good(project)}"
+
   defp place_name(place), do: Place.type(place)
+
+  # workers / capacity; a demand project takes any number
+  defp workers_label(game, place) do
+    count = length(Place.workers_at(game.workers, place.id))
+
+    case Placement.capacity(place, game.config) do
+      :unlimited -> "#{count}"
+      capacity -> "#{count}/#{capacity}"
+    end
+  end
 
   defp type_colour(type), do: Blueprint.fetch!(type).colour
 

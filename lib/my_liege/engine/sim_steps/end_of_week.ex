@@ -20,7 +20,7 @@ defmodule MyLiege.Engine.SimSteps.EndOfWeek do
         bandit_threat: game.bandits.threat,
         bandits_weeks_to_raid: Bandits.weeks_to_raid(game.bandits, game.week),
         stock_change: stock_change(report, game),
-        project_change: project_change(report.start.demand, game.demand),
+        project_change: project_change(report.start, game),
         game_over: game.game_over,
         start: nil
     }
@@ -38,12 +38,10 @@ defmodule MyLiege.Engine.SimSteps.EndOfWeek do
       end)
 
   # the same project open at the start and at the end of the week
-  defp project_change(
-         %{progress: before, due_week: due_week} = start,
-         %{due_week: due_week} = now
-       )
-       when is_integer(before),
-       do: if(Demands.project?(now) and start.product == now.product, do: now.progress - before)
+  defp project_change(start, game) do
+    before = Demands.project(start.demand, start.places)
+    now = Demands.project(game.demand, game.places)
 
-  defp project_change(_start, _now), do: nil
+    if before && now && before.id == now.id, do: now.progress - before.progress
+  end
 end

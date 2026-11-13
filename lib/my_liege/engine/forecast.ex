@@ -104,7 +104,8 @@ defmodule MyLiege.Engine.Forecast do
 
   defp expected(game, demand, weeks) do
     if Demands.project?(demand) do
-      expected = project(demand.progress, game.report.project_change, weeks)
+      %{progress: progress} = Demands.project(demand, game.places)
+      expected = project(progress, game.report.project_change, weeks)
       expected && min(expected, demand.amount)
     else
       project(Map.fetch!(game.stocks, demand.product), change(game, demand.product), weeks)

@@ -7,9 +7,9 @@ defmodule MyLiege.Engine.Rules.Construction do
   new id, and its builders return unplaced, travelling. A builder leaving keeps the progress.
   """
 
-  alias MyLiege.Engine.{Config, Place, Worker}
+  alias MyLiege.Engine.{Config, Place}
   alias MyLiege.Engine.Place.{Blueprint, Building, Project}
-  alias MyLiege.Engine.Rules.Travel
+  alias MyLiege.Engine.Rules.{Placement, Travel}
 
   @doc "Appends a new site for a building of `type` to `places`, with the next free id."
   def new_site(places, type, %Config{} = config) do
@@ -30,9 +30,9 @@ defmodule MyLiege.Engine.Rules.Construction do
   def arrived(workers, site_id),
     do: workers |> builders(site_id) |> Enum.reject(&Travel.travelling?/1)
 
-  @doc "How many builders on all sites have arrived."
+  @doc "How many builders on all sites have arrived (not counting workers on demand projects)."
   def arrived_builders(workers, places) do
-    sites = for %Project{id: id} <- places, into: MapSet.new(), do: id
+    sites = for %Project{id: id, gives: {:building, _}} <- places, into: MapSet.new(), do: id
 
     Enum.count(workers, &(MapSet.member?(sites, &1.place) and not Travel.travelling?(&1)))
   end
@@ -55,13 +55,9 @@ defmodule MyLiege.Engine.Rules.Construction do
         end
       end)
 
-    finished_sites = MapSet.new(finished, fn {site_id, _building} -> site_id end)
-
     workers =
-      Enum.map(workers, fn %Worker{} = worker ->
-        if MapSet.member?(finished_sites, worker.place),
-          do: Travel.depart(worker, nil, config),
-          else: worker
+      Enum.reduce(finished, workers, fn {site_id, _building}, workers ->
+        Placement.release(workers, site_id, config)
       end)
 
     {places, workers, Enum.map(finished, fn {_site_id, building} -> building end)}

@@ -155,13 +155,13 @@ you add one, ask the designer whether it should be a CSV key.
 | `week` | int, last week run | 0 | `run_week/1` (+1) |
 | `demand_weeks` | `[week]`, one per half year at most | `Demands.schedule/3` in `new/2` | never (tests: `EngineFixtures.game_without_demands/2` sets `[]`) |
 | `workers` | `[%Worker{}]` | `Worker.starting/2` | `place_worker/3`, `unplace_worker/2` (between weeks); steps `Travel`, `Birth` (appends), `Construction` and `TrainingEnd` (release) |
-| `places` | `[%Place.Building{} \| %Place.Project{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `Construction` step (progress; replaces a done site by a building with a new id) |
+| `places` | `[%Place.Building{} \| %Place.Project{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `refuse_project/1` (removes the demand project); steps `Production` (demand project progress), `Construction` (site progress; replaces a done site by a building with a new id), `DemandDelivery` (removes the settled demand project), `DemandMade` (appends a demand project) |
 | `manameter` | `%Manameter{}` ‰ | `config.manameter_start` | `ManameterUpdate` step |
 | `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2` (gold); steps `Production` (+), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
 | `report` | `%WeeklyReport{}` | week-0 report | `run_week/1`; `construct/2` adds to `gold_spent_buildings` |
 | `tax_due` | thousandths \| nil | nil | `TaxCount` sets it, `TaxPayment` clears it |
 | `pay_tax` | bool \| nil | nil | `decide_tax/2` sets it, `TaxPayment` clears it |
-| `demand` | `%{product, amount, due_week, progress}` \| nil (`progress` is an int only for projects) | nil | `DemandMade` sets it, `Production` (project progress), `DemandDelivery` clears it |
+| `demand` | `%{product, amount, due_week, project_id}` \| nil (`project_id` is the id of its project for knowledge and culture, `nil` otherwise) | nil | `DemandMade` sets it, `DemandDelivery` clears it |
 | `deliver_demand` | bool \| nil | nil | `decide_demand/2`, `refuse_project/1`; `DemandDelivery` clears it |
 | `misses` | int | 0 | `TaxPayment`, `DemandDelivery` (via `Rules.Misses`) |
 | `bandits` | `%{threat (thousandths), raid_week \| nil}` | `Bandits.starting/0` | `Bandits` step |
@@ -187,6 +187,12 @@ construction site has the site blueprint (`type: :site`, no colour, no good), `t
 build_work` and `gives: {:building, type}`. The `Construction` step adds 1 to `progress` per
 arrived builder; a builder leaving doesn't change it. Once `done?/1`, the step replaces the
 site by a `%Place.Building{}` of `type` with a new id.
+
+A king's demand project has `Project.demand_blueprint(good)` (`type: :demand`, the good's
+home colour, the good), `target` the demand's amount and `gives: {:demand, due_week}`. It is
+appended by `DemandMade` (`Rules.Demands.open_project/2`); the `Production` step adds its
+workers' output to `progress`, up to the target; `DemandDelivery` and `refuse_project/1`
+remove it and release its workers.
 
 ## 4. The weekly report
 
