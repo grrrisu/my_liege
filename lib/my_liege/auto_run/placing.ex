@@ -1,0 +1,199 @@
+defmodule MyLiege.AutoRun.Placing do
+  @moduledoc """
+  The shared helper for every bot action that places workers.
+
+  A placing action implements `target/3`: the building type it sends a worker to, or `nil`
+  if it leaves the worker to the next action. Its `run/2` is `Placing.run(game, opts)` with
+  `rules: [{__MODULE__, opts}]`.
+
+  `run/2` takes the arrived unplaced workers in worker order. For each, the first rule that
+  names a type gets the worker: it goes to a finished building of that type with room, or a
+  site that gives one (as a builder). If there is none, the worker waits unplaced; a new
+  building is ordered only when the sites already under construction can't take all
+  workers waiting for that type, and only if the strategy's build condition allows it
+  (`may_build?/4`) and `Game.construct/2` succeeds (the gold covers `build_cost_gold`).
+
+  The runner runs consecutive placing actions of a strategy as one pass (`group/1`), so an
+  earlier action gets each worker first and the workers waiting for a type are counted
+  together, whichever action sent them.
+  """
+
+  alias MyLiege.AutoRun.BotActions.Feed
+  alias MyLiege.Engine.{Forecast, Game, Place, Worker}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
+  alias MyLiege.Engine.Rules.{Production, Travel}
+
+  @behaviour MyLiege.AutoRun.BotAction
+
+  @callback target(Worker.t(), Game.t(), opts :: keyword()) :: atom() | nil
+
+  @doc """
+  Places the available workers by `rules` (`[{module, opts}]`, in priority order) under the
+  build condition `build`.
+  """
+  @impl MyLiege.AutoRun.BotAction
+  def run(%Game{} = game, opts) do
+    rules = Keyword.fetch!(opts, :rules)
+    build = Keyword.fetch!(opts, :build)
+
+    {game, _waiting} =
+      game
+      |> available()
+      |> Enum.reduce({game, %{}}, fn worker, {game, waiting} ->
+        case target(rules, worker, game) do
+          nil -> {game, waiting}
+          type -> place_or_wait(game, worker, type, waiting, build)
+        end
+      end)
+
+    game
+  end
+
+  @doc "Whether `module` is a placing action (implements `target/3`)."
+  def placing?(module) do
+    Code.ensure_loaded!(module)
+    function_exported?(module, :target, 3)
+  end
+
+  @doc """
+  Merges each run of consecutive placing actions in `actions` (`[{module, opts}]`, opts
+  already merged) into one `{Placing, rules: [...], build: build}` step.
+  """
+  def group(actions) do
+    actions
+    |> Enum.chunk_by(fn {module, _opts} -> placing?(module) end)
+    |> Enum.flat_map(fn [{first, opts} | _] = chunk ->
+      if placing?(first),
+        do: [{__MODULE__, rules: chunk, build: Keyword.fetch!(opts, :build)}],
+        else: chunk
+    end)
+  end
+
+  @doc "Unplaced workers who have arrived and can be placed, in worker order."
+  def available(%Game{} = game),
+    do: Enum.filter(game.workers, &(is_nil(&1.place) and not Travel.travelling?(&1)))
+
+  @doc """
+  Whether the build condition allows ordering a building of `type` now for the `waiting`
+  workers: `:always`, `:tax_safe` (`tax_safe_to_build?/1`) or `:invest`
+  (`invest_allowed?/3`).
+  """
+  def may_build?(:always, _game, _type, _waiting), do: true
+  def may_build?(:tax_safe, game, _type, _waiting), do: tax_safe_to_build?(game)
+  def may_build?(:invest, game, type, waiting), do: invest_allowed?(game, type, waiting)
+
+  @doc """
+  "Feed, save for tax": whether a building may be ordered now. Not after a week in which gold
+  left the stock other than by spoilage (tax, the king's takings, a delivered demand,
+  robbery), because that week's change would distort the forecast. Otherwise only if the
+  forecast gold for the next tax week (`Forecast.next_tax/1`; in week 0, which has no
+  forecast, the gold now) minus the building's price still covers the tax. With no tax left
+  in the game, always.
+  """
+  def tax_safe_to_build?(%Game{} = game) do
+    not gold_left_last_week?(game) and covers_next_tax?(game)
+  end
+
+  defp gold_left_last_week?(%Game{report: %{stock_change: nil}}), do: false
+
+  defp gold_left_last_week?(%Game{report: report}),
+    do: report.production.gold - report.spoiled.gold - report.stock_change.gold > 0
+
+  defp covers_next_tax?(game) do
+    case Forecast.next_tax(game) do
+      nil ->
+        true
+
+      %{amount: amount, expected_gold: expected} ->
+        (expected || game.stocks.gold) - Game.build_cost(game) >= amount
+    end
+  end
+
+  @doc """
+  "Feed, invest and defend": whether a building of `type` may be ordered now for the
+  `waiting` workers. A farm always while food is low (as in `:feed`). Otherwise only if the
+  forecast gold for the next tax week (`Forecast.next_tax/1`; in week 0 the gold now) minus
+  the price plus what the building is expected to earn until that week still covers the tax.
+  Only a market earns gold: from its first producing week, ordered now + 1 + 2 ×
+  `travel_weeks` (builders, then workers) + the weeks with full builders
+  (`build_work` ÷ `build_capacity`, rounded up), to the tax week, with the
+  waiting workers up to its capacity. With no tax left in the game, always.
+  """
+  def invest_allowed?(%Game{} = game, type, waiting) do
+    if type == :farm and Feed.food_low?(game) do
+      true
+    else
+      case Forecast.next_tax(game) do
+        nil ->
+          true
+
+        %{amount: amount, expected_gold: expected, due_week: due_week} ->
+          gold = (expected || game.stocks.gold) - Game.build_cost(game)
+          gold + earnings(game, type, waiting, due_week) >= amount
+      end
+    end
+  end
+
+  defp earnings(game, :market, waiting, due_week) do
+    config = game.config
+    weeks_to_build = div(config.build_work + config.build_capacity - 1, config.build_capacity)
+    first_week = game.week + 1 + 2 * config.travel_weeks + weeks_to_build
+    market = %Building{id: 0, blueprint: Blueprint.fetch!(:market)}
+
+    per_week =
+      waiting
+      |> Enum.take(Map.fetch!(config.place_capacity, :market))
+      |> Enum.sum_by(&Production.worker_output(&1, market, config))
+
+    per_week * max(due_week - first_week + 1, 0)
+  end
+
+  defp earnings(_game, _type, _waiting, _due_week), do: 0
+
+  defp target(rules, worker, game),
+    do: Enum.find_value(rules, fn {module, opts} -> module.target(worker, game, opts) end)
+
+  defp place_or_wait(game, worker, type, waiting, build) do
+    case place_in_any(game, worker, type) do
+      {:ok, game} ->
+        {game, waiting}
+
+      :none ->
+        waiting = Map.update(waiting, type, [worker], &(&1 ++ [worker]))
+        {order_if_needed(game, type, Map.fetch!(waiting, type), build), waiting}
+    end
+  end
+
+  defp place_in_any(game, worker, type) do
+    game.places
+    |> Enum.filter(&(builds(&1) == type))
+    |> Enum.find_value(:none, fn place ->
+      case Game.place_worker(game, worker.id, place.id) do
+        {:ok, game} -> {:ok, game}
+        {:error, _} -> nil
+      end
+    end)
+  end
+
+  defp order_if_needed(game, type, waiting, build) do
+    sites = Enum.count(game.places, &match?(%Project{gives: {:building, ^type}}, &1))
+    room_under_construction = sites * Map.fetch!(game.config.place_capacity, type)
+
+    with true <- length(waiting) > room_under_construction,
+         true <- may_build?(build, game, type, waiting),
+         {:ok, game} <- Game.construct(game, type) do
+      game
+    else
+      _ -> game
+    end
+  end
+
+  # the type of a building, or of the building a site gives; a waiting worker may also be
+  # placed on a site of its type, as a builder. The bots place no workers on a king's demand
+  # project (no bot action for them yet), so it builds nothing.
+  defp builds(%Building{} = building), do: Place.type(building)
+  defp builds(%Project{gives: {:building, type}}), do: type
+  defp builds(%Project{gives: {:demand, _}}), do: nil
+  # nor on a book (R12): the bots start no books
+  defp builds(%Project{gives: {:book, _}}), do: nil
+end
