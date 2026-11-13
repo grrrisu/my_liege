@@ -70,6 +70,21 @@ defmodule MyLiege.Engine.Rules.ManaTest do
     end
   end
 
+  describe "R12: mana on a book" do
+    test "the same mana as in a blue building, whatever the book's colour" do
+      config = EngineFixtures.config()
+      monastery = EngineFixtures.new_building(1, :monastery)
+      book = EngineFixtures.new_book(2, :red)
+
+      for worker <- [worker(:blue), worker(:green), worker(:red, true)] do
+        assert Mana.worker_mana(worker, book, config) ==
+                 Mana.worker_mana(worker, monastery, config)
+      end
+
+      assert Mana.worker_mana(worker(:green), book, config) == %{blue: 2, green: 1}
+    end
+  end
+
   defp worker(colour, trained \\ false, place_id \\ nil),
     do: %Worker{colour: colour, trained: trained, place: place_id}
 end

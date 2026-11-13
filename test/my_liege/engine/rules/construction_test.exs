@@ -133,6 +133,17 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       assert week_2.builders == 1
     end
 
+    test "writers on a book are not counted as builders", context do
+      %{game: game, site: site} = context
+      {:ok, game} = Game.start_book(game, :green)
+      book = List.last(game.places)
+      {:ok, game} = Game.place_worker(game, 1, site.id)
+      {:ok, game} = Game.place_worker(game, 2, book.id)
+      {[_week_1, week_2], _game} = EngineFixtures.run_weeks(game, 2)
+
+      assert week_2.builders == 1
+    end
+
     test "builders produce nothing and no mana, but eat", context do
       %{game: game, site: site} = context
       game = place_builders(game, site)

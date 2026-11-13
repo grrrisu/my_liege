@@ -40,6 +40,7 @@ defmodule MyLiege.Engine.GameTest do
                spoiled: %{food: 0, knowledge: 0, defence: 0, gold: 0, culture: 0},
                gold_spent_buildings: 0,
                bandit_threat: 0,
+               books: %{green: 0, yellow: 0, blue: 0, red: 0, violet: 0},
                game_over: false
              }
     end
@@ -71,6 +72,7 @@ defmodule MyLiege.Engine.GameTest do
                SimSteps.Eating,
                SimSteps.Birth,
                SimSteps.Construction,
+               SimSteps.Books,
                SimSteps.TrainingEnd,
                SimSteps.TaxPayment,
                SimSteps.DemandDelivery,

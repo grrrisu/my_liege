@@ -6,10 +6,12 @@ defmodule MyLiege.Engine.Place.Project do
   - a construction site gives `{:building, type}`: once done, it is replaced by a building of
     that type (see `Rules.Construction`);
   - a king's demand project gives `{:demand, due_week}`: the king's knowledge or culture
-    demand due that week, delivered once done (see `Rules.Demands`).
+    demand due that week, delivered once done (see `Rules.Demands`);
+  - a book gives `{:book, colour}`: once done, a book of that colour joins the village's
+    books (see `Rules.Books`).
 
   A project's blueprint is not in the catalogue; the project builds its own
-  (`site_blueprint/0`, `demand_blueprint/1`).
+  (`site_blueprint/0`, `demand_blueprint/1`, `book_blueprint/0`).
   """
 
   alias MyLiege.Engine.Place.Blueprint
@@ -21,7 +23,7 @@ defmodule MyLiege.Engine.Place.Project do
           id: pos_integer(),
           blueprint: Blueprint.t(),
           target: pos_integer(),
-          gives: {:building, atom()} | {:demand, pos_integer()},
+          gives: {:building, atom()} | {:demand, pos_integer()} | {:book, atom()},
           progress: non_neg_integer()
         }
 
@@ -42,4 +44,11 @@ defmodule MyLiege.Engine.Place.Project do
       good: good,
       engine: :project
     }
+
+  @doc """
+  The blueprint of a book: writing is blue work, knowledge as in a monastery, whatever the
+  book's own colour (which is in `gives`).
+  """
+  def book_blueprint,
+    do: %Blueprint{type: :book, colour: :blue, good: :knowledge, engine: :project}
 end

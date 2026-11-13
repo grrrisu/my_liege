@@ -24,6 +24,7 @@ defmodule MyLiege.Reporting do
   R11: `happiness_ratio` is the week's culture production ÷ what the population needs,
   in per mille; `happiness_step` (−3 to 3, a plain number) is the step applied to food and
   defence, 0 in the grace period. Both empty in week 0.
+  R12: `books_<colour>` are the books held at the end of the week, in pentagon order.
   """
 
   alias MyLiege.Engine.Pentagon
@@ -46,7 +47,8 @@ defmodule MyLiege.Reporting do
       ["gold_spent_buildings"] ++
       ["bandit_pressure", "bandit_threat", "bandits_weeks_to_raid", "gold_robbed"] ++
       ["happiness_ratio", "happiness_step"] ++
-      ["game_over"]
+      ["game_over"] ++
+      Enum.map(Pentagon.colours(), &"books_#{&1}")
   end
 
   defp row(report) do
@@ -80,7 +82,8 @@ defmodule MyLiege.Reporting do
         report.happiness && report.happiness.ratio,
         report.happiness && report.happiness.step,
         report.game_over
-      ]
+      ] ++
+      Enum.map(Pentagon.colours(), &Map.fetch!(report.books, &1))
   end
 
   defp pressure(:unbounded), do: "inf"

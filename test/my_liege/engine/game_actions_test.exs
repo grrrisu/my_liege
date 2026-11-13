@@ -72,6 +72,27 @@ defmodule MyLiege.Engine.GameActionsTest do
     assert Enum.at(reports, 2).travelling == 2
   end
 
+  test "a green book: a monk writes it, the book is held, the monk travels back" do
+    # 1 week of travel; a book needs 24 knowledge; green has about 80% of the Manameter, so the
+    # monk writes about 3 × 4 = 12 a week
+    config = EngineFixtures.config(travel_weeks: 1, book_work: 24)
+    game = EngineFixtures.game_without_demands(config, 1)
+    game = %{game | workers: game.workers ++ [%Worker{id: 3, colour: :blue}]}
+    {:ok, game} = Game.start_book(game, :green)
+    book = List.last(game.places)
+    {:ok, game} = Game.place_worker(game, 3, book.id)
+    {reports, game} = EngineFixtures.run_weeks(game, 5)
+
+    # week 1 travel, writing from week 2; done after 3 weeks of writing (12 + 11.9 + …)
+    assert Enum.map(reports, & &1.books_finished) == [[], [], [], [:green], []]
+    assert game.books.green == 1
+    assert List.last(reports).books.green == 1
+    refute Enum.any?(game.places, &(&1.id == book.id))
+    assert %Worker{place: nil} = find_worker(game, 3)
+    # released at the end of week 4, travelling then
+    assert Enum.at(reports, 3).travelling >= 1
+  end
+
   defp find_worker(game, id), do: Enum.find(game.workers, &(&1.id == id))
 
   # week 1 brings a newborn (id 3), unplaced

@@ -48,6 +48,18 @@ defmodule MyLiege.Engine.SimSteps.ProductionTest do
     assert EngineFixtures.demand_project(game).progress == 3_000
   end
 
+  test "a writer's output goes into the book, not the stock, capped at the target", context do
+    # green has 80% of the Manameter at the start: the monk writes 3 × 4 = 12 a week
+    book = EngineFixtures.new_book(5, :green, target: 20_000, progress: 10_000)
+    game = put_monk(%{context.game | places: context.game.places ++ [book]}, 5)
+
+    {game, report} = run(game)
+
+    assert Enum.find(game.places, &(&1.id == 5)).progress == 20_000
+    assert report.production.knowledge == 0
+    assert game.stocks.knowledge == 0
+  end
+
   defp run(game), do: Production.run(%{game | week: 1}, WeeklyReport.new(1, game))
 
   defp put_monk(game, place_id),

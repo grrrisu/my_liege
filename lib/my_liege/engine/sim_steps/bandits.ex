@@ -1,6 +1,6 @@
 defmodule MyLiege.Engine.SimSteps.Bandits do
   @moduledoc """
-  Step 12 of the week, R10 bandits: from week 1, grace period or not. Uses the gold after
+  Step 13 of the week, R10 bandits: from week 1, grace period or not. Uses the gold after
   taxes and demands (before spoilage) and this week's defence production; changes the threat,
   sends bandits out, or in the raid week robs the gold above the protected gold.
   """

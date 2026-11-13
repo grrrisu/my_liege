@@ -47,26 +47,27 @@ rules vs. steps) is in the `engine-architecture` skill.
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
 | 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2), happiness (R11) | `Production` → `Rules.Production.output/4` and `project_output/4`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on demand projects (`Rules.Staffing.working/3`); **all** workers at the start of the week (population) | buildings' output: `report.production` (food and defence after the happiness step), added to `stocks`; `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture only; demand projects' output (same step) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
+| 1 | Production (R2), happiness (R11) | `Production` → `Rules.Production.output/4` and `project_output/4`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on demand projects (`Rules.Staffing.working/3`); **all** workers at the start of the week (population) | buildings' output: `report.production` (food and defence after the happiness step), added to `stocks`; `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture only; demand projects' output (same step) and books' output (as in a blue building × the book colour's experience, Manameter at the **start** of the week) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
 | 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
 | 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
 | 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
 | 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/4` | sites (`%Place.Project{}`), builders as at the **start** of the week (before step 3) | `progress` (+1 per arrived builder); a done site replaced by its `%Place.Building{}` with a new id; its builders `place: nil` with `travel_weeks` |
-| 8 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
-| 9 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
-| 10 | Demand delivery (R7): deadline week, a project done, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/4`, `Rules.Placement.release/3` | stocks, `demand`, its project, `deliver_demand` | stocks (not for projects), the project removed from `places` and its workers released, `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
-| 11 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5`, `open_project/2` | week, Manameter, workers at the start of the week | `game.demand`, for knowledge and culture its project appended to `places`; `report.demand`, `report.demand_progress` (0 for a project) |
-| 12 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 9–10, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
-| 13 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
-| 14 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `game_over`; `start: nil` |
+| 8 | Books finished (R12) | `Books` → `Rules.Books.finish/4`, `Rules.Placement.release/3` | book projects with `progress >= target` | `game.books` (+1 of the colour), the project removed from `places`, its writer `place: nil` with `travel_weeks`; `report.books_finished` |
+| 9 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
+| 10 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
+| 11 | Demand delivery (R7): deadline week, a project done, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/4`, `Rules.Placement.release/3` | stocks, `demand`, its project, `deliver_demand` | stocks (not for projects), the project removed from `places` and its workers released, `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
+| 12 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5`, `open_project/2` | week, Manameter, workers at the start of the week | `game.demand`, for knowledge and culture its project appended to `places`; `report.demand`, `report.demand_progress` (0 for a project) |
+| 13 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 10–11, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
+| 14 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
+| 15 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `books`, `game_over`; `start: nil` |
 
 Consequences of the order:
 - A newborn is drawn from the Manameter updated in step 4 of the same week.
 - Production, mana and construction see travel as it was before step 3, and training starts
   after the travel, so a worker placed at state N does nothing in N + 1 and works from N + 2.
-- Workers released in steps 7 and 8 keep their full travel into the next week: released at
+- Workers released in steps 7, 8 and 9 (and 11, from a demand project) keep their full travel into the next week: released at
   the end of week M, they can be placed again from state M + 1.
 - A newborn is added after eating, so it eats from the following week; it is unplaced.
 - Production and mana use the workers as placed before the week started.
@@ -149,11 +150,20 @@ Consequences of the order:
   `Rules.Demands.project?/1`). Workers placed on it (any number, any colour, travel as usual)
   produce and make mana as in a building of its colour and good; their output goes into it in
   step 1, up to the target. Building output never goes into it and the stock is never used.
-  Step 10 settles it as `:delivered` in the week its target is reached (at or before the
+  Step 11 settles it as `:delivered` in the week its target is reached (at or before the
   deadline), `:missed` at the end of the deadline week; either way the project leaves
   `places` and its workers are released (unplaced, travelling). No decision gate.
   `refuse_project/1` (between weeks, while open) sets `deliver_demand: false`, removes the
-  project and releases its workers at once; the next week's step 10 settles it as `:refused`.
+  project and releases its workers at once; the next week's step 11 settles it as `:refused`.
+
+- **Books (R12):** `Game.start_book/2` (`Actions.StartBook`, between weeks, free, any
+  colour, several at once) appends a `%Place.Project{gives: {:book, colour}}` with target
+  `Fixed.from(book_work)`; it takes one writer (`Rules.Placement.capacity/2` is 1). In step 1
+  the writer produces as in a blue building (`Rules.Production.project_output/5`), times
+  `Rules.Books.written/3`: × the book colour's share of `report.start.manameter` ÷ 200,
+  rounded down per worker, into the book up to its target. Mana as in a blue building. Step
+  8 (`Rules.Books.finish/4`) adds a finished book to `game.books` (colour => count, all
+  colours from 0), removes the project and releases the writer. Books have no effect yet.
 
 ## Units
 

@@ -58,7 +58,7 @@ Keys are `group.item.attribute`, lowercase, dot-separated, e.g. `place.farm.capa
 is left out when a group has only one thing (`travel.weeks`).
 
 - **Group**, the system: `game`, `start`, `birth`, `place`, `good`, `efficiency`, `mana`,
-  `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness` (v2 later: `way`,
+  `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness`, `book` (v2 later: `way`,
   `book`, `trade`, `expedition`, `suspicion`).
 - **Item**, a name the code already uses: place type, good, colour, training level,
   relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
@@ -88,6 +88,7 @@ is left out when a group has only one thing (`travel.weeks`).
 | `build_work` | int | `build.work` | `Rules.Construction.new_site/3` (a site's target), `AutoRun` (`earnings`), GameLive |
 | `build_cost_gold` | int | `build.cost_gold` | `Game.build_cost/1`, `Game.construct/2`, GameLive |
 | `build_capacity` | int | `build.capacity` | `Rules.Placement.capacity/2` (sites), `AutoRun` (`earnings`), GameLive |
+| `book_work` | int (knowledge units) | `book.work` | `Rules.Books.new_book/3` (a book's target, `Fixed.from`) |
 | `travel_weeks` | int | `travel.weeks` | `Rules.Travel.depart/3`, `Rules.Training.first_week/2` |
 | `training_min_share` | ‰ | `training.min_share_permille` | `Rules.Training.check/3` |
 | `training_weeks` | int | `training.weeks` | `Rules.Training.last_week/2` |
@@ -165,6 +166,7 @@ you add one, ask the designer whether it should be a CSV key.
 | `deliver_demand` | bool \| nil | nil | `decide_demand/2`, `refuse_project/1`; `DemandDelivery` clears it |
 | `misses` | int | 0 | `TaxPayment`, `DemandDelivery` (via `Rules.Misses`) |
 | `bandits` | `%{threat (thousandths), raid_week \| nil}` | `Bandits.starting/0` | `Bandits` step |
+| `books` | `%{colour => count}`, all five colours | `Rules.Books.none/0` (all 0) | `Books` step (+1 per finished book) |
 | `game_over` | bool | false | `TaxPayment`, `DemandDelivery` |
 
 ### `%Worker{}` ([worker.ex](../../../lib/my_liege/engine/worker.ex))
@@ -188,6 +190,11 @@ build_work` and `gives: {:building, type}`. The `Construction` step adds 1 to `p
 arrived builder; a builder leaving doesn't change it. Once `done?/1`, the step replaces the
 site by a `%Place.Building{}` of `type` with a new id.
 
+A book (R12) has `Project.book_blueprint/0` (blue, knowledge), `target:
+Fixed.from(book_work)` and `gives: {:book, colour}`; `Actions.StartBook` appends it, the
+`Production` step adds its writer's output (× experience) to `progress`, the `Books` step
+removes it once done and adds the book to `game.books`.
+
 A king's demand project has `Project.demand_blueprint(good)` (`type: :demand`, the good's
 home colour, the good), `target` the demand's amount and `gives: {:demand, due_week}`. It is
 appended by `DemandMade` (`Rules.Demands.open_project/2`); the `Production` step adds its
@@ -208,10 +215,12 @@ the steps fill it. The field-by-step mapping is the "Order inside a week" table 
   newborn, trained, builders, travelling, gold, tax_due, tax, demand (product, amount),
   demand_outcome, demand_progress, king_took, spoiled, gold_spent_buildings,
   bandit_pressure, bandit_threat, bandits_weeks_to_raid, gold_robbed, happiness_ratio,
-  happiness_step, game_over.
+  happiness_step, game_over, books (`books_<colour>` in pentagon order, held at the end of
+  the week).
 - **Not exported**: `start` (the game at the start of the week, `nil` once the week is done),
   `stock_change` and `project_change` (for `Forecast`), `bandit_protected`,
-  `bandit_threat_change` and `bandit_raid` (for the UI).
+  `bandit_threat_change` and `bandit_raid` (for the UI), `books_finished` (the colours of
+  the books finished that week).
 
 The export format is fixed. Ask before changing a column (hard rule 5).
 

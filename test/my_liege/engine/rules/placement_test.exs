@@ -152,6 +152,23 @@ defmodule MyLiege.Engine.Rules.PlacementTest do
     end
   end
 
+  describe "check_enter/3 on a book" do
+    test "a book takes one writer of any colour; a second gets :full", context do
+      %{facts: facts} = context
+      book = EngineFixtures.new_book(3, :red)
+
+      assert Placement.capacity(book, facts.config) == 1
+      assert Placement.check_enter(book, worker(:green, true), facts) == :ok
+      refute Placement.trains?(book)
+
+      facts = %{facts | workers: [worker(:blue, false, book.id)]}
+      assert Placement.check_enter(book, worker(:green), facts) == {:error, :full}
+
+      assert Placement.check_enter(book, %{worker(:green) | travel: 1}, facts) ==
+               {:error, :travelling}
+    end
+  end
+
   describe "release/3" do
     test "every worker at the place becomes unplaced and travels; the others stay", context do
       config = %{context.config | travel_weeks: 2}
