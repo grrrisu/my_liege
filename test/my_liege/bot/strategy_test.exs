@@ -9,7 +9,8 @@ defmodule MyLiege.Bot.StrategyTest do
     Pivot,
     PlaceOwn,
     SaveGold,
-    StaffSites
+    StaffSites,
+    WriteBooks
   }
 
   alias MyLiege.Bot.{Strategies, Strategy}
@@ -55,35 +56,61 @@ defmodule MyLiege.Bot.StrategyTest do
                feed_pivot: :always,
                feed_save_tax: :tax_safe,
                feed_defend: :always,
-               feed_invest_defend: :invest
+               feed_invest_defend: :invest,
+               feed_books: :always
              }
     end
 
-    test "DemandProject comes right after Feed and Defend, or after StaffSites" do
+    test "DemandProject, then WriteBooks, come right after Feed and Defend, or after StaffSites" do
       modules = fn name ->
         name |> Strategies.named() |> Strategy.actions() |> Enum.map(&elem(&1, 0))
       end
 
-      assert modules.(:stay) == [StaffSites, DemandProject, PlaceOwn, PayAndDeliver]
-      assert modules.(:pivot) == [StaffSites, DemandProject, Pivot, PlaceOwn, PayAndDeliver]
+      assert modules.(:stay) == [StaffSites, DemandProject, WriteBooks, PlaceOwn, PayAndDeliver]
 
-      for name <- [:feed, :feed_save_tax] do
-        assert modules.(name) == [
-                 StaffSites,
-                 Feed,
-                 DemandProject,
-                 SaveGold,
-                 PlaceOwn,
-                 PayAndDeliver
-               ]
+      assert modules.(:pivot) ==
+               [StaffSites, DemandProject, WriteBooks, Pivot, PlaceOwn, PayAndDeliver]
+
+      for name <- [:feed, :feed_save_tax, :feed_books] do
+        assert modules.(name) ==
+                 [StaffSites, Feed, DemandProject, WriteBooks, SaveGold, PlaceOwn, PayAndDeliver]
       end
 
       assert modules.(:feed_pivot) ==
-               [StaffSites, Feed, DemandProject, SaveGold, Pivot, PlaceOwn, PayAndDeliver]
+               [
+                 StaffSites,
+                 Feed,
+                 DemandProject,
+                 WriteBooks,
+                 SaveGold,
+                 Pivot,
+                 PlaceOwn,
+                 PayAndDeliver
+               ]
 
       for name <- [:feed_defend, :feed_invest_defend] do
         assert modules.(name) ==
-                 [Defend, StaffSites, Feed, DemandProject, SaveGold, PlaceOwn, PayAndDeliver]
+                 [
+                   Defend,
+                   StaffSites,
+                   Feed,
+                   DemandProject,
+                   WriteBooks,
+                   SaveGold,
+                   PlaceOwn,
+                   PayAndDeliver
+                 ]
+      end
+    end
+
+    test "only :feed_books writes books: red and green from week 25" do
+      for name <- Strategies.names() do
+        {WriteBooks, opts} =
+          name |> Strategies.named() |> Strategy.actions() |> List.keyfind(WriteBooks, 0)
+
+        colours = if name == :feed_books, do: [:red, :green], else: []
+
+        assert opts == [colours: colours, from_week: 25]
       end
     end
 

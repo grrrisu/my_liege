@@ -2,7 +2,7 @@ defmodule MyLiege.BotTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Bot
-  alias MyLiege.Engine.{Game, Manameter, Place, Worker}
+  alias MyLiege.Engine.{Game, Manameter, Pentagon, Place, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Building}
   alias MyLiege.EngineFixtures
 
@@ -443,7 +443,8 @@ defmodule MyLiege.BotTest do
 
       assert header == ~w(pattern seed first_tax_week first_tax_paid first_tax_missed
                           first_tax_gold_difference buildings_ordered weeks_food_below_0
-                          gold_robbed)
+                          gold_robbed book_week_green book_week_yellow book_week_blue
+                          book_week_red book_week_violet)
 
       assert Enum.map(rows, &Enum.take(&1, 2)) == [
                ["feed", "1"],
@@ -467,13 +468,40 @@ defmodule MyLiege.BotTest do
         seeds = for [^pattern, seed | _] = row <- rows, seed != "total", do: parse(row)
         [_, _, first_tax_week | sums] = parse(total)
 
-        # first_tax_week isn't summed
+        {sums, book_weeks} = Enum.split(sums, 6)
+
+        # first_tax_week and the book weeks aren't summed
         assert first_tax_week == nil
+        assert Enum.all?(book_weeks, &is_nil/1)
 
         for {sum, column} <- Enum.with_index(sums, 3) do
           assert sum == seeds |> Enum.map(&Enum.at(&1, column)) |> Enum.sum()
         end
       end
+    end
+  end
+
+  describe "Test A: Feed, books" do
+    test "writes red and green books from week 25; the summary has the week each was finished",
+         %{config: config} do
+      # a book needs 1 knowledge, so it is finished in the first week it is written
+      config = %{config | book_work: 1}
+      {reports, _game} = Bot.run(:feed_books, config, 1, weeks: 40)
+
+      finished = for r <- reports, colour <- r.books_finished, do: {colour, r.week}
+      assert Enum.sort(Keyword.keys(finished)) == [:green, :red]
+      assert Enum.all?(finished, fn {_colour, week} -> week > 25 end)
+
+      csv = Bot.summary_csv([:feed_books], config, [1], weeks: 40)
+
+      [header, row | _] =
+        csv |> String.split("\n", trim: true) |> Enum.map(&String.split(&1, ","))
+
+      weeks = header |> Enum.zip(row) |> Map.new()
+
+      assert weeks["book_week_red"] == to_string(finished[:red])
+      assert weeks["book_week_green"] == to_string(finished[:green])
+      assert weeks["book_week_blue"] == ""
     end
   end
 
@@ -515,7 +543,10 @@ defmodule MyLiege.BotTest do
       div(ordered, 30_000),
       Enum.count(reports, &(&1.food_left < 0)),
       Enum.sum_by(reports, & &1.gold_robbed)
-    ]
+    ] ++
+      for colour <- Pentagon.colours() do
+        with %{week: week} <- Enum.find(reports, &(colour in &1.books_finished)), do: week
+      end
   end
 
   describe "Test A: records" do

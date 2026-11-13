@@ -53,6 +53,7 @@ a step:
 | `Defend` | while bandits are on their way, workers move to watchtowers until the raid's gold is protected | – |
 | `Feed` | while food is low (`food_low?/1`), workers go to a farm (placing) | – |
 | `DemandProject` | while a king's demand project is open, only workers of its colour (violet for culture, blue for knowledge) go to it: first all unplaced, arrived ones; then, as many as needed for the expected output by the due week to cover what is missing, from finished buildings (not watchtowers, guildhouse or sites; not travelling), in worker order, only if they can work before the due week; starts and refuses nothing (placing, `{:place, id}`, `after_pass/2`) | – |
+| `WriteBooks` | from `from_week` (`game.week >= from_week`), starts a book of each listed colour with none held and none in progress (`before_pass/2`); each book without a writer gets one: a left-over unplaced, arrived blue worker; else one from a monastery, blue first, then any colour (`after_pass/2`); else any left-over unplaced, arrived worker; one per book (placing, `{:place, id}`) | `colours: [colour]` (`[]` = no books), `from_week:` |
 | `SaveGold` | while gold is below the next tax (`gold_low?/1`), workers go to a market (placing) | `born_before: week` |
 | `Pivot` | workers born from `from_week` go to type `to` (placing) | `to:`, `from_week:` |
 | `PlaceOwn` | workers go to their own colour's home type (placing) | – |
@@ -71,9 +72,15 @@ allows it, and waiting otherwise. A placing action implements `target(worker, ga
 a building type, `{:place, place_id}` for one specific place (e.g. a demand project: placed
 if `Rules.Placement.check_enter/3` allows it, else left unplaced; no building is ordered),
 or `nil` to leave the worker to the next action. Its `run/2` calls
-`Placing.run/2` with itself as the only rule. New placing actions use it. After the pass,
-each rule's optional `after_pass(game, opts)` runs in rule order: for decisions that move
-placed workers (`DemandProject`), so the action stays in the shared pass.
+`Placing.run/2` with itself as the only rule. New placing actions use it. Optional hooks,
+run once per pass in rule order, so an action stays in the shared pass:
+- `before_pass(game, opts)`: before the pass, without placing workers (`WriteBooks` starts
+  books);
+- `after_pass(game, opts)`: after it, for decisions that move placed workers
+  (`DemandProject`, `WriteBooks` from a monastery).
+
+Each rule's opts get `earlier:`, the rules before it in the pass; `Placing.left_over?/3`
+says whether they leave a worker alone (`WriteBooks` counts only those).
 
 ## The named strategies
 
@@ -81,16 +88,19 @@ placed workers (`DemandProject`), so the action stays in the shared pass.
 
 | Pattern | Actions, in order | `build` |
 |---|---|---|
-| `:stay` | StaffSites, DemandProject, PlaceOwn, PayAndDeliver | `:always` |
-| `:pivot` | StaffSites, DemandProject, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
-| `:feed` | StaffSites, Feed, DemandProject, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
-| `:feed_pivot` | StaffSites, Feed, DemandProject, {SaveGold, born_before: pivot_week}, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
+| `:stay` | StaffSites, DemandProject, no_books, PlaceOwn, PayAndDeliver | `:always` |
+| `:pivot` | StaffSites, DemandProject, no_books, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
+| `:feed` | StaffSites, Feed, DemandProject, no_books, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
+| `:feed_pivot` | StaffSites, Feed, DemandProject, no_books, {SaveGold, born_before: pivot_week}, {Pivot, to: :watchtower, from_week: pivot_week}, PlaceOwn, PayAndDeliver | `:always` |
 | `:feed_save_tax` | as `:feed` | `:tax_safe` |
-| `:feed_defend` | Defend, StaffSites, Feed, DemandProject, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
+| `:feed_defend` | Defend, StaffSites, Feed, DemandProject, no_books, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
 | `:feed_invest_defend` | as `:feed_defend` | `:invest` |
+| `:feed_books` | StaffSites, Feed, DemandProject, {WriteBooks, colours: [:red, :green], from_week: 25}, SaveGold, PlaceOwn, PayAndDeliver | `:always` |
 
-`DemandProject` comes right after survival (`Feed`, `Defend`); in `:stay` and `:pivot`,
-which have no `Feed`, right after `StaffSites`.
+`no_books` is `{WriteBooks, colours: [], from_week: 25}`: it writes nothing, so those
+strategies play as before. `DemandProject` comes right after survival (`Feed`, `Defend`);
+in `:stay` and `:pivot`, which have no `Feed`, right after `StaffSites`. `WriteBooks` comes
+right after `DemandProject`, before `SaveGold`, `Pivot` and `PlaceOwn`.
 
 ## Adding a bot action
 
@@ -123,11 +133,15 @@ File.write!("summary.csv", Bot.summary_csv([:feed, :feed_save_tax], config, 1..2
 ```
 
 `Bot.Analysis` holds `summary_csv/4`, `leading/2`, `pivot_weeks/2` and `spread/2`; `Bot`
-delegates to them. `summary_csv/4` takes named strategies only.
+delegates to them. `summary_csv/4` takes named strategies only; besides the tax, building,
+food and robbery columns it has `book_week_<colour>` (pentagon order): the week the first
+book of that colour was finished, empty if never and in the totals.
 
 ## Projects and books
 
 The bots place workers of the project's colour on the king's demand projects
-(`DemandProject`): unplaced, arrived ones first, then as many as needed from buildings. Workers released when a project ends are
-unplaced and travelling; once arrived, later actions place them as usual. The bots still
-write no books: they start none and place nobody on one.
+(`DemandProject`): unplaced, arrived ones first, then as many as needed from buildings.
+Workers released when a project ends are unplaced and travelling; once arrived, later
+actions place them as usual. Books are written only by `WriteBooks` with listed colours
+(`:feed_books`: red and green from week 25); a finished book's writer is released the same
+way.

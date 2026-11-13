@@ -19,8 +19,11 @@ defmodule MyLiege.Bot.Placing do
   workers waiting for that type, and only if the strategy's build condition allows it
   (`may_build?/4`) and `Game.construct/2` succeeds (the gold covers `build_cost_gold`).
 
-  After the pass, every rule that implements the optional `after_pass/2` runs it, in rule
-  order (e.g. `DemandProject` moves workers out of buildings there).
+  Before the pass, every rule that implements the optional `before_pass/2` runs it, in rule
+  order, without placing workers (e.g. `WriteBooks` starts books there). After the pass,
+  every rule that implements the optional `after_pass/2` runs it, in rule order (e.g.
+  `DemandProject` moves workers out of buildings there). `left_over?/3` tells a rule whether
+  the rules before it leave a worker alone.
 
   The runner runs consecutive placing actions of a strategy as one pass (`group/1`), so an
   earlier action gets each worker first and the workers waiting for a type are counted
@@ -39,21 +42,34 @@ defmodule MyLiege.Bot.Placing do
   @callback target(Worker.t(), Game.t(), opts :: keyword()) :: target() | nil
 
   @doc """
+  Optional: what the action does before the pass, without placing workers, e.g. starting
+  books (`WriteBooks`). Runs once per pass, in rule order.
+  """
+  @callback before_pass(Game.t(), opts :: keyword()) :: Game.t()
+
+  @doc """
   Optional: what the action does after the pass, e.g. moving placed workers
   (`DemandProject`). Runs once per pass, in rule order.
   """
   @callback after_pass(Game.t(), opts :: keyword()) :: Game.t()
 
-  @optional_callbacks after_pass: 2
+  @optional_callbacks before_pass: 2, after_pass: 2
 
   @doc """
   Places the available workers by `rules` (`[{module, opts}]`, in priority order) under the
-  build condition `build`, then runs each rule's `after_pass/2`, if it has one.
+  build condition `build`. Before the pass each rule's `before_pass/2` runs, after it each
+  rule's `after_pass/2`, if it has one. Each rule's opts also get `earlier:`, the rules
+  before it (see `left_over?/3`).
   """
   @impl MyLiege.Bot.BotAction
   def run(%Game{} = game, opts) do
-    rules = Keyword.fetch!(opts, :rules)
+    rules = opts |> Keyword.fetch!(:rules) |> with_earlier()
     build = Keyword.fetch!(opts, :build)
+
+    game =
+      Enum.reduce(rules, game, fn {module, opts}, game ->
+        hook(module, :before_pass, game, opts)
+      end)
 
     {game, _waiting} =
       game
@@ -66,11 +82,33 @@ defmodule MyLiege.Bot.Placing do
         end
       end)
 
-    Enum.reduce(rules, game, fn {module, opts}, game -> after_pass(module, game, opts) end)
+    Enum.reduce(rules, game, fn {module, opts}, game -> hook(module, :after_pass, game, opts) end)
   end
 
-  defp after_pass(module, game, opts) do
-    if function_exported?(module, :after_pass, 2), do: module.after_pass(game, opts), else: game
+  @doc """
+  Whether the rules before this one in the pass (`opts[:earlier]`) leave `worker` alone: none
+  of them names a target for it.
+  """
+  def left_over?(worker, %Game{} = game, opts) do
+    opts
+    |> Keyword.get(:earlier, [])
+    |> Enum.all?(fn {module, earlier_opts} ->
+      module.target(worker, game, earlier_opts) == nil
+    end)
+  end
+
+  defp with_earlier(rules) do
+    rules
+    |> Enum.with_index()
+    |> Enum.map(fn {{module, opts}, index} ->
+      {module, Keyword.put(opts, :earlier, Enum.take(rules, index))}
+    end)
+  end
+
+  # a module not loaded yet would not show its functions to `function_exported?/3`
+  defp hook(module, name, game, opts) do
+    Code.ensure_loaded!(module)
+    if function_exported?(module, name, 2), do: apply(module, name, [game, opts]), else: game
   end
 
   @doc "Whether `module` is a placing action (implements `target/3`)."
