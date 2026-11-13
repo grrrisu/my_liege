@@ -2,6 +2,7 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Game, Manameter, Place, Worker}
+  alias MyLiege.Engine.Place.Building
   alias MyLiege.EngineFixtures
 
   # green farmer (id 1) at 80% green; red soldier (id 2) at 10% red
@@ -13,7 +14,7 @@ defmodule MyLiege.Engine.Rules.TrainingTest do
 
   describe "R5: training in the guildhouse" do
     test "the guildhouse can be built and is neutral", %{guildhouse: guildhouse} do
-      assert guildhouse.ready_week == 3
+      assert %Building{} = guildhouse
       assert Place.colour(guildhouse) == nil
     end
 

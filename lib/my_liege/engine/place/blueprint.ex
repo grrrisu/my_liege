@@ -2,7 +2,8 @@ defmodule MyLiege.Engine.Place.Blueprint do
   @moduledoc """
   The catalogue of places: one blueprint per type of place, saying what the type is (its
   colour, the good it makes, and which kind of place it becomes, its `engine`). A place in
-  the game points to its blueprint (see `Place`).
+  the game points to its blueprint (see `Place`). The catalogue lists the types that can stand
+  and be ordered; a project builds its own blueprint (see `Place.Project`).
 
   The five home places, one per colour, come first in pentagon order; then the neutral ones.
   The catalogue is read at compile time, also by the loading of the designer's inputs, so this
@@ -16,7 +17,7 @@ defmodule MyLiege.Engine.Place.Blueprint do
           type: atom(),
           colour: atom() | nil,
           good: atom() | nil,
-          engine: :building
+          engine: :building | :project
         }
 
   # plain maps, as the struct can't be built while this module compiles; the home places'

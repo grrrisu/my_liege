@@ -7,7 +7,7 @@ defmodule MyLiege.Engine.Actions.PlaceWorker do
   off a site resets the site's progress to 0 (`Rules.Placement.leave/1`).
 
   Returns `{:ok, game}` on success, or `{:error, reason}` with reason `:unknown_worker`,
-  `:unknown_place`, `:travelling`, `:not_ready`, `:full`, `:already_trained` or
+  `:unknown_place`, `:travelling`, `:full`, `:already_trained` or
   `:below_threshold`. The placement takes effect in the next week.
   """
 

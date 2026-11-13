@@ -2,7 +2,7 @@ defmodule MyLiege.EngineFixtures do
   @moduledoc "Explicit engine configuration for tests, independent of the designer's CSV."
 
   alias MyLiege.Engine.{Config, Game, Manameter}
-  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
 
   def config(overrides \\ []) do
     struct!(
@@ -68,9 +68,20 @@ defmodule MyLiege.EngineFixtures do
     )
   end
 
-  @doc "A building of `type` with id `id`, finished from week 0 unless `fields` say otherwise."
-  def new_building(id, type, fields \\ []),
-    do: struct!(%Building{id: id, blueprint: Blueprint.fetch!(type)}, fields)
+  @doc "A building of `type` with id `id`."
+  def new_building(id, type), do: %Building{id: id, blueprint: Blueprint.fetch!(type)}
+
+  @doc "A site with id `id` that gives a building of `type`, target 2 unless `fields` say otherwise."
+  def new_site(id, type, fields \\ []) do
+    site = %Project{
+      id: id,
+      blueprint: Project.site_blueprint(),
+      target: 2,
+      gives: {:building, type}
+    }
+
+    struct!(site, fields)
+  end
 
   @doc "A new game without king's demands, for tests about other rules."
   def game_without_demands(config, seed), do: %{Game.new(config, seed) | demand_weeks: []}

@@ -3,7 +3,7 @@ defmodule MyLiege.Engine.Actions.UnplaceWorkerTest do
 
   alias MyLiege.Engine.Actions.UnplaceWorker
   alias MyLiege.Engine.{Game, Worker}
-  alias MyLiege.Engine.Place.Building
+  alias MyLiege.Engine.Place.Project
   alias MyLiege.EngineFixtures
 
   # worker 1 (green) on the farm (1), worker 2 (red) in the watchtower (2)
@@ -41,10 +41,10 @@ defmodule MyLiege.Engine.Actions.UnplaceWorkerTest do
     game = update_worker(game, 1, &%{&1 | place: site.id})
 
     assert {:ok, game} = UnplaceWorker.run(game, 1)
-    assert %Building{progress: 0} = find_place(game, site.id)
+    assert %Project{progress: 0} = find_place(game, site.id)
   end
 
-  test "leaving a finished building leaves it unchanged", %{game: game} do
+  test "leaving a building leaves it unchanged", %{game: game} do
     assert {:ok, unplaced} = UnplaceWorker.run(game, 1)
     assert unplaced.places == game.places
   end

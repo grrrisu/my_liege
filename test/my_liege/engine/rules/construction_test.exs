@@ -1,8 +1,9 @@
 defmodule MyLiege.Engine.Rules.ConstructionTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Manameter, Worker}
-  alias MyLiege.Engine.Place.Building
+  alias MyLiege.Engine.{Game, Manameter, Place, Worker}
+  alias MyLiege.Engine.Place.{Building, Project}
+  alias MyLiege.Engine.Rules.Construction
   alias MyLiege.EngineFixtures
 
   # 2 builders, 1 week of travel, 2 construction weeks; workers 1 (green) and 2 (red) start
@@ -16,16 +17,29 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
 
   describe "R2 builders" do
     test "an ordered building is a site without progress; the price is paid at once", context do
-      %{game: game, site: site} = context
+      %{config: config, game: game, site: site} = context
 
-      assert Building.site?(site)
-      assert %Building{ready_week: nil, progress: 0} = site
+      assert %Project{id: 3, gives: {:building, :market}, progress: 0} = site
+      assert site.target == config.build_weeks
+      assert Place.colour(site) == nil
+      refute Project.done?(site)
       assert game.stocks.gold == 100_000 - Game.build_cost(game)
-      refute Building.ready?(site, 99)
     end
 
-    test "the starting farm and tower are finished and need no builders", %{game: game} do
-      assert game.places |> Enum.take(2) |> Enum.all?(&(not Building.site?(&1)))
+    test "the starting farm and tower are buildings and need no builders", %{game: game} do
+      assert game.places |> Enum.take(2) |> Enum.all?(&match?(%Building{}, &1))
+    end
+
+    test "sites can be ordered without limit, each with its own id", %{config: config} do
+      places =
+        Enum.reduce(1..10, Building.starting(), fn _, places ->
+          Construction.new_site(places, :market, config)
+        end)
+
+      ids = Enum.map(places, & &1.id)
+
+      assert Enum.count(places, &match?(%Project{gives: {:building, :market}}, &1)) == 10
+      assert Enum.uniq(ids) == ids
     end
 
     test "a site takes build_builders builders of any colour", context do
@@ -43,8 +57,8 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       {weeks, game} = weekly(game, site, 3)
 
       # week 1 travel, weeks 2 and 3 building
-      assert Enum.map(weeks, & &1.progress) == [0, 1, 2]
-      assert %Building{ready_week: 4, progress: 2} = find_place(game, site.id)
+      assert Enum.map(weeks, & &1.progress) == [0, 1, nil]
+      assert %Building{id: 3, blueprint: %{type: :market}} = find_place(game, site.id)
       assert Enum.map(weeks, & &1.builders) == [2, 2, 0]
     end
 
@@ -62,7 +76,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       {:ok, game} = Game.place_worker(game, 1, site.id)
       {_reports, game} = EngineFixtures.run_weeks(game, 5)
 
-      assert %Building{ready_week: nil, progress: 0} = find_place(game, site.id)
+      assert %Project{progress: 0} = find_place(game, site.id)
     end
 
     test "moving a builder off resets the progress; it restarts once all are back", context do
@@ -79,8 +93,8 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       # travel in week 3, building in weeks 4 and 5
       {weeks, game} = weekly(game, site, 3)
 
-      assert Enum.map(weeks, & &1.progress) == [0, 1, 2]
-      assert find_place(game, site.id).ready_week == 6
+      assert Enum.map(weeks, & &1.progress) == [0, 1, nil]
+      assert %Building{} = find_place(game, site.id)
       assert game.stocks.gold == gold
     end
 
@@ -123,7 +137,7 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
       game = place_builders(game, site)
       {reports, game} = EngineFixtures.run_weeks(game, 4)
 
-      assert find_place(game, site.id).ready_week == 4
+      assert %Building{blueprint: %{type: :guildhouse}} = find_place(game, site.id)
       assert Enum.all?(reports, &(&1.trained == []))
       assert Enum.all?(Enum.take(game.workers, 2), &(&1.place == nil and not &1.trained))
     end
@@ -147,13 +161,17 @@ defmodule MyLiege.Engine.Rules.ConstructionTest do
     game
   end
 
-  # runs `count` weeks; for each, the site's progress and the report's arrived builders
+  # runs `count` weeks; for each, the site's progress (nil once it is a building) and the
+  # report's arrived builders
   defp weekly(game, site, count) do
     Enum.map_reduce(1..count, game, fn _, game ->
       {[report], game} = EngineFixtures.run_weeks(game, 1)
-      {%{progress: find_place(game, site.id).progress, builders: report.builders}, game}
+      {%{progress: progress(find_place(game, site.id)), builders: report.builders}, game}
     end)
   end
+
+  defp progress(%Project{progress: progress}), do: progress
+  defp progress(%Building{}), do: nil
 
   defp add_unplaced(game, colour) do
     worker = %Worker{id: Worker.next_id(game.workers), colour: colour}

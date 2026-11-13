@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
-  alias MyLiege.Engine.Place.{Blueprint, Building}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
   alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Placement, Taxes, Training}
   alias MyLiege.Reporting
 
@@ -156,7 +156,6 @@ defmodule MyLiegeWeb.GameLive do
 
   defp error_message(:no_project), do: "There is no open project to refuse."
   defp error_message(:full), do: "That building is full."
-  defp error_message(:not_ready), do: "That building is not finished yet."
   defp error_message(:unknown_worker), do: "Select a worker first."
   defp error_message(:unknown_place), do: "Unknown place."
   defp error_message(:unknown_type), do: "Unknown building type."
@@ -553,7 +552,7 @@ defmodule MyLiegeWeb.GameLive do
         >
           <div class={["h-4 w-4 rounded-sm", colour_class(Place.colour(place))]}></div>
           <span class="w-24 text-sm">
-            {Place.type(place)}<span :if={Building.site?(place)} class="opacity-60"> site</span>
+            {place_name(place)}<span :if={site?(place)} class="opacity-60"> site</span>
           </span>
           <span class="w-10 text-sm tabular-nums">
             {length(Place.workers_at(@game.workers, place.id))}/{Placement.capacity(
@@ -575,7 +574,7 @@ defmodule MyLiegeWeb.GameLive do
             → project
           </span>
           <span
-            :if={Building.site?(place)}
+            :if={site?(place)}
             id={"site-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
@@ -706,9 +705,15 @@ defmodule MyLiegeWeb.GameLive do
 
     Demands.project?(project) and game.deliver_demand != false and
       project.progress < project.amount and not Place.neutral?(place) and
-      not Building.site?(place) and
+      match?(%Building{}, place) and
       Place.good(place) == project.product
   end
+
+  defp site?(place), do: match?(%Project{}, place)
+
+  # a site is named after the building it gives
+  defp place_name(%Project{gives: {:building, type}}), do: type
+  defp place_name(place), do: Place.type(place)
 
   defp type_colour(type), do: Blueprint.fetch!(type).colour
 
