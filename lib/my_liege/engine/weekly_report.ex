@@ -24,6 +24,11 @@ defmodule MyLiege.Engine.WeeklyReport do
   R12: `books` are the books held at the end of the week (colour => count); `books_finished`
   the colours of the books finished that week.
 
+  R14: `granary_working` is whether a granary had a working keeper that week;
+  `culture_upkeep` the culture taken from the stock for the granaries' upkeep (thousandths).
+  R15: `inventions` are the types invented at the end of the week; `inventions_finished` the
+  types finished that week.
+
   For the forecasts (`Forecast`): `stock_change` is every stock at the end of the week minus at
   its start (one-off payments, the king's takings and robbery included; gold spent on buildings
   between weeks is not), `nil` in week 0. `project_change` is what an open king's project gained
@@ -68,6 +73,10 @@ defmodule MyLiege.Engine.WeeklyReport do
     happiness: nil,
     books: nil,
     books_finished: [],
+    granary_working: false,
+    culture_upkeep: 0,
+    inventions: nil,
+    inventions_finished: [],
     stock_change: nil,
     project_change: nil,
     game_over: false
@@ -104,6 +113,10 @@ defmodule MyLiege.Engine.WeeklyReport do
             %{ratio: non_neg_integer(), step: integer(), step_without_grace: integer()} | nil,
           books: %{atom() => non_neg_integer()} | nil,
           books_finished: [atom()],
+          granary_working: boolean(),
+          culture_upkeep: non_neg_integer(),
+          inventions: [atom()] | nil,
+          inventions_finished: [atom()],
           stock_change: %{atom() => integer()} | nil,
           project_change: integer() | nil,
           game_over: boolean()

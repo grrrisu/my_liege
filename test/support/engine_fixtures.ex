@@ -16,6 +16,7 @@ defmodule MyLiege.EngineFixtures do
         place_output_per_worker: %{farm: 9, monastery: 3, watchtower: 3, market: 3, tavern: 3},
         place_capacity: %{
           farm: 4,
+          granary: 1,
           monastery: 4,
           watchtower: 4,
           market: 4,
@@ -23,8 +24,8 @@ defmodule MyLiege.EngineFixtures do
           guildhouse: 1
         },
         efficiency: %{
-          untrained: %{same: 1000, neighbour: 800, opposite: 500},
-          trained: %{same: 1250, neighbour: 600, opposite: 300}
+          untrained: %{same: 1000, neighbour: 750, opposite: 500},
+          trained: %{same: 1500, neighbour: 500, opposite: 250}
         },
         # a site needs builders (R2): tests that need a finished building add one
         # (`add_building/2`) instead of building it
@@ -32,12 +33,15 @@ defmodule MyLiege.EngineFixtures do
         build_cost_gold: 30,
         build_capacity: 2,
         book_work: 96,
+        place_granary_food_spoilage: 10,
+        place_granary_culture_upkeep: 5,
+        way_plough_work: 96,
+        way_plough_capacity: 4,
+        way_plough_bonus: 250,
         # no travel, so tests about other rules see placements take effect at once
         travel_weeks: 0,
-        mana: %{
-          untrained: %{place_colour: 2, worker_colour: 1},
-          trained: %{place_colour: 1, worker_colour: 2}
-        },
+        mana_place_colour: 2,
+        mana_good_colour: 1,
         manameter_points_per_week: 3,
         start_food: 24,
         start_gold: 100,
@@ -113,6 +117,18 @@ defmodule MyLiege.EngineFixtures do
     }
 
     struct!(book, fields)
+  end
+
+  @doc "A project inventing `type` (R15) with id `id`, target 96 unless `fields` say otherwise."
+  def new_invention(id, type, fields \\ []) do
+    project = %Project{
+      id: id,
+      blueprint: Blueprint.fetch!(type),
+      target: 96_000,
+      gives: {:invention, type}
+    }
+
+    struct!(project, fields)
   end
 
   @doc """

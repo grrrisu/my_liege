@@ -254,6 +254,17 @@ defmodule MyLiegeWeb.GameLiveTest do
     refute has_element?(view, "#bandit-threat-direction")
   end
 
+  test "R13: locked ways are shown disabled with the books they need", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#build-granary[disabled]")
+    assert has_element?(view, "#build-granary #locked-granary")
+    assert has_element?(view, "#start-invention-plough[disabled]")
+    assert has_element?(view, "#start-invention-plough #locked-plough")
+    refute has_element?(view, "#build-farm #locked-farm")
+    refute has_element?(view, "#plough-invented")
+  end
+
   defp next_week(view) do
     deliver_demand(view)
     view |> element("#next-week") |> render_click()

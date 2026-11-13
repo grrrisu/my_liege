@@ -16,6 +16,7 @@ defmodule MyLiege.Engine.Game do
     PlaceWorker,
     RefuseProject,
     StartBook,
+    StartInvention,
     UnplaceWorker
   }
 
@@ -45,6 +46,7 @@ defmodule MyLiege.Engine.Game do
                 misses: 0,
                 bandits: Bandits.starting(),
                 books: Books.none(),
+                inventions: [],
                 game_over: false
               ]
 
@@ -60,6 +62,7 @@ defmodule MyLiege.Engine.Game do
     SimSteps.Birth,
     SimSteps.Construction,
     SimSteps.Books,
+    SimSteps.Inventions,
     SimSteps.TrainingEnd,
     SimSteps.TaxPayment,
     SimSteps.DemandDelivery,
@@ -181,6 +184,9 @@ defmodule MyLiege.Engine.Game do
 
   @doc "See `MyLiege.Engine.Actions.StartBook`."
   def start_book(%__MODULE__{} = game, colour), do: StartBook.run(game, colour)
+
+  @doc "See `MyLiege.Engine.Actions.StartInvention`."
+  def start_invention(%__MODULE__{} = game, type), do: StartInvention.run(game, type)
 
   @doc "The price of any building, in thousandths of gold."
   def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)

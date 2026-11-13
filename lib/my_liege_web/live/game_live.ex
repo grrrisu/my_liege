@@ -4,7 +4,19 @@ defmodule MyLiegeWeb.GameLive do
 
   alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
   alias MyLiege.Engine.Place.{Blueprint, Project}
-  alias MyLiege.Engine.Rules.{Bandits, Construction, Demands, Grace, Placement, Taxes, Training}
+
+  alias MyLiege.Engine.Rules.{
+    Bandits,
+    Construction,
+    Demands,
+    Grace,
+    Inventions,
+    Placement,
+    Taxes,
+    Training,
+    Ways
+  }
+
   alias MyLiege.Reporting
 
   @colour_classes %{
@@ -71,9 +83,14 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   def handle_event("build", %{"type" => type}, socket) do
-    type = Enum.find(Blueprint.types(), &(Atom.to_string(&1) == type))
+    type = Enum.find(Blueprint.building_types(), &(Atom.to_string(&1) == type))
     result = Game.construct(socket.assigns.game, type)
     {:noreply, apply_result(socket, result)}
+  end
+
+  def handle_event("start_invention", %{"type" => type}, socket) do
+    type = Enum.find(Inventions.types(), &(Atom.to_string(&1) == type))
+    {:noreply, apply_result(socket, Game.start_invention(socket.assigns.game, type))}
   end
 
   def handle_event("start_book", %{"colour" => colour}, socket) do
@@ -165,6 +182,10 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_place), do: "Unknown place."
   defp error_message(:unknown_type), do: "Unknown building type."
   defp error_message(:unknown_colour), do: "Unknown colour."
+  defp error_message(:unknown_invention), do: "Unknown invention."
+  defp error_message(:locked), do: "This way needs a book of each of its two colours first."
+  defp error_message(:already_invented), do: "That has already been invented."
+  defp error_message(:already_open), do: "That invention is already being worked on."
   defp error_message(:not_enough_gold), do: "Not enough gold to build."
   defp error_message(:tax_undecided), do: "Decide whether to pay the tax first."
   defp error_message(:game_over), do: "The game is over."
@@ -278,6 +299,18 @@ defmodule MyLiegeWeb.GameLive do
                   <span class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}></span>
                   {Map.fetch!(@game.books, colour)}
                 </span>
+              </p>
+              <p
+                :if={:plough in @game.inventions}
+                id="plough-invented"
+                class="mt-1 text-sm"
+              >
+                improved plough invented: farm output +{div(@game.config.way_plough_bonus, 10)}%
+              </p>
+              <p :if={@report.granary_working} id="granary-working" class="mt-1 text-sm">
+                granary kept: food spoiled at {per_mille(@game.config.place_granary_food_spoilage)} last week, upkeep {units(
+                  @report.culture_upkeep
+                )} culture
               </p>
               <.happiness happiness={@report.happiness} />
             </section>
@@ -586,6 +619,13 @@ defmodule MyLiegeWeb.GameLive do
             progress {units(place.progress)}/{units(place.target)} knowledge
           </span>
           <span
+            :if={invention?(place)}
+            id={"invention-#{place.id}"}
+            class="text-sm tabular-nums opacity-60"
+          >
+            progress {units(place.progress)}/{units(place.target)} knowledge
+          </span>
+          <span
             :if={demand_project?(place)}
             id={"demand-project-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
@@ -662,15 +702,34 @@ defmodule MyLiegeWeb.GameLive do
       </p>
       <div class="flex flex-wrap gap-2">
         <button
-          :for={type <- Blueprint.types()}
+          :for={type <- Blueprint.building_types()}
           id={"build-#{type}"}
           phx-click="build"
           phx-value-type={type}
-          disabled={!@affordable?}
+          disabled={!@affordable? or missing_books(type, @game) != []}
+          title={way_title(type, @game)}
           class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
           {type}
+          <.locked type={type} game={@game} />
+        </button>
+      </div>
+      <h2 class="mt-4 mb-2 font-semibold">Invent</h2>
+      <p class="mb-2 text-sm opacity-60">Free; a way opens with a book of each of its two colours.</p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          :for={type <- Inventions.types()}
+          id={"start-invention-#{type}"}
+          phx-click="start_invention"
+          phx-value-type={type}
+          disabled={invention_state(type, @game) != :startable}
+          title={way_title(type, @game)}
+          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
+          {invention_label(type, invention_state(type, @game))}
+          <.locked type={type} game={@game} />
         </button>
       </div>
       <h2 class="mt-4 mb-2 font-semibold">Write a book</h2>
@@ -690,6 +749,49 @@ defmodule MyLiegeWeb.GameLive do
     </section>
     """
   end
+
+  attr :type, :atom, required: true
+  attr :game, Game, required: true
+
+  # the books a locked way still needs, one swatch per missing colour
+  defp locked(assigns) do
+    assigns = assign(assigns, :missing, missing_books(assigns.type, assigns.game))
+
+    ~H"""
+    <span
+      :if={@missing != []}
+      id={"locked-#{@type}"}
+      class="inline-flex items-center gap-1 text-xs opacity-80"
+    >
+      <.icon name="hero-lock-closed" class="h-3 w-3" /> needs
+      <span
+        :for={colour <- @missing}
+        class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}
+        title={"a #{colour} book"}
+      ></span>
+    </span>
+    """
+  end
+
+  defp missing_books(type, game), do: type |> Blueprint.fetch!() |> Ways.missing(game.books)
+
+  defp way_title(type, game) do
+    case missing_books(type, game) do
+      [] -> nil
+      missing -> "needs " <> Enum.map_join(missing, " and ", &"a #{&1} book")
+    end
+  end
+
+  defp invention_state(type, game) do
+    case Inventions.check_start(type, game.places, game.inventions, game.books) do
+      :ok -> :startable
+      {:error, reason} -> reason
+    end
+  end
+
+  defp invention_label(:plough, :already_invented), do: "improved plough invented"
+  defp invention_label(:plough, :already_open), do: "improved plough: being invented"
+  defp invention_label(:plough, _state), do: "invent the improved plough"
 
   attr :worker, :map, required: true
   attr :selected, :boolean, default: false
@@ -735,6 +837,7 @@ defmodule MyLiegeWeb.GameLive do
   defp site?(place), do: match?(%Project{gives: {:building, _}}, place)
   defp demand_project?(place), do: match?(%Project{gives: {:demand, _}}, place)
   defp book?(place), do: match?(%Project{gives: {:book, _}}, place)
+  defp invention?(place), do: match?(%Project{gives: {:invention, _}}, place)
 
   # a book shows its own colour, not its blue method
   defp card_colour(%Project{gives: {:book, colour}}), do: colour
@@ -747,6 +850,7 @@ defmodule MyLiegeWeb.GameLive do
     do: "king's demand: #{Place.good(project)}"
 
   defp place_name(%Project{gives: {:book, colour}}), do: "#{colour} book"
+  defp place_name(%Project{gives: {:invention, :plough}}), do: "improved plough"
 
   defp place_name(place), do: Place.type(place)
 

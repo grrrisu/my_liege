@@ -41,6 +41,11 @@ defmodule MyLiege.Engine.Rules.StaffingTest do
       assert Staffing.works?(EngineFixtures.new_book(6, :violet), 0)
     end
 
+    test "an invention works, like a blue building; a granary works though it produces nothing" do
+      assert Staffing.works?(EngineFixtures.new_invention(6, :plough), 0)
+      assert Staffing.works?(EngineFixtures.new_building(7, :granary), 0)
+    end
+
     test "a king's demand project works, like a building of its colour" do
       assert Staffing.works?(EngineFixtures.new_demand_project(6, :knowledge), 0)
     end

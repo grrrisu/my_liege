@@ -15,9 +15,10 @@ defmodule MyLiege.Engine.LoadConfig do
 
   @header "key,value"
 
-  @types Blueprint.types()
-  # the types of the places that make a good
-  @good_types for blueprint <- Blueprint.all(), blueprint.good, do: blueprint.type
+  # the types that stand as buildings, each with its capacity
+  @types Blueprint.building_types()
+  # the types of the places whose workers make their good: the home places
+  @good_types Blueprint.home_types()
   @goods Blueprint.goods()
   # written out here, not taken from Worker, which depends on Config at compile time; the
   # config test checks they match
@@ -113,13 +114,8 @@ defmodule MyLiege.Engine.LoadConfig do
         by(@trainings, fn training ->
           by(Pentagon.relations(), &"efficiency.#{training}.#{&1}_permille")
         end),
-      mana:
-        by(@trainings, fn training ->
-          all(
-            place_colour: "mana.#{training}.place_colour",
-            worker_colour: "mana.#{training}.worker_colour"
-          )
-        end),
+      mana_place_colour: "mana.place_colour",
+      mana_good_colour: "mana.good_colour",
       manameter_points_per_week: "manameter.points_per_week_permille",
       training_min_share: "training.min_share_permille",
       training_weeks: "training.weeks",
@@ -127,6 +123,11 @@ defmodule MyLiege.Engine.LoadConfig do
       build_work: "build.work",
       build_capacity: "build.capacity",
       book_work: "book.work",
+      place_granary_food_spoilage: "place.granary.food_spoilage_permille",
+      place_granary_culture_upkeep: "place.granary.culture_upkeep",
+      way_plough_work: "way.plough.work",
+      way_plough_capacity: "way.plough.capacity",
+      way_plough_bonus: "way.plough.bonus_permille",
       travel_weeks: "travel.weeks",
       king_grace_weeks: "king.grace_weeks",
       king_misses_forgiven: "king.misses_forgiven",

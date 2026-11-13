@@ -1,6 +1,6 @@
 ---
 name: weekly-step
-description: 'How one week of My Liege runs in the rules engine (Game.run_week): order of steps, week numbering, units, and what each step reads and writes. Use when: changing or debugging the weekly loop, adding a step (e.g. taxes R7, training R5, plough R6), reading reports or CSV exports, writing tests that run weeks, or answering "when does X happen in a week".'
+description: 'How one week of My Liege runs in the rules engine (Game.run_week): order of steps, week numbering, units, and what each step reads and writes. Use when: changing or debugging the weekly loop, adding a step (e.g. taxes R7, training R5, inventions R15), reading reports or CSV exports, writing tests that run weeks, or answering "when does X happen in a week".'
 ---
 
 # Weekly step
@@ -37,36 +37,42 @@ rules vs. steps) is in the `engine-architecture` skill.
   `Game`: `Game.place_worker/3` (`Actions.PlaceWorker`), `Game.unplace_worker/2`
   (`Actions.UnplaceWorker`), `Game.construct/2` (`Actions.Construct`),
   `Game.decide_tax/2` (`Actions.DecideTax`), `Game.decide_demand/2`
-  (`Actions.DecideDemand`), and `Game.refuse_project/1` (`Actions.RefuseProject`).
+  (`Actions.DecideDemand`), `Game.refuse_project/1` (`Actions.RefuseProject`),
+  `Game.start_book/2` (`Actions.StartBook`) and `Game.start_invention/2`
+  (`Actions.StartInvention`).
   Changes take effect in week N + 1. `construct/2` pays `build_cost_gold` from the gold stock
   at once and adds it to `gold_spent_buildings` of week N's report (`{:error, :not_enough_gold}`
-  if the stock is short).
+  if the stock is short; `{:error, :locked}` for a way without its two books, R13).
 
 ## Order inside a week
 
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
 | 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2), happiness (R11) | `Production` → `Rules.Production.output/4` and `project_output/4`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on demand projects (`Rules.Staffing.working/3`); **all** workers at the start of the week (population) | buildings' output: `report.production` (food and defence after the happiness step), added to `stocks`; `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture only; demand projects' output (same step) and books' output (as in a blue building × the book colour's experience, Manameter at the **start** of the week) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
-| 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers | `report.mana` |
+| 1 | Production (R2), granary upkeep (R14), plough bonus (R15), happiness (R11) | `Production` → `Rules.Production.output/5` and `project_output/5`, `Rules.Granary.working/3`, `upkeep/3` and `culture_for_happiness/2`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on projects (`Rules.Staffing.working/3`); `game.inventions`; the culture stock; **all** workers at the start of the week (population) | home buildings' output (farm workers × the plough bonus once invented; a granary produces nothing): `report.production` (food and defence after the happiness step), added to `stocks`; the granaries' upkeep taken from `stocks.culture` (never below 0): `report.culture_upkeep`, `report.granary_working`; `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture minus the upkeep, never below 0; demand projects' output (same step), books' and inventions' output (as in a blue building × the experience of the book's colour, or of the invention's good's home colour; Manameter at the **start** of the week) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
+| 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers and their places (not the workers' colour or training) | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
 | 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
 | 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
 | 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/4` | sites (`%Place.Project{}`), builders as at the **start** of the week (before step 3) | `progress` (+1 per arrived builder); a done site replaced by its `%Place.Building{}` with a new id; its builders `place: nil` with `travel_weeks` |
 | 8 | Books finished (R12) | `Books` → `Rules.Books.finish/4`, `Rules.Placement.release/3` | book projects with `progress >= target` | `game.books` (+1 of the colour), the project removed from `places`, its writer `place: nil` with `travel_weeks`; `report.books_finished` |
+| 8 | Inventions finished (R15), after the books | `Inventions` → `Rules.Inventions.finish/4`, `Rules.Placement.release/3` | invention projects with `progress >= target` | `game.inventions` (+ the type), the project removed from `places`, its workers `place: nil` with `travel_weeks`; `report.inventions_finished` |
 | 9 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
 | 10 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
 | 11 | Demand delivery (R7): deadline week, a project done, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/4`, `Rules.Placement.release/3` | stocks, `demand`, its project, `deliver_demand` | stocks (not for projects), the project removed from `places` and its workers released, `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
 | 12 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5`, `open_project/2` | week, Manameter, workers at the start of the week | `game.demand`, for knowledge and culture its project appended to `places`; `report.demand`, `report.demand_progress` (0 for a project) |
 | 13 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 10–11, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
-| 14 | Spoilage (R9) | `Spoilage` → `Rules.Spoilage.spoil/2` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
-| 15 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `books`, `game_over`; `start: nil` |
+| 14 | Spoilage (R9), granary (R14) | `Spoilage` → `Rules.Spoilage.spoil/3` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`); food at `place_granary_food_spoilage` if `report.granary_working` (step 1) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
+| 15 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `books`, `inventions`, `game_over`; `start: nil` |
 
 Consequences of the order:
 - A newborn is drawn from the Manameter updated in step 4 of the same week.
 - Production, mana and construction see travel as it was before step 3, and training starts
   after the travel, so a worker placed at state N does nothing in N + 1 and works from N + 2.
+- An invention finished in step 8 of week M takes effect from the production of week M + 1.
+- A granary works (spoilage, upkeep) in the weeks its keeper works: the staffing at the
+  start of the week, the same as production and mana.
 - Workers released in steps 7, 8 and 9 (and 11, from a demand project) keep their full travel into the next week: released at
   the end of week M, they can be placed again from state M + 1.
 - A newborn is added after eating, so it eats from the following week; it is unplaced.
@@ -163,7 +169,23 @@ Consequences of the order:
   `Rules.Books.written/3`: × the book colour's share of `report.start.manameter` ÷ 200,
   rounded down per worker, into the book up to its target. Mana as in a blue building. Step
   8 (`Rules.Books.finish/4`) adds a finished book to `game.books` (colour => count, all
-  colours from 0), removes the project and releases the writer. Books have no effect yet.
+  colours from 0), removes the project and releases the writer. Books are never used up;
+  they unlock ways (R13).
+- **Ways (R13):** `Rules.Ways.missing/2`: a way (`Blueprint.way?/1`) needs one book of its
+  colour and one of its good's home colour; `Construct` and `StartInvention` refuse a locked
+  way with `{:error, :locked}`.
+- **Granary (R14):** a violet building for food, ordered and built as usual; capacity
+  `place_capacity.granary`. Its keeper produces nothing (`Production.produces?/1`), makes
+  mana (2 violet, 1 green). A granary works while its keeper works (`Granary.working/3`):
+  then food spoils at `place_granary_food_spoilage` in step 14 (however many granaries), and
+  each working granary takes `place_granary_culture_upkeep` culture from the stock in step 1,
+  never below 0; what is taken is subtracted from the culture for happiness, never below 0.
+- **Improved plough (R15):** `Game.start_invention(game, :plough)` (free, once unlocked, one
+  at a time, once per game) appends `%Place.Project{gives: {:invention, :plough}}`, target
+  `Fixed.from(way_plough_work)`, up to `way_plough_capacity` workers. They write as in a blue
+  building × green's experience (`Rules.Inventions.written/3`); mana 2 blue, 1 green. Step 8
+  appends `:plough` to `game.inventions`; from then on each farm worker's output ×
+  (1000 + `way_plough_bonus`) ÷ 1000, rounded down per worker, before happiness.
 
 ## Units
 
@@ -176,7 +198,9 @@ Consequences of the order:
 `%WeeklyReport{week, production, mana, manameter, food_left, newborn, trained, builders,
 travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, king_took, spoiled,
 gold_spent_buildings, bandit_pressure, bandit_protected, bandit_threat, bandit_threat_change,
-bandits_weeks_to_raid, bandit_raid, gold_robbed, game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
+bandits_weeks_to_raid, bandit_raid, gold_robbed, happiness, books, books_finished,
+granary_working, culture_upkeep, inventions, inventions_finished, stock_change,
+project_change, game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
 on sites and `travelling` the workers with travel above 0, both at the end of the week;
 `king_took` is `%{food, gold}`, what the king took that week on misses.
 `Game.report/1` returns the last one (week 0 for a new game). `MyLiege.Reporting.to_csv/1`

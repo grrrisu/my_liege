@@ -13,20 +13,20 @@ defmodule MyLiege.Engine.Rules.ProductionTest do
       %{config: config, buildings: buildings, buildings_by_type: buildings_by_type}
     end
 
-    test "untrained workers: same 100%, neighbour 80%, opposite 50%", context do
+    test "untrained workers: same 100%, neighbour 75%, opposite 50%", context do
       %{config: config, buildings_by_type: %{farm: farm}} = context
 
       assert Production.worker_output(worker(:green), farm, config) == 9_000
-      assert Production.worker_output(worker(:yellow), farm, config) == 7_200
+      assert Production.worker_output(worker(:yellow), farm, config) == 6_750
       assert Production.worker_output(worker(:blue), farm, config) == 4_500
     end
 
-    test "trained workers: same 125%, neighbour 60%, opposite 30%", context do
+    test "trained workers: same 150%, neighbour 50%, opposite 25%", context do
       %{config: config, buildings_by_type: %{farm: farm}} = context
 
-      assert Production.worker_output(worker(:green, true), farm, config) == 11_250
-      assert Production.worker_output(worker(:violet, true), farm, config) == 5_400
-      assert Production.worker_output(worker(:red, true), farm, config) == 2_700
+      assert Production.worker_output(worker(:green, true), farm, config) == 13_500
+      assert Production.worker_output(worker(:violet, true), farm, config) == 4_500
+      assert Production.worker_output(worker(:red, true), farm, config) == 2_250
     end
 
     test "each building has its own base production", context do
