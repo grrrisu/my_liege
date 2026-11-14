@@ -76,12 +76,12 @@ defmodule MyLiege.Engine.GameTest do
                SimSteps.Construction,
                SimSteps.Books,
                SimSteps.Inventions,
-               SimSteps.Trades,
                SimSteps.Hunts,
                SimSteps.TrainingEnd,
                SimSteps.TaxPayment,
                SimSteps.DemandDelivery,
                SimSteps.DemandMade,
+               SimSteps.TradeRoute,
                SimSteps.Bandits,
                SimSteps.Spoilage,
                SimSteps.EndOfWeek
@@ -156,7 +156,8 @@ defmodule MyLiege.Engine.GameTest do
 
       {:ok, report, game} = config |> Game.new(1) |> Game.run_week()
 
-      assert report.food_left < 0
+      assert report.food_short
+      assert report.food_left == 0
       assert report.newborn == nil
       assert length(game.workers) == 1
     end

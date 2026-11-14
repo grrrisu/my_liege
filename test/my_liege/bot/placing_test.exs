@@ -18,7 +18,7 @@ defmodule MyLiege.Bot.PlacingTest do
     }
   end
 
-  defp hungry(game), do: %{game | stocks: %{game.stocks | food: -1}}
+  defp hungry(game), do: %{game | report: %{game.report | food_short: true}}
 
   defp places(game), do: Enum.map(game.workers, & &1.place)
 

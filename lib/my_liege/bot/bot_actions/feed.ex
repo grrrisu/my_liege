@@ -18,7 +18,7 @@ defmodule MyLiege.Bot.BotActions.Feed do
   def target(_worker, game, _opts), do: if(food_low?(game), do: :farm)
 
   @doc """
-  Whether food is low: the food stock is below 0, or last week's food balance
+  Whether food is low: last week was short of food (R8), or last week's food balance
   (`Forecast.food/1`: the change in the food stock in the last week) can't feed one more
   worker (< `good_food_eaten_per_worker`).
   """
@@ -26,8 +26,8 @@ defmodule MyLiege.Bot.BotActions.Feed do
     one_more = Fixed.from(game.config.good_food_eaten_per_worker)
 
     case Forecast.food(game) do
-      nil -> game.stocks.food < 0
-      forecast -> game.stocks.food < 0 or forecast.change < one_more
+      nil -> game.report.food_short
+      forecast -> game.report.food_short or forecast.change < one_more
     end
   end
 end

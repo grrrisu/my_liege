@@ -404,7 +404,7 @@ defmodule MyLiege.BotTest do
 
     test "a farm is always allowed while food is low" do
       game = Game.new(EngineFixtures.config(start_gold: 0), 1)
-      hungry = %{game | stocks: %{game.stocks | food: -1}}
+      hungry = %{game | report: %{game.report | food_short: true}}
 
       assert Bot.invest_allowed?(hungry, :farm, [])
       refute Bot.invest_allowed?(game, :farm, [])

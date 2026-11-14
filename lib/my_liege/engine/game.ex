@@ -18,7 +18,6 @@ defmodule MyLiege.Engine.Game do
     StartBook,
     StartHunt,
     StartInvention,
-    StartTrade,
     UnplaceWorker
   }
 
@@ -66,12 +65,12 @@ defmodule MyLiege.Engine.Game do
     SimSteps.Construction,
     SimSteps.Books,
     SimSteps.Inventions,
-    SimSteps.Trades,
     SimSteps.Hunts,
     SimSteps.TrainingEnd,
     SimSteps.TaxPayment,
     SimSteps.DemandDelivery,
     SimSteps.DemandMade,
+    SimSteps.TradeRoute,
     SimSteps.Bandits,
     SimSteps.Spoilage,
     SimSteps.EndOfWeek
@@ -124,7 +123,7 @@ defmodule MyLiege.Engine.Game do
   def report(%__MODULE__{report: report}), do: report
 
   @doc """
-  Runs the next week. Returns `{:ok, report, game}`; a short week has `food_left < 0`.
+  Runs the next week. Returns `{:ok, report, game}`; a short week has `food_short` (R8).
   Blocked with `{:error, :game_over}` once the game is over, with `{:error, :finished}` after
   the last week, with `{:error, :tax_undecided}` before a due week until `decide_tax/2` was
   called, and with `{:error, :demand_undecided}` before the deadline week of a demand from the
@@ -192,10 +191,6 @@ defmodule MyLiege.Engine.Game do
 
   @doc "See `MyLiege.Engine.Actions.StartInvention`."
   def start_invention(%__MODULE__{} = game, type), do: StartInvention.run(game, type)
-
-  @doc "See `MyLiege.Engine.Actions.StartTrade`."
-  def start_trade(%__MODULE__{} = game, worker_id, type),
-    do: StartTrade.run(game, worker_id, type)
 
   @doc "See `MyLiege.Engine.Actions.StartHunt`."
   def start_hunt(%__MODULE__{} = game, worker_ids), do: StartHunt.run(game, worker_ids)

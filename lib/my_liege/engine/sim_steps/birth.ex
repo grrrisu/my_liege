@@ -1,5 +1,8 @@
 defmodule MyLiege.Engine.SimSteps.Birth do
-  @moduledoc "Step 6 of the week, R1 birth: from the food left and the updated Manameter; the newborn is unplaced."
+  @moduledoc """
+  Step 6 of the week, R1 birth: from the food left and the updated Manameter; the newborn is
+  unplaced. No birth (and no draw) in a short week (R8).
+  """
   @behaviour MyLiege.Engine.SimStep
 
   alias MyLiege.Engine.Rules.Births
@@ -8,7 +11,9 @@ defmodule MyLiege.Engine.SimSteps.Birth do
   @impl true
   def run(game, report) do
     {newborn, rand} =
-      Births.attempt(game.week, game.stocks.food, game.manameter, game.config, game.rand)
+      if report.food_short,
+        do: {nil, game.rand},
+        else: Births.attempt(game.week, game.stocks.food, game.manameter, game.config, game.rand)
 
     newborn = newborn && %{newborn | id: Worker.next_id(game.workers), born_week: game.week}
     workers = if newborn, do: game.workers ++ [newborn], else: game.workers

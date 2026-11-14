@@ -12,87 +12,119 @@ defmodule MyLiege.Engine.Rules.TradesTest do
     %{config: EngineFixtures.config()}
   end
 
-  describe "R16: gold" do
-    test "the trade's gold × 1000 ÷ the trader's factor against yellow", %{config: config} do
-      assert Trades.cost(:grain_trade, worker(:yellow), config) == 144_000
-      assert Trades.cost(:grain_trade, worker(:green), config) == 192_000
-      assert Trades.cost(:grain_trade, worker(:blue), config) == 192_000
-      assert Trades.cost(:grain_trade, worker(:red), config) == 288_000
-      assert Trades.cost(:grain_trade, worker(:violet), config) == 288_000
+  defp worker(colour, trained \\ false), do: %Worker{colour: colour, trained: trained}
+
+  defp route(traders \\ []),
+    do: %Trade{id: 3, blueprint: Blueprint.fetch!(:grain_trade), traders: traders}
+
+  defp trader(id, colour, travel \\ 0),
+    do: %Worker{id: id, colour: colour, place: 3, travel: travel}
+
+  describe "R16: price" do
+    test "the weekly gold × 1000 ÷ the trader's factor against yellow", %{config: config} do
+      assert Trades.price(:grain_trade, worker(:yellow), config) == 12_000
+      assert Trades.price(:grain_trade, worker(:green), config) == 16_000
+      assert Trades.price(:grain_trade, worker(:blue), config) == 16_000
+      assert Trades.price(:grain_trade, worker(:red), config) == 24_000
+      assert Trades.price(:grain_trade, worker(:violet), config) == 24_000
     end
 
-    test "a trained trader uses the trained factors", %{config: config} do
-      assert Trades.cost(:grain_trade, worker(:yellow, true), config) == 96_000
-      assert Trades.cost(:grain_trade, worker(:green, true), config) == 288_000
-      assert Trades.cost(:grain_trade, worker(:red, true), config) == 576_000
+    test "a trained trader uses the trained factor", %{config: config} do
+      assert Trades.price(:grain_trade, worker(:yellow, true), config) == 8_000
+    end
+
+    test "rounded down", %{config: config} do
+      config = %{config | way_grain_trade_gold_per_week: 1}
+      factors = %{config.efficiency | untrained: %{config.efficiency.untrained | same: 3000}}
+
+      assert Trades.price(:grain_trade, worker(:yellow), %{config | efficiency: factors}) == 333
+    end
+
+    test "capacity, travel and food come from the config", %{config: config} do
+      assert Trades.capacity(:grain_trade, config) == 8
+      assert Trades.travel_weeks(:grain_trade, config) == 3
+      assert Trades.food(:grain_trade, config) == 40_000
     end
   end
 
-  describe "R16: time and food" do
-    test "away 3 + 12 + 3 weeks; brings 480 food", %{config: config} do
-      assert Trades.weeks(:grain_trade, config) == 18
-      assert Trades.food(:grain_trade, config) == 480_000
-    end
-
-    test "a trade started at week N returns at the end of week N + 18", %{config: config} do
-      places = Trades.new_trade([EngineFixtures.new_building(1, :farm)], :grain_trade, 5, config)
-
-      assert %Trade{id: 2, return_week: 23} = trade = List.last(places)
-      assert trade.blueprint == Blueprint.fetch!(:grain_trade)
-    end
-  end
-
-  describe "R16: starting" do
-    test "needs the way unlocked, an arrived trader not already away, and the gold",
-         %{config: config} do
-      trade = %Trade{id: 9, blueprint: Blueprint.fetch!(:grain_trade), return_week: 20}
+  describe "R16: the route opens" do
+    test "once the books unlock it, with the next free id and no traders" do
       farm = EngineFixtures.new_building(1, :farm)
-      yellow = worker(:yellow)
 
-      assert Trades.check_start(:plough, yellow, nil, 999_000, @unlocked, config) ==
-               {:error, :unknown_trade}
+      assert Trades.open([farm], Books.none()) == {[farm], []}
 
-      assert Trades.check_start(:grain_trade, yellow, nil, 999_000, Books.none(), config) ==
-               {:error, :locked}
+      assert {[^farm, %Trade{id: 2, traders: []} = route], [:grain_trade]} =
+               Trades.open([farm], @unlocked)
 
-      assert Trades.check_start(:grain_trade, yellow, trade, 999_000, @unlocked, config) ==
-               {:error, :away}
+      assert route.blueprint == Blueprint.fetch!(:grain_trade)
+      assert Trades.route([farm, route], :grain_trade) == route
+    end
 
-      assert Trades.check_start(
-               :grain_trade,
-               %{yellow | travel: 1},
-               nil,
-               999_000,
-               @unlocked,
-               config
-             ) ==
-               {:error, :travelling}
+    test "only once" do
+      {places, _} = Trades.open([], @unlocked)
 
-      assert Trades.check_start(:grain_trade, yellow, nil, 143_999, @unlocked, config) ==
-               {:error, :not_enough_gold}
-
-      assert Trades.check_start(:grain_trade, yellow, nil, 144_000, @unlocked, config) == :ok
-      assert Trades.check_start(:grain_trade, yellow, farm, 144_000, @unlocked, config) == :ok
+      assert Trades.open(places, @unlocked) == {places, []}
     end
   end
 
-  describe "R16: return" do
-    test "in its return week: food, the trade removed, the trader released" do
-      config = EngineFixtures.config(travel_weeks: 1)
-      trade = %Trade{id: 3, blueprint: Blueprint.fetch!(:grain_trade), return_week: 18}
-      other = %{trade | id: 4, return_week: 19}
-      workers = [%{worker(:yellow) | id: 1, place: 3}, %{worker(:red) | id: 2, place: 4}]
+  describe "R16: the queue" do
+    test "a worker joining goes last; joining again moves him to the end" do
+      places = [EngineFixtures.new_building(1, :farm), route()]
 
-      assert {[^other], [trader, still_away], 480_000, [:grain_trade]} =
-               Trades.return([trade, other], workers, 18, config)
+      places = places |> Trades.join(7, 3) |> Trades.join(8, 3) |> Trades.join(7, 3)
 
-      assert %Worker{place: nil, travel: 1} = trader
-      assert still_away.place == 4
+      assert %Trade{traders: [8, 7]} = Trades.route(places, :grain_trade)
+    end
 
-      assert {[^trade, ^other], ^workers, 0, []} =
-               Trades.return([trade, other], workers, 17, config)
+    test "joining another place changes no route" do
+      places = [route([5])]
+      assert Trades.join(places, 6, 1) == places
+    end
+
+    test "traders are the workers still on the route, in queue order" do
+      workers = [trader(1, :green), %Worker{id: 2, colour: :red, place: 1}, trader(3, :yellow)]
+
+      assert [%{id: 3}, %{id: 1}] = Trades.traders(route([3, 2, 1, 9]), workers)
     end
   end
 
-  defp worker(colour, trained \\ false), do: %Worker{id: 1, colour: colour, trained: trained}
+  describe "R16: weekly settlement" do
+    test "each arrived trader pays his price and brings the food", %{config: config} do
+      workers = [trader(1, :yellow), trader(2, :red)]
+
+      assert {_route, %{gold_paid: 36_000, food: 80_000, traders: 2}} =
+               Trades.settle(route([1, 2]), workers, 100_000, config)
+    end
+
+    test "a travelling trader pays and brings nothing but counts", %{config: config} do
+      workers = [trader(1, :yellow), trader(2, :yellow, 1)]
+
+      assert {_route, %{gold_paid: 12_000, food: 40_000, traders: 2}} =
+               Trades.settle(route([1, 2]), workers, 100_000, config)
+    end
+
+    test "in queue order; one the gold no longer covers pays nothing, a later cheaper one may",
+         %{config: config} do
+      # green 16, red 24, yellow 12: 30 gold pays green, not red (14 left), then yellow
+      workers = [trader(1, :yellow), trader(2, :red), trader(3, :green)]
+
+      assert {_route, %{gold_paid: 28_000, food: 80_000, traders: 3}} =
+               Trades.settle(route([3, 2, 1]), workers, 30_000, config)
+    end
+
+    test "exactly the price is enough", %{config: config} do
+      assert {_route, %{gold_paid: 12_000}} =
+               Trades.settle(route([1]), [trader(1, :yellow)], 12_000, config)
+
+      assert {_route, %{gold_paid: 0, food: 0, traders: 1}} =
+               Trades.settle(route([1]), [trader(1, :yellow)], 11_999, config)
+    end
+
+    test "the queue drops workers who left", %{config: config} do
+      workers = [trader(1, :yellow), %Worker{id: 2, colour: :red, place: nil}]
+
+      assert {%Trade{traders: [1]}, _result} =
+               Trades.settle(route([2, 1]), workers, 0, config)
+    end
+  end
 end

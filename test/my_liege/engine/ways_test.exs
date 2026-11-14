@@ -1,10 +1,10 @@
 defmodule MyLiege.Engine.WaysTest do
-  @moduledoc "R13–R15 through `Game`: the granary and the improved plough over whole weeks."
+  @moduledoc "R13–R17 through `Game`: the granary and the improved plough over whole weeks."
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Game, Worker}
+  alias MyLiege.Engine.{Forecast, Game, Worker}
   alias MyLiege.Engine.Place.{Expedition, Trade}
-  alias MyLiege.Engine.Rules.Production
+  alias MyLiege.Engine.Rules.{Books, Production, Trades}
   alias MyLiege.EngineFixtures
   alias MyLiege.Reporting
 
@@ -89,7 +89,7 @@ defmodule MyLiege.Engine.WaysTest do
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",false,true,5000,0,0,0")
+      assert String.ends_with?(row, ",false,true,5000,0,0,0,0,0")
     end
   end
 
@@ -147,49 +147,147 @@ defmodule MyLiege.Engine.WaysTest do
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",true,false,0,0,0,0")
+      assert String.ends_with?(row, ",true,false,0,0,0,0,0,0")
     end
   end
 
-  describe "R16: grain trade" do
+  describe "R16: grain trade route" do
+    # farm (1) with green worker 1, tower (2) with red worker 2; the route (3) open
     setup do
-      game = game(start_gold: 1000)
-      {:ok, game} = Game.start_trade(game, 1, :grain_trade)
-      %{game: game}
+      game = game(start_gold: 1000, start_food: 1000)
+      {places, [:grain_trade]} = Trades.open(game.places, game.books)
+      %{game: %{game | places: places}}
     end
 
-    test "the trader is away 18 weeks: eats, makes 2 yellow and 1 green mana, produces nothing; then 480 food",
-         %{game: game} do
-      {reports, game} = EngineFixtures.run_weeks(game, 17)
+    defp trader_travel(game, id), do: Enum.find(game.workers, &(&1.id == id)).travel
 
-      for report <- reports do
-        assert report.mana == %{green: 1, yellow: 2, blue: 0, red: 3, violet: 0}
-        assert report.production.food == 0
-        assert report.food_from_trade == 0
-      end
-
-      # nobody farms: from week 1 every week is short
-      assert game.stocks.food == -1
-      assert Game.unplace_worker(game, 1) == {:error, :away}
-      assert Game.place_worker(game, 1, 1) == {:error, :away}
-
+    test "opens in the Books step once the books unlock it, once" do
+      game = game([])
       {:ok, report, game} = Game.run_week(game)
 
-      assert report.week == 18
-      assert report.mana.yellow == 2
-      assert report.food_from_trade == 480_000
-      # after eating: −1, then the trade's food
-      assert report.food_left == 479_999
-      assert %{place: nil} = Enum.find(game.workers, &(&1.id == 1))
-      refute Enum.any?(game.places, &match?(%Trade{}, &1))
+      assert report.routes_opened == [:grain_trade]
+      assert [%Trade{id: 3, traders: []}] = for(%Trade{} = t <- game.places, do: t)
+
+      {:ok, report, game} = Game.run_week(game)
+      assert report.routes_opened == []
+      assert game.places |> Enum.count(&match?(%Trade{}, &1)) == 1
     end
 
-    test "exports food_from_trade in the return week", %{game: game} do
-      {reports, _game} = EngineFixtures.run_weeks(game, 18)
+    test "stays closed without the books" do
+      game = %{game([]) | books: Books.none()}
+      {_reports, game} = EngineFixtures.run_weeks(game, 2)
+
+      refute Enum.any?(game.places, &match?(%Trade{}, &1))
+      assert Game.place_worker(game, 1, 3) == {:error, :unknown_place}
+    end
+
+    test "travel there and away is way.grain_trade.travel_weeks, not travel.weeks", %{
+      game: game
+    } do
+      {:ok, on_route} = Game.place_worker(game, 2, 3)
+      assert trader_travel(on_route, 2) == 3
+
+      {:ok, moved} = Game.place_worker(on_route, 2, 1)
+      assert trader_travel(moved, 2) == 3
+
+      {:ok, unplaced} = Game.unplace_worker(on_route, 2)
+      assert trader_travel(unplaced, 2) == 3
+
+      # between other places, travel.weeks (0 here)
+      {:ok, farm_to_tower} = Game.place_worker(game, 1, 2)
+      assert trader_travel(farm_to_tower, 1) == 0
+    end
+
+    test "takes way.grain_trade.capacity traders of any colour", %{game: game} do
+      game = with_unplaced(game, 9)
+
+      game =
+        Enum.reduce(101..108, game, fn id, game ->
+          {:ok, game} = Game.place_worker(game, id, 3)
+          game
+        end)
+
+      assert Game.place_worker(game, 109, 3) == {:error, :full}
+    end
+
+    test "a trader travels 3 weeks, then trades every week: price paid, food in, mana, no production",
+         %{game: game} do
+      {:ok, game} = Game.place_worker(game, 2, 3)
+      {reports, game} = EngineFixtures.run_weeks(game, 3)
+
+      for report <- reports do
+        assert report.traders == 1
+        assert report.gold_to_trade == 0
+        assert report.food_from_trade == 0
+        assert report.mana == %{green: 3, yellow: 0, blue: 0, red: 0, violet: 0}
+      end
+
+      gold = game.stocks.gold
+      food = game.stocks.food
+      eaten = 3_000 * length(game.workers)
+      {:ok, report, game} = Game.run_week(game)
+
+      # red is opposite yellow: 12 × 1000 ÷ 500
+      assert report.gold_to_trade == 24_000
+      assert report.food_from_trade == 40_000
+      assert report.traders == 1
+      assert report.mana == %{green: 4, yellow: 2, blue: 0, red: 0, violet: 0}
+      assert report.production.defence == 0
+      assert game.stocks.gold == gold - 24_000
+      # the farmer's food, minus what everyone eats, plus the route's 40
+      assert game.stocks.food == food + report.production.food - eaten + 40_000
+
+      # the forecasts repeat the change, the trade included
+      assert Forecast.gold(game).change == -24_000
+      assert Forecast.food(game).change == report.production.food - eaten + 40_000
+    end
+
+    test "the trade food is bought: happiness doesn't change it", %{game: game} do
+      {:ok, game} = Game.place_worker(game, 2, 3)
+      {_reports, game} = EngineFixtures.run_weeks(game, 3)
+      {:ok, report, _game} = Game.run_week(game)
+
+      assert report.happiness.step != 0
+      assert report.food_from_trade == 40_000
+    end
+
+    test "short of gold: in the order placed; a trader who can't pay brings nothing and stays",
+         %{game: game} do
+      # red (24) placed first, then green (16): 30 gold pays red only
+      game = %{game | stocks: %{game.stocks | gold: 30_000}}
+      {:ok, game} = Game.place_worker(game, 2, 3)
+      {:ok, game} = Game.place_worker(game, 1, 3)
+      {_reports, game} = EngineFixtures.run_weeks(game, 3)
+      {:ok, report, game} = Game.run_week(game)
+
+      assert report.gold_to_trade == 24_000
+      assert report.food_from_trade == 40_000
+      assert report.traders == 2
+      assert game.stocks.gold == 6_000
+
+      {:ok, report, game} = Game.run_week(game)
+      assert report.gold_to_trade == 0
+      assert report.food_from_trade == 0
+      assert game.workers |> Enum.filter(&(&1.id in [1, 2])) |> Enum.all?(&(&1.place == 3))
+    end
+
+    test "a trader who leaves and comes back goes to the end of the queue", %{game: game} do
+      {:ok, game} = Game.place_worker(game, 2, 3)
+      {:ok, game} = Game.place_worker(game, 1, 3)
+      {:ok, game} = Game.unplace_worker(game, 2)
+      game = %{game | workers: Enum.map(game.workers, &%{&1 | travel: 0})}
+      {:ok, game} = Game.place_worker(game, 2, 3)
+
+      assert %Trade{traders: [1, 2]} = Trades.route(game.places, :grain_trade)
+    end
+
+    test "exports gold_to_trade and traders, food_from_trade the route's food", %{game: game} do
+      {:ok, game} = Game.place_worker(game, 2, 3)
+      {reports, _game} = EngineFixtures.run_weeks(game, 4)
       rows = reports |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
 
-      assert rows |> Enum.at(16) |> String.ends_with?(",0")
-      assert rows |> Enum.at(17) |> String.ends_with?(",480000,0,0")
+      assert rows |> Enum.at(2) |> String.ends_with?(",0,0,0,0,0,1")
+      assert rows |> Enum.at(3) |> String.ends_with?(",40000,0,0,24000,1")
     end
   end
 
@@ -219,7 +317,9 @@ defmodule MyLiege.Engine.WaysTest do
       assert [%{hunters: 2, luck: luck, food: food}] = report.hunts_returned
       assert food == div(270_000 * Map.fetch!(game.config.way_hunting_luck, luck), 1000)
       assert report.food_from_hunting == food
-      assert report.food_left == food - 1
+      # every week short (nobody farms), so 0 after eating, then the haul
+      assert report.food_short
+      assert report.food_left == food
       assert Enum.all?(game.workers |> Enum.filter(&(&1.id in [1, 2])), &is_nil(&1.place))
       refute Enum.any?(game.places, &match?(%Expedition{}, &1))
     end
@@ -252,8 +352,8 @@ defmodule MyLiege.Engine.WaysTest do
       food = List.last(reports).food_from_hunting
 
       assert food > 0
-      assert rows |> Enum.at(16) |> String.ends_with?(",0,1")
-      assert rows |> Enum.at(17) |> String.ends_with?(",#{food},1")
+      assert rows |> Enum.at(16) |> String.ends_with?(",0,1,0,0")
+      assert rows |> Enum.at(17) |> String.ends_with?(",#{food},1,0,0")
     end
   end
 

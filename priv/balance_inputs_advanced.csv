@@ -72,10 +72,10 @@ place.granary.culture_upkeep,5
 way.plough.work,96
 way.plough.capacity,4
 way.plough.bonus_permille,250
-way.grain_trade.gold,144
-way.grain_trade.food,480
+way.grain_trade.capacity,8
+way.grain_trade.gold_per_week,12
+way.grain_trade.food_per_week,40
 way.grain_trade.travel_weeks,3
-way.grain_trade.trade_weeks,12
 way.hunting.max_party,4
 way.hunting.travel_weeks,3
 way.hunting.hunt_weeks,12

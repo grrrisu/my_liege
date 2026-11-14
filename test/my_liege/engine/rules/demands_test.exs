@@ -165,9 +165,9 @@ defmodule MyLiege.Engine.Rules.DemandsTest do
       assert Demands.settle(gold, nil, %{gold: 4_000}, true) ==
                {:missed, %{gold: 0}, %{food: 0, gold: 4_000}}
 
-      # a short week's -1 food leaves nothing to take
-      assert Demands.settle(food, nil, %{food: -1}, true) ==
-               {:missed, %{food: -1}, %{food: 0, gold: 0}}
+      # a short week's empty stock leaves nothing to take
+      assert Demands.settle(food, nil, %{food: 0}, true) ==
+               {:missed, %{food: 0}, %{food: 0, gold: 0}}
     end
 
     test "defence leaves nothing to take: a miss only" do

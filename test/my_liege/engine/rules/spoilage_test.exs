@@ -57,11 +57,11 @@ defmodule MyLiege.Engine.Rules.SpoilageTest do
       assert left.food == 25_651
     end
 
-    test "stocks at or below 0 don't spoil" do
-      {left, spoiled} = Spoilage.spoil(stocks(food: -1), config(food: 50))
+    test "an empty stock doesn't spoil" do
+      {left, spoiled} = Spoilage.spoil(stocks(food: 0), config(food: 50))
 
       assert spoiled.food == 0
-      assert left.food == -1
+      assert left.food == 0
     end
   end
 

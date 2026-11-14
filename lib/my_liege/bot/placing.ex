@@ -265,7 +265,7 @@ defmodule MyLiege.Bot.Placing do
   defp builds(%Project{gives: {:demand, _}}), do: nil
   # nor on a book (R12): the bots start no books
   defp builds(%Project{gives: {:book, _}}), do: nil
-  # nor on an invention (R15), a trade (R16) or a hunt (R17): the bots start none
+  # nor on an invention (R15), a trade route (R16) or a hunt (R17): the bots use no ways
   defp builds(%Project{gives: {:invention, _}}), do: nil
   defp builds(%Trade{}), do: nil
   defp builds(%Expedition{}), do: nil

@@ -1,8 +1,8 @@
 defmodule MyLiege.Engine.Rules.FoodTest do
   use ExUnit.Case, async: true
 
-  alias MyLiege.Engine.{Random, Worker}
-  alias MyLiege.Engine.Rules.{Births, Food}
+  alias MyLiege.Engine.Rules.Food
+  alias MyLiege.Engine.Worker
   alias MyLiege.EngineFixtures
 
   describe "R8: food" do
@@ -15,34 +15,27 @@ defmodule MyLiege.Engine.Rules.FoodTest do
     end
 
     test "every worker eats 3 a week", %{config: config} do
-      assert Food.eat(24_000, workers(3), config) == 15_000
+      assert Food.eat(24_000, workers(3), config) == {15_000, false}
     end
 
     test "unplaced workers eat too", %{config: config} do
       workers = [%Worker{colour: :green, place: 1}, %Worker{colour: :red}]
 
-      assert Food.eat(24_000, workers, config) == 18_000
+      assert Food.eat(24_000, workers, config) == {18_000, false}
     end
 
     test "leftover food carries over with no limit", %{config: config} do
-      assert Food.eat(1_000_000, workers(1), config) == 997_000
+      assert Food.eat(1_000_000, workers(1), config) == {997_000, false}
     end
 
     test "exactly enough food leaves 0", %{config: config} do
-      assert Food.eat(9_000, workers(3), config) == 0
+      assert Food.eat(9_000, workers(3), config) == {0, false}
     end
 
-    test "without enough food the missing food is forgotten and the stock is -1", context do
-      assert Food.eat(5_000, workers(3), context.config) == -1
-    end
-
-    test "no birth after a short week, even with a minimum of 0" do
-      config = EngineFixtures.config(birth_min_food_left: 0)
-      food_left = Food.eat(5_000, workers(3), config)
-      rand = 1 |> Random.new() |> elem(1)
-
-      assert {nil, _} =
-               Births.attempt(0, food_left, config.manameter_start, config, rand)
+    test "without enough food the missing food is forgotten: the stock stops at 0, short",
+         context do
+      assert Food.eat(5_000, workers(3), context.config) == {0, true}
+      assert Food.eat(0, workers(1), context.config) == {0, true}
     end
   end
 

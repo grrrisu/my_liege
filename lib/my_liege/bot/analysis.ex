@@ -36,7 +36,8 @@ defmodule MyLiege.Bot.Analysis do
     the tax amount.
   - `buildings_ordered`: buildings ordered while the game stood at weeks 1 to
     #{@weeks_per_year}.
-  - `weeks_food_below_0`: weeks of the run that ended with food below 0.
+  - `weeks_food_below_0`: short weeks of the run (R8: the food didn't cover the eating; the
+    stock stops at 0). The name is kept from when a short week left -1 food.
   - `gold_robbed`: gold the bandits took in the run.
   - `book_week_<colour>`, in pentagon order: the week the first book of that colour was
     finished (empty if never; empty in the totals).
@@ -71,7 +72,7 @@ defmodule MyLiege.Bot.Analysis do
       first_tax_gold_difference: first_tax && gold_difference(reports, first_tax.week),
       buildings_ordered:
         orders |> Enum.filter(fn {week, _} -> week in 1..@weeks_per_year end) |> sum_values(),
-      weeks_food_below_0: Enum.count(reports, &(&1.food_left < 0)),
+      weeks_food_below_0: Enum.count(reports, & &1.food_short),
       gold_robbed: Enum.sum_by(reports, & &1.gold_robbed),
       book_weeks: Map.new(Pentagon.colours(), &{&1, book_week(reports, &1)})
     }

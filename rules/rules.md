@@ -5,6 +5,8 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 
 ## Changelog
 <!-- One line per change: date, rule, what changed. Newest first. -->
+- 2026-11-14: R16 rewritten, the grain trade is a trade route: once unlocked (yellow + green books) one route opens as a place, free; workers are placed on it and leave it as in a building, up to `way.grain_trade.capacity`, travelling `way.grain_trade.travel_weeks` both ways; every week each arrived trader, in the order placed, pays `way.grain_trade.gold_per_week` × 1000 ÷ his factor against yellow and brings `way.grain_trade.food_per_week` food, or pays and brings nothing if the gold is short. Replaces the one-off trade (keys `way.grain_trade.gold`, `.food`, `.trade_weeks` removed; new `way.grain_trade.capacity`, `.gold_per_week`, `.food_per_week`). Weekly order: new step 13, the trade route, after the demand made; bandits 14, spoilage 15; step 8 no longer returns trades. Export: `food_from_trade` is the route's food that week; new columns `gold_to_trade`, `traders`.
+- 2026-11-14: R8, no stock goes below 0: a short week leaves 0 food (it was -1) and is still logged as short and blocks the birth (R1). Seed 2473626401 showed -1 food in week 34 for this reason. The food forecast's weeks left count to the next short week.
 - 2026-11-14: R17 (new), hunting, red's way to food (unlocks as R13: red + green books): an expedition is a new kind of place; a free hunt with a party of 1 to `way.hunting.max_party` arrived workers, away 2 × `way.hunting.travel_weeks` + `way.hunting.hunt_weeks` weeks (mana as R3, no production or defence, can't leave); on return the haul (each hunter's `way.hunting.food_per_week` × `way.hunting.hunt_weeks` × his factor against red, summed, × a luck factor drawn by party size from the seeded random) and the party released. R18 (new), the king's suspicion: each hunt that sets out adds `king.suspicion.per_expedition`; shown, no effect yet. New keys `way.hunting.*`, `king.suspicion.per_expedition`; export columns `food_from_hunting`, `suspicion`; weekly order: step 8 also returns hunts.
 - 2026-11-14: R16 (new), grain trade, yellow's way to food (unlocks as R13: yellow + green books): a trade is a new kind of place; started free with one arrived trader, paying `way.grain_trade.gold` × 1000 ÷ the trader's factor against yellow at once; away 2 × `way.grain_trade.travel_weeks` + `way.grain_trade.trade_weeks` weeks (mana as R3, no production, can't leave); on return `way.grain_trade.food` food and the trader released. New keys `way.grain_trade.*`; export column `food_from_trade`; weekly order: step 8 also returns trades.
 - 2026-11-14: R13–R15 (new), ways: a way (a colour making another colour's home good) unlocks with one book of its colour and one of its good's home colour (R12 books now have this effect, never used up). R14 granary (violet way to food, a building): while a keeper works, food spoils at `place.granary.food_spoilage_permille`; each working granary takes `place.granary.culture_upkeep` culture a week from the stock. R15 improved plough (blue way to food, an invention): a free project of `way.plough.work` knowledge, up to `way.plough.capacity` workers; once invented farm workers produce × (1000 + `way.plough.bonus_permille`) ÷ 1000. New keys `place.granary.*`, `way.plough.*`; export columns `plough_done`, `granary_working`, `culture_upkeep`; weekly order: step 1 takes the upkeep and applies the bonus, step 8 also finishes inventions, step 14 uses the granary's rate.
@@ -32,9 +34,9 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 - Paths/colours, pentagon order: Growth (green) – Wealth (yellow) – Wisdom (blue) – Strength (red) – Culture (violet) – back to green. Neighbours: green–yellow, yellow–blue, blue–red, red–violet, violet–green; all other pairs are opposites. Ties (Manameter rounding, demand colour ranks) and the colour order in the UI and exports follow this order.
 - Relation of a worker's colour to a building's colour: same; neighbour (adjacent on the pentagon); opposite (not adjacent).
 - Buildings and their output: farm → food, monastery → knowledge, watchtower → defence, market → gold, tavern → culture. These are the home places, one per colour. Guildhouse: neutral, trains workers, produces nothing. Granary: a way (R14), produces nothing.
-- Way (R13): a place type with a colour and a good that are not each other's home, e.g. the granary (violet, food), the improved plough (blue, food), the grain trade (yellow, food) or hunting (red, food).
+- Way (R13): a place type with a colour and a good that are not each other's home, e.g. the granary (violet, food), the improved plough (blue, food), the grain trade route (yellow, food) or hunting (red, food).
 - The concept says "wisdom" for knowledge.
-- place: anything a worker is placed at: a building, a project (a site, a king's project, a book, an invention), a trade (R16) or an expedition (R17).
+- place: anything a worker is placed at: a building, a project (a site, a king's project, a book, an invention), a trade route (R16) or an expedition (R17).
 - Week: one simulation step. 48 weeks per year (hardcoded); game length `game.years`.
 
 ## Weekly order
@@ -46,18 +48,19 @@ Values are never written here: each rule names its CSV keys in `priv/balance_inp
 5. Eating (R8)
 6. Birth (R1), drawn from the Manameter updated in step 4
 7. Construction (R2): sites advance; finished buildings release their builders
-8. Books finished (R12), then inventions finished (R15), then trades return (R16), then hunts return (R17, drawing their luck): their food goes into the stock
+8. Books finished (R12), opening a trade route the books now unlock (R16); then inventions finished (R15); then hunts return (R17, drawing their luck): their food goes into the stock
 9. Training ends (R5)
 10. Tax payment (R7), due weeks only
 11. Demand delivery (R7): in the deadline week; a project also in the week its target is reached, and in the week after it was refused
 12. Demand made (R7), demand weeks only
-13. Bandits (R10): threat, setting out, raid; every week from week 1
-14. Spoilage (R9), at the granary's rate for food while a granary works (R14)
+13. Trade route (R16): each arrived trader, in the order placed, pays and brings food
+14. Bandits (R10): threat, setting out, raid; every week from week 1
+15. Spoilage (R9), at the granary's rate for food while a granary works (R14)
 
-The player acts between weeks; changes take effect the following week. Production, mana, construction, training and whether a granary works use travel as it was when the week started, so a worker placed while the game stands at week N does nothing in week N+1 and works from week N+2. Code-level detail: the `weekly-step` skill.
+The player acts between weeks; changes take effect the following week. Production, mana, construction, training, the trade route and whether a granary works use travel as it was when the week started, so a worker placed while the game stands at week N does nothing in week N+1 and works from week N+2. Code-level detail: the `weekly-step` skill.
 
 ## R1 Birth and start
-- Every `birth.interval_weeks`, one worker is born if at least `birth.min_food_left` food is left after eating.
+- Every `birth.interval_weeks`, one worker is born if at least `birth.min_food_left` food is left after eating and the week wasn't short (R8).
 - Colour is drawn with chances equal to the Manameter shares (seeded random). Colour never changes.
 - A newborn is unplaced and eats from the following week.
 - Start: `start.farmers` green on a farm, `start.soldiers` red in the tower (the tower counts as a watchtower), `start.food`, `start.gold`, Manameter `manameter.<colour>.start_permille`.
@@ -80,7 +83,7 @@ The player acts between weeks; changes take effect the following week. Productio
 - UI: each site shows its arrived builders (arrived / `build.capacity`) and progress (progress / `build.work`).
 
 ### Travel
-- A worker's travel is set to `travel.weeks` whenever it is placed from unplaced (into a building, a site, a project or the guildhouse), moved directly from one building to another (once), unplaced by the player, or released as a finished trainee or builder, or from a project that ends or is refused (R7). Moving a worker that is still travelling sets it to `travel.weeks` again.
+- A worker's travel is set to `travel.weeks` whenever it is placed from unplaced (into a building, a site, a project or the guildhouse), moved directly from one building to another (once), unplaced by the player, or released as a finished trainee or builder, or from a project that ends or is refused (R7). Moving a worker that is still travelling sets it to `travel.weeks` again. To or from a trade route (R16), `way.grain_trade.travel_weeks` instead of `travel.weeks`.
 - The worker takes its place at once, but while its travel is above 0 it produces nothing and no mana, isn't an arrived builder, and doesn't train. It still eats and counts toward taxes.
 - An unplaced worker can't be placed while its travel is above 0.
 - Newborns and starting workers have travel 0.
@@ -89,7 +92,7 @@ The player acts between weeks; changes take effect the following week. Productio
 ## R3 Mana
 - Per working worker per week: `mana.place_colour` in the place's colour and `mana.good_colour` in the colour of the home place of the place's good. A home place (farm, market, monastery, watchtower, tavern) gives both to its own colour; they add up.
 - The worker's own colour and training play no part.
-- Places: a building of its colour and good; a king's project (R7) as the building of its colour and good; a book (R12) as a monastery (blue, knowledge); a granary (R14) violet and food (2 violet, 1 green); the improved plough (R15) blue and food (2 blue, 1 green).
+- Places: a building of its colour and good; a king's project (R7) as the building of its colour and good; a book (R12) as a monastery (blue, knowledge); a granary (R14) violet and food (2 violet, 1 green); the improved plough (R15) blue and food (2 blue, 1 green); the grain trade route (R16) yellow and food (2 yellow, 1 green); a hunt (R17) red and food (2 red, 1 green).
 - Trainees, builders, unplaced and travelling workers produce no mana.
 
 ## R4 Manameter
@@ -119,8 +122,8 @@ The player acts between weeks; changes take effect the following week. Productio
 
 ## R8 Food
 - Every worker eats `good.food.eaten_per_worker` per week.
-- Leftover food carries over (stored in the tower, no limit). The stock may go below 0, meaning the village is out of food.
-- Short week (food after production is less than everyone eats): the missing food is forgotten and the stock is set to -1, so no birth; log every such week. No other effect until T65 (hunger).
+- Leftover food carries over (stored in the tower, no limit). No stock goes below 0.
+- Short week (food after production is less than everyone eats): the missing food is forgotten and the stock stops at 0; no birth (R1); log every such week (UI "short"; the bots' analysis counts them as `weeks_food_below_0`). No other effect until T65 (hunger).
 
 ## R9 Spoilage
 - At the end of the week, every stock above 0 loses `good.<good>.spoilage_permille` per mille of itself, rounded down. Stocks at or below 0 don't spoil.
@@ -164,7 +167,7 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 ## R13 Ways
 - A way is a place type in the catalogue with a colour and a good that are not each other's home: granary (violet, food; R14), improved plough (blue, food; R15), grain trade (yellow, food; R16), hunting (red, food; R17).
 - One rule for every way: it is unlocked while the village holds at least one book (R12) of its colour and at least one book of the colour of its good's home place (granary: violet and green; plough: blue and green; grain trade: yellow and green; hunting: red and green). Books are not used up, so a way once unlocked stays unlocked. No fixed week.
-- A locked way can't be ordered (a building) or started (an invention, a trade, a hunt).
+- A locked way can't be ordered (a building) or started (an invention, a hunt); a locked trade route isn't a place yet (R16).
 - UI: a locked way is shown disabled with a lock and a swatch for each colour whose book is still missing; unlocked, it is ordered or started like the others.
 
 ## R14 Granary
@@ -184,18 +187,17 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 - From the next week for the rest of the game, every farm worker's output × (1000 + `way.plough.bonus_permille`) ÷ 1000, rounded down per worker, after the colour factors (R2) and before happiness (R11).
 - UI: a button to start it (locked, open, or invented); the project among the places with its progress and workers; once invented, the bonus next to the stocks.
 
-## R16 Grain trade
-- Yellow's way to food, a trade: a kind of place that is neither a building nor a project. Unlocked as in R13 (a yellow and a green book).
-- The player starts it like a book, with no building: he chooses one trader, any colour, who has arrived (travel 0), unplaced or taken out of his place (a trainee loses his training, R5). The trader needs no travel of his own (R2): the trade's travel replaces it. Several trades may run at once, one trader each.
-- Gold, paid from the stock when starting: `way.grain_trade.gold` × 1000 ÷ the trader's colour factor against yellow, untrained or trained (R2), rounded down. Not possible with less gold. No refund.
-- Time: started while the game stands at week N, the trader is away for weeks N + 1 to N + 2 × `way.grain_trade.travel_weeks` + `way.grain_trade.trade_weeks` (out, trading, back). He can't be moved or unplaced until the trade returns.
-- Away, the trader eats and counts toward taxes, produces nothing, and makes mana as at a yellow place for food (R3: 2 yellow + 1 green with the current values) every week he is away.
-- Return, at the end of the last week (step 8): `way.grain_trade.food` food goes into the stock; the trade disappears; the trader becomes unplaced (travelling, R2). The food is not eaten that week, counts for that week's taxes and demands, and spoils that week (R9).
-- A trade still away when the game ends brings nothing.
-- UI: a button to start a grain trade with the selected worker, showing his price; locked as in R13; each trade among the places with its return week. A trader away can't be selected.
+## R16 Grain trade route
+- Yellow's way to food, a trade route: a kind of place that is neither a building nor a project. Unlocked as in R13 (a yellow and a green book).
+- Once unlocked, the route opens as a place in the village (in step 8 of the week the last book it needs is finished): one route, nothing to build or pay. Until then the UI shows it locked, with the books it needs.
+- Placing and leaving as for a building (R2): placed, moved or unplaced by the player, any colour, trained or not, up to `way.grain_trade.capacity` traders. Travel to and from the route is `way.grain_trade.travel_weeks` instead of `travel.weeks`: when a worker is placed on it and when he leaves it (unplaced, or moved to another place). A trader stays until the player moves him.
+- A trader eats and counts toward taxes; he produces nothing in step 1 and doesn't defend (R10). Once arrived he makes mana as at a yellow place for food (R3: 2 yellow + 1 green with the current values); nothing while travelling.
+- Weekly trade, step 13: for each trader who has arrived (travel 0 at the start of the week, as for production), in the order they were placed on the route (one who leaves and comes back goes to the end): price = `way.grain_trade.gold_per_week` × 1000 ÷ his colour factor against yellow, untrained or trained (R2), rounded down. If the gold stock covers the price, he pays it and `way.grain_trade.food_per_week` food goes into the stock; otherwise he pays and brings nothing this week, and stays. A later trader with a lower price may still pay.
+- Taxes and demands are settled before (steps 10–11), so a route never causes a tax or demand miss; the bandits (step 14) see the gold after the trade; the food spoils that week (step 15). The trade food is bought, not produced: happiness (R11) doesn't change it.
+- UI: the route among the places with its traders and capacity, the gold paid and food brought last week, and the selected worker's weekly price; locked as in R13 until it opens.
 
 ## R17 Hunting
-- Red's way to food, an expedition: a kind of place that is neither a building, a project nor a trade. Unlocked as in R13 (a red and a green book).
+- Red's way to food, an expedition: a kind of place that is neither a building, a project nor a trade route. Unlocked as in R13 (a red and a green book).
 - The player starts a hunt at no cost: a party of 1 to `way.hunting.max_party` workers, any colour, who have arrived (travel 0), unplaced or taken out of their place (a trainee loses his training, R5). No travel of their own (R2): the hunt's travel replaces it. The party is fixed when it sets out. Several hunts may run at once.
 - Time: set out while the game stands at week N, the party is away for weeks N + 1 to N + 2 × `way.hunting.travel_weeks` + `way.hunting.hunt_weeks`. Hunters can't be moved or unplaced until the hunt returns.
 - Away, the hunters eat and count toward taxes, produce nothing, so they don't defend (R10), and each makes mana as at a red place for food (R3: 2 red + 1 green with the current values) every week.
@@ -212,7 +214,7 @@ Robbery only: bandits take gold, nothing else (no fights, no wounded, no mana).
 
 ## Forecasts
 UI only: forecasts change nothing in the game. Each one repeats the change of the last week run (its end minus its start) unchanged for every week ahead. The change is raw: taxes paid, demands delivered, what the king took and robbery in that week count in it; gold spent on buildings between weeks doesn't. No forecasts in week 0 (no week before it); the next tax's amount and week are shown from week 0. The bots use the same forecasts (food balance, next tax).
-- Food: the stock's change per week, rising, falling or steady; if falling, the week it goes below 0.
+- Food: the stock's change per week, rising, falling or steady; if falling, the week it runs short (R8; already if the last week was). The trade route's food and gold (R16) are part of the change.
 - Gold: the stock's change per week (spoilage included), rising, falling or steady.
 - Next tax: the amount fixed at the count, or before the count `king.tax.per_worker` × the current workers (shown as "at least": births until the count raise it); its due week; the gold expected then (gold now + change × weeks until the due week, that week included) and the shortfall, if any. None after the game's last payment.
 - Open demand: the amount, the deadline and the amount expected by the deadline, deadline week included: from the stock, the stock + its change × weeks left; for a project, progress + its gain in the last week × weeks left, at most the target. Met or short. No forecast for a project in the week it was made, or once refused.
@@ -220,4 +222,4 @@ UI only: forecasts change nothing in the game. Each one repeats the change of th
 
 ## Export
 - Weekly CSV, one row per week, week 0 (the start) first. Amounts of goods and `bandit_threat` in thousandths; mana in whole points; Manameter shares per mille; counts and weeks as plain numbers. Product columns in the pentagon order of their buildings, colour columns in pentagon order.
-- Columns: week; production_food, production_gold, production_knowledge, production_defence, production_culture (what buildings produced; output on a project is not included); mana_<colour>; manameter_<colour>; food_left (after spoilage); newborn (the newborn's colour, empty if none); trained (colours of the workers who finished training that week); builders (arrived, at the end of the week); travelling (workers with travel above 0, at the end of the week); gold (after spoilage); tax_due (filled in the count week); tax (paid, skipped or missed, in the due week); demand_product and demand_amount (in the week the demand is made); demand_outcome (delivered, refused or missed, in the deadline week; for a project delivered early, in the week its target is reached; for a refused project, in the week after the refusal); demand_progress (a project's total at the end of every week it is open, the week it is made and the week it is delivered or missed included; empty for food, gold and defence demands and when no project is open); king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise); spoiled_food, spoiled_gold, spoiled_knowledge, spoiled_defence, spoiled_culture; gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold); bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0); bandit_threat (end of the week); bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week); gold_robbed (what the bandits took that week, before spoilage; 0 otherwise); happiness_ratio (per mille; empty in week 0); happiness_step (the step applied, −3 to +3, a plain number; 0 in the grace period; empty in week 0); game_over; books_green, books_yellow, books_blue, books_red, books_violet (books held at the end of the week, R12); plough_done (true or false, at the end of the week, R15); granary_working (true or false: a granary worked that week, R14); culture_upkeep (the culture taken from the stock for the granaries that week, R14); food_from_trade (the food the trades that returned that week brought, R16); food_from_hunting (the food the hunts that returned that week brought, R17); suspicion (the king's suspicion at the end of the week, R18; a hunt started while the game stands at week N first counts in row N + 1).
+- Columns: week; production_food, production_gold, production_knowledge, production_defence, production_culture (what buildings produced; output on a project is not included); mana_<colour>; manameter_<colour>; food_left (after spoilage); newborn (the newborn's colour, empty if none); trained (colours of the workers who finished training that week); builders (arrived, at the end of the week); travelling (workers with travel above 0, at the end of the week); gold (after spoilage); tax_due (filled in the count week); tax (paid, skipped or missed, in the due week); demand_product and demand_amount (in the week the demand is made); demand_outcome (delivered, refused or missed, in the deadline week; for a project delivered early, in the week its target is reached; for a refused project, in the week after the refusal); demand_progress (a project's total at the end of every week it is open, the week it is made and the week it is delivered or missed included; empty for food, gold and defence demands and when no project is open); king_took_gold and king_took_food (what the king took that week on a skipped or missed tax and a refused or missed demand; 0 otherwise); spoiled_food, spoiled_gold, spoiled_knowledge, spoiled_defence, spoiled_culture; gold_spent_buildings (gold paid for buildings ordered while the game stood at that week; not yet taken from that row's gold); bandit_pressure (per mille; `inf` without defence production and with gold; empty in week 0); bandit_threat (end of the week); bandits_weeks_to_raid (weeks left at the end of the week; empty if no bandits are on their way, also in the raid week); gold_robbed (what the bandits took that week, before spoilage; 0 otherwise); happiness_ratio (per mille; empty in week 0); happiness_step (the step applied, −3 to +3, a plain number; 0 in the grace period; empty in week 0); game_over; books_green, books_yellow, books_blue, books_red, books_violet (books held at the end of the week, R12); plough_done (true or false, at the end of the week, R15); granary_working (true or false: a granary worked that week, R14); culture_upkeep (the culture taken from the stock for the granaries that week, R14); food_from_trade (the food the trade route brought that week, R16); food_from_hunting (the food the hunts that returned that week brought, R17); suspicion (the king's suspicion at the end of the week, R18; a hunt started while the game stands at week N first counts in row N + 1); gold_to_trade (the gold paid to the trade route that week, R16); traders (the workers on the trade route in that week's trade step, arrived or not, R16).
