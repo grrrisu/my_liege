@@ -3,17 +3,17 @@ defmodule MyLiege.Engine.Rules.Trades do
   R16, trade routes: a way (R13) that is a `Place.Trade`; for now the grain trade route,
   yellow's way to food.
 
-  - Once unlocked (`Rules.Ways`), the route is a place in the village (`Ways.open/4`, in the
+  - Once unlocked (`Rules.Requirements`), the route is a place in the village (`Requirements.open/4`, in the
     Books step that finishes the last book it needs): one route, nothing to build or pay.
   - Workers of any colour, trained or not, are placed on it and leave it as in a building,
-    up to `way_grain_trade_capacity`, but travel `way_grain_trade_travel_weeks` instead of
+    up to `trade_grain_trade_capacity`, but travel `trade_grain_trade_travel_weeks` instead of
     `travel_weeks`, on the way there and on the way out (`Rules.Travel.weeks/3`). A trader
     stays until moved.
   - A trader eats, counts for taxes, produces nothing (so he doesn't defend) and, once
     arrived, makes mana as at a yellow place for food (R3).
   - Every week (`settle/4`), each arrived trader, in the order they were placed on the
     route, pays his price (`price/2`) from the gold stock and brings
-    `way_grain_trade_food_per_week` food; if the gold stock is short of his price he pays
+    `trade_grain_trade_food_per_week` food; if the gold stock is short of his price he pays
     and brings nothing this week, and stays.
 
   Amounts are in thousandths (see `Fixed`).
@@ -29,10 +29,10 @@ defmodule MyLiege.Engine.Rules.Trades do
   def types, do: @types
 
   @doc "How many traders a route of `type` takes."
-  def capacity(:grain_trade, %Config{} = config), do: config.way_grain_trade_capacity
+  def capacity(:grain_trade, %Config{} = config), do: config.trade_grain_trade_capacity
 
   @doc "The weeks a worker travels on the way to or from a route of `type`."
-  def travel_weeks(:grain_trade, %Config{} = config), do: config.way_grain_trade_travel_weeks
+  def travel_weeks(:grain_trade, %Config{} = config), do: config.trade_grain_trade_travel_weeks
 
   @doc """
   The gold (thousandths) `worker` pays per week on a route of `type`: the route's weekly
@@ -41,11 +41,12 @@ defmodule MyLiege.Engine.Rules.Trades do
   """
   def price(:grain_trade = type, %Worker{} = worker, %Config{} = config) do
     factor = Production.efficiency(worker, Blueprint.fetch!(type).colour, config)
-    div(Fixed.from(config.way_grain_trade_gold_per_week) * 1000, factor)
+    div(Fixed.from(config.trade_grain_trade_gold_per_week) * 1000, factor)
   end
 
   @doc "The food (thousandths) one trader brings per week on a route of `type`."
-  def food(:grain_trade, %Config{} = config), do: Fixed.from(config.way_grain_trade_food_per_week)
+  def food(:grain_trade, %Config{} = config),
+    do: Fixed.from(config.trade_grain_trade_food_per_week)
 
   @doc "The route of `type` among `places`, or `nil` while it isn't open."
   def route(places, type), do: Enum.find(places, &match?(%Trade{blueprint: %{type: ^type}}, &1))

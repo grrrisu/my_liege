@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.WaysTest do
 
   alias MyLiege.Engine.{Forecast, Game, Worker}
   alias MyLiege.Engine.Place.{Expedition, Trade}
-  alias MyLiege.Engine.Rules.{Books, Hunting, Inventions, Production, Trades, Ways}
+  alias MyLiege.Engine.Rules.{Books, Hunting, Inventions, Production, Requirements, Trades}
   alias MyLiege.EngineFixtures
   alias MyLiege.Reporting
 
@@ -112,7 +112,7 @@ defmodule MyLiege.Engine.WaysTest do
 
   describe "R15: improved plough" do
     setup do
-      game = game(way_plough_work: 5)
+      game = game(invention_plough_work: 5)
       {:ok, game} = Game.start_invention(game, :plough)
       {:ok, game} = Game.place_worker(game, 2, 3)
       %{game: game}
@@ -144,7 +144,7 @@ defmodule MyLiege.Engine.WaysTest do
       game = %{
         game
         | books: %{game.books | blue: 2, green: 2},
-          config: %{game.config | way_plough_2_work: 5}
+          config: %{game.config | invention_plough_2_work: 5}
       }
 
       {:ok, game} = Game.start_invention(game, :plough_2)
@@ -174,7 +174,7 @@ defmodule MyLiege.Engine.WaysTest do
                Production.output(workers, places, 1, config, [:plough])
     end
 
-    test "takes up to way.plough.capacity workers", %{game: game} do
+    test "takes up to invention.plough.capacity workers", %{game: game} do
       game = game |> with_unplaced(4)
       [a, b, c, d] = game.workers |> Enum.filter(&is_nil(&1.place)) |> Enum.map(& &1.id)
 
@@ -199,7 +199,7 @@ defmodule MyLiege.Engine.WaysTest do
       game = game(start_gold: 1000, start_food: 1000)
 
       {places, [:grain_trade, :hunting]} =
-        Ways.open(game.places, game.books, game.inventions, game.config)
+        Requirements.open(game.places, game.books, game.inventions, game.config)
 
       %{game: %{game | places: places}}
     end
@@ -210,12 +210,12 @@ defmodule MyLiege.Engine.WaysTest do
       game = game([])
       {:ok, report, game} = Game.run_week(game)
 
-      assert report.ways_opened == [:grain_trade, :hunting]
+      assert report.places_unlocked == [:grain_trade, :hunting]
       assert [%Trade{id: 3, traders: []}] = for(%Trade{} = t <- game.places, do: t)
       assert [%Expedition{id: 4}] = for(%Expedition{} = e <- game.places, do: e)
 
       {:ok, report, game} = Game.run_week(game)
-      assert report.ways_opened == []
+      assert report.places_unlocked == []
       assert game.places |> Enum.count(&match?(%Trade{}, &1)) == 1
       assert game.places |> Enum.count(&match?(%Expedition{}, &1)) == 1
     end
@@ -229,7 +229,7 @@ defmodule MyLiege.Engine.WaysTest do
       assert Game.place_worker(game, 1, 3) == {:error, :unknown_place}
     end
 
-    test "travel there and away is way.grain_trade.travel_weeks, not travel.weeks", %{
+    test "travel there and away is trade.grain_trade.travel_weeks, not travel.weeks", %{
       game: game
     } do
       {:ok, on_route} = Game.place_worker(game, 2, 3)
@@ -246,7 +246,7 @@ defmodule MyLiege.Engine.WaysTest do
       assert trader_travel(farm_to_tower, 1) == 0
     end
 
-    test "takes way.grain_trade.capacity traders of any colour", %{game: game} do
+    test "takes trade.grain_trade.capacity traders of any colour", %{game: game} do
       game = with_unplaced(game, 9)
 
       game =
@@ -344,13 +344,15 @@ defmodule MyLiege.Engine.WaysTest do
     # (4) open; plenty of food
     setup do
       game = game(start_food: 10_000)
-      {places, _opened} = Ways.open(game.places, game.books, game.inventions, game.config)
+      {places, _opened} = Requirements.open(game.places, game.books, game.inventions, game.config)
       %{game: %{game | places: places}}
     end
 
     defp camp(game), do: Hunting.camp(game.places)
 
-    test "travel there and away is way.hunting.travel_weeks; from the route too", %{game: game} do
+    test "travel there and away is expedition.hunting.travel_weeks; from the route too", %{
+      game: game
+    } do
       {:ok, at_camp} = Game.place_worker(game, 2, 4)
       assert Enum.find(at_camp.workers, &(&1.id == 2)).travel == 3
 
@@ -361,7 +363,7 @@ defmodule MyLiege.Engine.WaysTest do
       assert Enum.find(unplaced.workers, &(&1.id == 2)).travel == 3
     end
 
-    test "takes way.hunting.max_party hunters of any colour", %{game: game} do
+    test "takes expedition.hunting.max_party hunters of any colour", %{game: game} do
       game = with_unplaced(game, 5)
 
       game =

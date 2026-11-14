@@ -2,12 +2,12 @@ defmodule MyLiege.Engine.Rules.Inventions do
   @moduledoc """
   R15, inventions: a way (R13) that is a project, not a building; for now the improved plough
   I (`:plough`) and II (`:plough_2`), blue's ways to food. Plough II needs two books of each
-  colour (`way.plough_2.books`) and plough I invented (`Rules.Ways`).
+  colour (`invention.plough_2.books`) and plough I invented (`Rules.Requirements`).
 
-  - Once unlocked (`Rules.Ways`), the player may start one at no cost, unless a project for
+  - Once unlocked (`Rules.Requirements`), the player may start one at no cost, unless a project for
     it is already open or it is already invented: each is invented only once. It is a
     `Place.Project` giving `{:invention, type}` with the catalogue's blueprint, and needs
-    `target/2` knowledge (`way_plough_work`, `way_plough_2_work`).
+    `target/2` knowledge (`invention_plough_work`, `invention_plough_2_work`).
   - Up to `capacity/2` workers of any colour; travel and leaving as for books. Each
     writes as in a blue building (`Rules.Production`), times the experience factor of the
     colour of the good's home place (green for food; Manameter share ÷ 200, as for books,
@@ -24,7 +24,7 @@ defmodule MyLiege.Engine.Rules.Inventions do
 
   alias MyLiege.Engine.{Config, Fixed, Manameter, Place}
   alias MyLiege.Engine.Place.{Blueprint, Project}
-  alias MyLiege.Engine.Rules.{Books, Placement, Ways}
+  alias MyLiege.Engine.Rules.{Books, Placement, Requirements}
 
   @types for %Blueprint{engine: :project, type: type} <- Blueprint.ways(), do: type
 
@@ -39,11 +39,20 @@ defmodule MyLiege.Engine.Rules.Inventions do
   """
   def check_start(type, places, inventions, books, %Config{} = config) do
     cond do
-      type not in @types -> {:error, :unknown_invention}
-      Ways.check(Blueprint.fetch!(type), books, inventions, config) != :ok -> {:error, :locked}
-      type in inventions -> {:error, :already_invented}
-      open?(places, type) -> {:error, :already_open}
-      true -> :ok
+      type not in @types ->
+        {:error, :unknown_invention}
+
+      Requirements.check(Blueprint.fetch!(type), books, inventions, config) != :ok ->
+        {:error, :locked}
+
+      type in inventions ->
+        {:error, :already_invented}
+
+      open?(places, type) ->
+        {:error, :already_open}
+
+      true ->
+        :ok
     end
   end
 
@@ -82,19 +91,19 @@ defmodule MyLiege.Engine.Rules.Inventions do
   end
 
   @doc "The knowledge (thousandths) inventing `type` needs."
-  def target(:plough, %Config{} = config), do: Fixed.from(config.way_plough_work)
-  def target(:plough_2, %Config{} = config), do: Fixed.from(config.way_plough_2_work)
+  def target(:plough, %Config{} = config), do: Fixed.from(config.invention_plough_work)
+  def target(:plough_2, %Config{} = config), do: Fixed.from(config.invention_plough_2_work)
 
   @doc "How many workers a project inventing `type` takes."
-  def capacity(:plough, %Config{} = config), do: config.way_plough_capacity
-  def capacity(:plough_2, %Config{} = config), do: config.way_plough_2_capacity
+  def capacity(:plough, %Config{} = config), do: config.invention_plough_capacity
+  def capacity(:plough_2, %Config{} = config), do: config.invention_plough_2_capacity
 
   @doc """
   What `type` does once invented: `{:farm_output, bonus}` (per mille added to every farm
   worker's output). A later invention adds a clause with its own effect.
   """
-  def effect(:plough, %Config{} = config), do: {:farm_output, config.way_plough_bonus}
-  def effect(:plough_2, %Config{} = config), do: {:farm_output, config.way_plough_2_bonus}
+  def effect(:plough, %Config{} = config), do: {:farm_output, config.invention_plough_bonus}
+  def effect(:plough_2, %Config{} = config), do: {:farm_output, config.invention_plough_2_bonus}
 
   @doc "The farm output bonus (per mille) of all `inventions` together: their bonuses added."
   def farm_bonus(inventions, %Config{} = config) do

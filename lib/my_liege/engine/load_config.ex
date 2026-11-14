@@ -27,6 +27,8 @@ defmodule MyLiege.Engine.LoadConfig do
   @lucks [:low, :mid, :high]
   # the chances of each luck are counts out of this many
   @luck_draws 10
+  # the key group of a place type's own values, by the kind of place it becomes (its engine)
+  @groups %{building: "place", project: "invention", trade: "trade", expedition: "expedition"}
 
   @doc false
   def names, do: %{trainings: @trainings}
@@ -129,24 +131,24 @@ defmodule MyLiege.Engine.LoadConfig do
       place_granary_food_spoilage: "place.granary.food_spoilage_permille",
       place_granary_culture_upkeep: "place.granary.culture_upkeep",
       place_granary_food_capacity: "place.granary.food_capacity",
-      way_plough_work: "way.plough.work",
-      way_plough_capacity: "way.plough.capacity",
-      way_plough_bonus: "way.plough.bonus_permille",
-      way_plough_2_work: "way.plough_2.work",
-      way_plough_2_capacity: "way.plough_2.capacity",
-      way_plough_2_bonus: "way.plough_2.bonus_permille",
-      way_books: by(Blueprint.config_book_types(), &"way.#{&1}.books"),
-      way_grain_trade_capacity: "way.grain_trade.capacity",
-      way_grain_trade_gold_per_week: "way.grain_trade.gold_per_week",
-      way_grain_trade_food_per_week: "way.grain_trade.food_per_week",
-      way_grain_trade_travel_weeks: "way.grain_trade.travel_weeks",
+      invention_plough_work: "invention.plough.work",
+      invention_plough_capacity: "invention.plough.capacity",
+      invention_plough_bonus: "invention.plough.bonus_permille",
+      invention_plough_2_work: "invention.plough_2.work",
+      invention_plough_2_capacity: "invention.plough_2.capacity",
+      invention_plough_2_bonus: "invention.plough_2.bonus_permille",
+      books_needed: by(Blueprint.config_book_types(), &"#{group(&1)}.#{&1}.books"),
+      trade_grain_trade_capacity: "trade.grain_trade.capacity",
+      trade_grain_trade_gold_per_week: "trade.grain_trade.gold_per_week",
+      trade_grain_trade_food_per_week: "trade.grain_trade.food_per_week",
+      trade_grain_trade_travel_weeks: "trade.grain_trade.travel_weeks",
       # the party rows depend on max_party: read them before max_party is taken
-      way_hunting_party: &hunting_parties!/1,
-      way_hunting_max_party: "way.hunting.max_party",
-      way_hunting_travel_weeks: "way.hunting.travel_weeks",
-      way_hunting_haul_weeks: "way.hunting.haul_weeks",
-      way_hunting_food_per_week: "way.hunting.food_per_week",
-      way_hunting_luck: by(@lucks, &"way.hunting.luck_#{&1}_permille"),
+      expedition_hunting_party: &hunting_parties!/1,
+      expedition_hunting_max_party: "expedition.hunting.max_party",
+      expedition_hunting_travel_weeks: "expedition.hunting.travel_weeks",
+      expedition_hunting_haul_weeks: "expedition.hunting.haul_weeks",
+      expedition_hunting_food_per_week: "expedition.hunting.food_per_week",
+      expedition_hunting_luck: by(@lucks, &"expedition.hunting.luck_#{&1}_permille"),
       king_suspicion: by(@lucks, &"king.suspicion.#{&1}"),
       king_suspicion_decay: "king.suspicion.decay",
       king_suspicion_threshold: "king.suspicion.threshold",
@@ -168,6 +170,12 @@ defmodule MyLiege.Engine.LoadConfig do
       happiness_bonus_from: by(@levels, &"happiness.#{&1}.bonus_from_permille"),
       happiness_change: by(@levels, &"happiness.#{&1}.change_permille")
     )
+  end
+
+  # e.g. `:plough_2` -> "invention"
+  defp group(type) do
+    %Blueprint{engine: engine} = Blueprint.fetch!(type)
+    Map.fetch!(@groups, engine)
   end
 
   # A reader takes inputs and returns {value, the inputs it didn't read}; a key is a reader too.
@@ -194,19 +202,19 @@ defmodule MyLiege.Engine.LoadConfig do
     end
   end
 
-  # `way.hunting.party<n>.<luck>` for every party size n from 1 to `way.hunting.max_party`;
-  # each size's counts must sum to @luck_draws
+  # `expedition.hunting.party<n>.<luck>` for every party size n from 1 to
+  # `expedition.hunting.max_party`; each size's counts must sum to @luck_draws
   defp hunting_parties!(inputs) do
-    {max_party, _rest} = take!(inputs, "way.hunting.max_party")
+    {max_party, _rest} = take!(inputs, "expedition.hunting.max_party")
 
     sizes = 1..max_party//1 |> Enum.to_list()
 
     {parties, rest} =
-      by(sizes, fn size -> by(@lucks, &"way.hunting.party#{size}.#{&1}") end).(inputs)
+      by(sizes, fn size -> by(@lucks, &"expedition.hunting.party#{size}.#{&1}") end).(inputs)
 
     for {size, counts} <- parties, counts |> Map.values() |> Enum.sum() != @luck_draws do
       raise ArgumentError,
-            "config inputs: way.hunting.party#{size}.* must sum to #{@luck_draws}, " <>
+            "config inputs: expedition.hunting.party#{size}.* must sum to #{@luck_draws}, " <>
               "got #{counts |> Map.values() |> Enum.sum()}"
     end
 

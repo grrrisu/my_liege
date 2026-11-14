@@ -13,21 +13,25 @@ defmodule MyLiege.Engine.Place.Blueprint do
   (`way?/1`). Then the neutral ones. The catalogue is read at compile time, also by the
   loading of the designer's inputs, so this module depends on no other module.
 
-  What a way needs to unlock (R13, `Rules.Ways`) is part of its entry:
-  - `books`: how many books of each of its two colours: a number (default 1), or `:config`
-    when the designer sets it, as `way.<type>.books` (read into `Config.way_books`).
+  What a type needs before it can be used (`Rules.Requirements`) is part of its entry:
+  - `books`: how many books of its colour and of its good's home colour: a number (default
+    0, none), or `:config` when the designer sets it, as `<group>.<type>.books`, the group by its `engine`
+    (`invention`, `trade`, `expedition`, `place`; read into `Config.books_needed`).
   - `requires`: the invention that must already be made (a type), or `nil` (default).
+
+  Every way needs at least one book of each (R13; checked in the blueprint test); no other
+  type needs any.
   """
 
   @enforce_keys [:type, :colour, :good, :engine]
-  defstruct @enforce_keys ++ [books: 1, requires: nil]
+  defstruct @enforce_keys ++ [books: 0, requires: nil]
 
   @type t :: %__MODULE__{
           type: atom(),
           colour: atom() | nil,
           good: atom() | nil,
           engine: :building | :project | :trade | :expedition,
-          books: pos_integer() | :config,
+          books: non_neg_integer() | :config,
           requires: atom() | nil
         }
 
@@ -44,8 +48,8 @@ defmodule MyLiege.Engine.Place.Blueprint do
   # R13: violet's (R14), blue's (R15, plough I and II), yellow's (R16) and red's (R17) ways to
   # food
   @ways [
-    %{type: :granary, colour: :violet, good: :food, engine: :building},
-    %{type: :plough, colour: :blue, good: :food, engine: :project},
+    %{type: :granary, colour: :violet, good: :food, engine: :building, books: 1},
+    %{type: :plough, colour: :blue, good: :food, engine: :project, books: 1},
     %{
       type: :plough_2,
       colour: :blue,
@@ -54,8 +58,8 @@ defmodule MyLiege.Engine.Place.Blueprint do
       books: :config,
       requires: :plough
     },
-    %{type: :grain_trade, colour: :yellow, good: :food, engine: :trade},
-    %{type: :hunting, colour: :red, good: :food, engine: :expedition}
+    %{type: :grain_trade, colour: :yellow, good: :food, engine: :trade, books: 1},
+    %{type: :hunting, colour: :red, good: :food, engine: :expedition, books: 1}
   ]
 
   @neutral [

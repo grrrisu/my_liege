@@ -3,7 +3,7 @@ defmodule MyLiege.Engine.Actions.Construct do
   Orders a new building, which starts as a site (see `Rules.Construction`). Every type costs
   `build_cost_gold`, paid from the gold stock at once; the gold spent is added to
   `gold_spent_buildings` of the current week's report. There is no limit on number or
-  frequency. A way (R13) can be ordered only once unlocked (`Rules.Ways`). A type that is not a
+  frequency. A way (R13) can be ordered only once unlocked (`Rules.Requirements`). A type that is not a
   building (`Blueprint.building_types/0`) returns `{:error, :unknown_type}`, a locked way
   `{:error, :locked}` and insufficient gold `{:error, :not_enough_gold}`, checked in this order.
   Success returns `{:ok, game}`; construction progresses starting next week.
@@ -11,7 +11,7 @@ defmodule MyLiege.Engine.Actions.Construct do
 
   alias MyLiege.Engine.Game
   alias MyLiege.Engine.Place.Blueprint
-  alias MyLiege.Engine.Rules.{Construction, Ways}
+  alias MyLiege.Engine.Rules.{Construction, Requirements}
 
   def run(%Game{} = game, type) do
     cost = Game.build_cost(game)
@@ -20,7 +20,7 @@ defmodule MyLiege.Engine.Actions.Construct do
       type not in Blueprint.building_types() ->
         {:error, :unknown_type}
 
-      not Ways.unlocked?(Blueprint.fetch!(type), game.books, game.inventions, game.config) ->
+      not Requirements.unlocked?(Blueprint.fetch!(type), game.books, game.inventions, game.config) ->
         {:error, :locked}
 
       not Game.can_afford_building?(game) ->

@@ -12,10 +12,10 @@ defmodule MyLiegeWeb.GameLive do
     Grace,
     Inventions,
     Placement,
+    Requirements,
     Taxes,
     Trades,
-    Training,
-    Ways
+    Training
   }
 
   alias MyLiege.Reporting
@@ -144,7 +144,7 @@ defmodule MyLiegeWeb.GameLive do
         haul_message(report.haul),
         report.suspicion_miss &&
           "The king's suspicion reached its threshold: it counts as a miss, and it halves.",
-        ways_message(report.ways_opened),
+        unlocked_message(report.places_unlocked),
         report.demand &&
           "The king demands #{units(report.demand.amount)} #{report.demand.product} " <>
             "by week #{report.demand.due_week}."
@@ -190,7 +190,7 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_colour), do: "Unknown colour."
   defp error_message(:unknown_invention), do: "Unknown invention."
 
-  defp error_message(:locked), do: "This way needs a book of each of its two colours first."
+  defp error_message(:locked), do: "Still locked: it needs what the lock shows."
   defp error_message(:already_invented), do: "That has already been invented."
   defp error_message(:already_open), do: "That invention is already being worked on."
   defp error_message(:not_enough_gold), do: "Not enough gold to build."
@@ -669,7 +669,7 @@ defmodule MyLiegeWeb.GameLive do
             id={"camp-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            bag {units(place.bag)} food, next haul after {@game.config.way_hunting_haul_weeks -
+            bag {units(place.bag)} food, next haul after {@game.config.expedition_hunting_haul_weeks -
               place.weeks} more hunting week(s)
           </span>
           <span
@@ -713,13 +713,13 @@ defmodule MyLiegeWeb.GameLive do
           </button>
         </div>
         <div
-          :for={type <- closed_ways(@game)}
-          id={"way-locked-#{type}"}
+          :for={type <- closed_places(@game)}
+          id={"closed-#{type}"}
           class="flex flex-wrap items-center gap-3 opacity-60"
-          title={way_title(type, @game)}
+          title={locked_title(type, @game)}
         >
           <div class={["h-4 w-4 rounded-sm", type |> type_colour() |> colour_class()]}></div>
-          <span class="min-w-24 text-sm">{way_name(type)}</span>
+          <span class="min-w-24 text-sm">{route_or_camp_name(type)}</span>
           <.locked type={type} game={@game} />
         </div>
         <div id="unplaced" class="flex flex-wrap items-center gap-3">
@@ -772,7 +772,7 @@ defmodule MyLiegeWeb.GameLive do
           phx-click="build"
           phx-value-type={type}
           disabled={!@affordable? or missing(type, @game) != []}
-          title={way_title(type, @game)}
+          title={locked_title(type, @game)}
           class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
@@ -839,7 +839,7 @@ defmodule MyLiegeWeb.GameLive do
   attr :type, :atom, required: true
   attr :game, Game, required: true
 
-  # what a locked way still needs: a swatch with the count per colour short of books, and the
+  # what a locked type still needs: a swatch with the count per colour short of books, and the
   # invention it requires
   defp locked(assigns) do
     assigns = assign(assigns, :missing, missing(assigns.type, assigns.game))
@@ -876,13 +876,14 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   defp missing(type, game),
-    do: type |> Blueprint.fetch!() |> Ways.missing(game.books, game.inventions, game.config)
+    do:
+      type |> Blueprint.fetch!() |> Requirements.missing(game.books, game.inventions, game.config)
 
   defp missing_text({:book, colour, 1}), do: "1 more #{colour} book"
   defp missing_text({:book, colour, count}), do: "#{count} more #{colour} books"
   defp missing_text({:invention, type}), do: "#{invention_name(type)} invented"
 
-  defp way_title(type, game) do
+  defp locked_title(type, game) do
     case missing(type, game) do
       [] -> nil
       missing -> "needs " <> Enum.map_join(missing, " and ", &missing_text/1)
@@ -898,22 +899,23 @@ defmodule MyLiegeWeb.GameLive do
          do: route |> Place.type() |> Trades.price(worker, game.config) |> units()
   end
 
-  # the standing ways (trade route, hunting camp) not open yet: shown locked until the books
-  # open them
-  defp closed_ways(game) do
-    for %{engine: engine, type: type} = blueprint <- Blueprint.ways(),
+  # the trade routes and the hunting camp not open yet: shown locked until their requirements
+  # are met and they open
+  defp closed_places(game) do
+    for %{engine: engine, type: type} = blueprint <- Blueprint.all(),
         engine in [:trade, :expedition],
-        not Ways.open?(game.places, blueprint),
+        not Requirements.open?(game.places, blueprint),
         do: type
   end
 
-  defp ways_message([]), do: nil
+  defp unlocked_message([]), do: nil
 
-  defp ways_message(types),
-    do: Enum.map_join(types, " ", &"The #{way_name(&1)} is open: place workers on it.")
+  defp unlocked_message(types),
+    do: Enum.map_join(types, " ", &"The #{route_or_camp_name(&1)} is open: place workers on it.")
 
-  defp way_name(:grain_trade), do: "grain trade route"
-  defp way_name(:hunting), do: "hunting camp"
+  # the name of a trade route (R16) or the hunting camp (R17) by type
+  defp route_or_camp_name(:grain_trade), do: "grain trade route"
+  defp route_or_camp_name(:hunting), do: "hunting camp"
 
   defp haul_message(nil), do: nil
 
@@ -1033,8 +1035,8 @@ defmodule MyLiegeWeb.GameLive do
 
   defp place_name(%Project{gives: {:book, colour}}), do: "#{colour} book"
   defp place_name(%Project{gives: {:invention, type}}), do: invention_name(type)
-  defp place_name(%Trade{} = trade), do: trade |> Place.type() |> way_name()
-  defp place_name(%Expedition{} = camp), do: camp |> Place.type() |> way_name()
+  defp place_name(%Trade{} = trade), do: trade |> Place.type() |> route_or_camp_name()
+  defp place_name(%Expedition{} = camp), do: camp |> Place.type() |> route_or_camp_name()
 
   defp place_name(place), do: Place.type(place)
 

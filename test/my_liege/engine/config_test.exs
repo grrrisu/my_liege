@@ -40,14 +40,15 @@ defmodule MyLiege.Engine.ConfigTest do
       inputs = "priv/balance_inputs.csv" |> File.read!() |> LoadConfig.parse!()
       config = LoadConfig.read!(inputs)
 
-      assert Map.keys(config.way_hunting_party) == Enum.to_list(1..config.way_hunting_max_party)
+      assert Map.keys(config.expedition_hunting_party) ==
+               Enum.to_list(1..config.expedition_hunting_max_party)
 
-      assert_raise ArgumentError, ~r/way.hunting.party2.\* must sum to 10, got 11/, fn ->
-        inputs |> Map.update!("way.hunting.party2.low", &(&1 + 1)) |> LoadConfig.read!()
+      assert_raise ArgumentError, ~r/expedition.hunting.party2.\* must sum to 10, got 11/, fn ->
+        inputs |> Map.update!("expedition.hunting.party2.low", &(&1 + 1)) |> LoadConfig.read!()
       end
 
-      assert_raise ArgumentError, ~r/keys not read: \["way.hunting.party4/, fn ->
-        inputs |> Map.put("way.hunting.max_party", 3) |> LoadConfig.read!()
+      assert_raise ArgumentError, ~r/keys not read: \["expedition.hunting.party4/, fn ->
+        inputs |> Map.put("expedition.hunting.max_party", 3) |> LoadConfig.read!()
       end
     end
 

@@ -289,8 +289,8 @@ defmodule MyLiegeWeb.GameLiveTest do
        %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
-    assert has_element?(view, "#way-locked-grain_trade #locked-grain_trade")
-    assert has_element?(view, "#way-locked-hunting #locked-hunting")
+    assert has_element?(view, "#closed-grain_trade #locked-grain_trade")
+    assert has_element?(view, "#closed-hunting #locked-hunting")
     refute has_element?(view, "#start-trade-grain_trade")
     refute has_element?(view, "#set-out-hunting")
 
