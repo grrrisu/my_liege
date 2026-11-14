@@ -13,7 +13,7 @@ defmodule MyLiege.Bot.BotActionsTest do
     worker = %Worker{id: 3, colour: :red}
 
     assert Feed.target(worker, game, []) == nil
-    assert Feed.target(worker, %{game | stocks: %{game.stocks | food: -1}}, []) == :farm
+    assert Feed.target(worker, %{game | report: %{game.report | food_short: true}}, []) == :farm
   end
 
   test "SaveGold sends to a market only while gold is below the next tax", %{game: game} do

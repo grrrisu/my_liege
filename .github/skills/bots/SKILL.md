@@ -60,8 +60,10 @@ a step:
 | `PayAndDeliver` | always pay the tax and deliver the king's demands | – |
 
 No bot action uses the ways (R13–R17): the bots never order a granary, start the improved
-plough, start a trade or send out a hunt, so they raise no suspicion (R18). `Bot.Placing`
-sends no worker to an invention, a trade or an expedition.
+plough, place a trader on the grain trade route or send out a hunt, so they raise no
+suspicion (R18). `Bot.Placing` sends no worker to an invention, a trade route or an
+expedition. `Feed` reads a short week from `report.food_short` (R8: the food stock stops at
+0); `Analysis` counts those weeks as `weeks_food_below_0`.
 
 The `Bot.BotAction` contract: `run(game, opts) :: game`. It receives its own opts merged
 over the strategy's `build` and the run options (`pivot_week:`, `weeks:`). Named

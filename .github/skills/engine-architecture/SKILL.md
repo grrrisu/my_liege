@@ -24,7 +24,7 @@ lib/my_liege/engine/
     blueprint.ex     model: the catalogue, one blueprint per type of place
     building.ex      model: a building that stands in the game, always finished
     project.ex       model: a project, collects progress to a target, then gives something once
-    trade.ex         model: a trade, one trader away until its return week (R16)
+    trade.ex         model: a trade route, traders placed on it in queue order (R16)
     expedition.ex    model: an expedition, a party away until its return week (R17)
   worker.ex          data
   manameter.ex       data
@@ -35,7 +35,7 @@ lib/my_liege/engine/
     ways.ex          R13: when a way is unlocked (one rule for every way)
     granary.ex       R14: working granaries, culture upkeep, food spoilage
     inventions.ex    R15: starting, writing and finishing inventions; the plough's bonus
-    trades.ex        R16: a trade's gold, time and food; starting and returning
+    trades.ex        R16: a trade route's opening, queue, price, food and weekly settlement
     hunting.ex       R17: a hunt's party, time, haul and luck draw; setting out and returning
     suspicion.ex     R18: the king's suspicion (counted only)
     staffing.ex      R2: which workers work in a week
@@ -89,7 +89,8 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
   produces nothing (`Production.produces?/1`); its effect is its own rule (`Rules.Granary`).
   An invention is never ordered (`Construct` takes only `building_types/0`); it is started
   with `Game.start_invention/2` and is a project with its catalogue blueprint. A trade
-  (`engine: :trade`) is started with `Game.start_trade/3` and is a `Place.Trade`; an
+  route (`engine: :trade`) is never ordered or started: it opens as a `Place.Trade` in the
+  Books step once the books unlock it (`Rules.Trades.open/2`); an
   expedition (`engine: :expedition`) with `Game.start_hunt/2` and is a `Place.Expedition`.
 - A **place** is one that exists in the game. There is one struct per kind of place:
   `Place.Building` (always finished), `Place.Project`, `Place.Trade` and
@@ -123,16 +124,20 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
     place for food (2 blue, 1 green). Started by `Actions.StartInvention`; once done, step 8
     (`SimSteps.Inventions`, `Rules.Inventions.finish/4`) appends the type to
     `game.inventions` and removes the project.
-- A **trade** (`Place.Trade`: `id`, `blueprint`, `return_week`, R16) has its way's catalogue
-  blueprint (the grain trade: yellow, food) and one trader, chosen when it starts
-  (`Actions.StartTrade`, which pays its gold): no one can be placed on it
-  (`Placement.check_enter/3` gives `:full`) and its trader can't leave
-  (`Placement.check_leave/1`, `:away`, used by `PlaceWorker` and `UnplaceWorker`). The
-  trader works for mana every week and produces nothing; step 8 (`SimSteps.Trades`,
-  `Rules.Trades.return/4`) adds its food at the end of `return_week`, removes it and
-  releases the trader.
-- An **expedition** (`Place.Expedition`: `id`, `blueprint`, `return_week`, R17) works like
-  a trade, with a party of 1 to `way_hunting_max_party` chosen when it sets out
+- A **trade route** (`Place.Trade`: `id`, `blueprint`, `traders`, R16) has its way's
+  catalogue blueprint (the grain trade: yellow, food); one per type, opened in step 8 by
+  `Rules.Trades.open/2` once `game.books` unlock it, and never removed. Workers are placed
+  and leave as in a building (`Placement.check_enter/3`: `:travelling`, `:full` at
+  `way_grain_trade_capacity`), but travel `way_grain_trade_travel_weeks` both ways
+  (`Rules.Travel.weeks/3`, used by `Travel.depart/4` in `PlaceWorker` and `UnplaceWorker`).
+  `traders` is the queue of worker ids in the order placed (`Trades.join/3` in
+  `PlaceWorker`: a worker who comes back goes last); it may hold ids of workers who left,
+  so read it through `Trades.traders/2`, and step 13 cuts it. A trader makes mana once
+  arrived and produces nothing; step 13 (`SimSteps.TradeRoute`, `Rules.Trades.settle/4`)
+  charges each arrived trader's price and adds the food.
+- An **expedition** (`Place.Expedition`: `id`, `blueprint`, `return_week`, R17) is away
+  until `return_week` and can't be entered (`check_enter/3` gives `:full`) or left
+  (`check_leave/1` gives `:away`), with a party of 1 to `way_hunting_max_party` chosen when it sets out
   (`Actions.StartHunt`, which also raises `game.suspicion`, R18). Step 8 (`SimSteps.Hunts`,
   `Rules.Hunting.return/5`) draws its luck from `game.rand`, adds its haul, removes it and
   releases the party. A rule that draws takes the random state and returns the next one
@@ -142,7 +147,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
   for a demand from the stock.
 - When a place ends, its workers leave with `Rules.Placement.release/3` (unplaced,
   travelling): a finished site, a settled or refused demand project, a finished book or
-  invention, a returned trade or hunt.
+  invention, a returned hunt. A trade route never ends.
 - `game.places` is one list of all places, whatever their kind. Workers point to their place
   by id (`worker.place`, `nil` when unplaced).
 - `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,

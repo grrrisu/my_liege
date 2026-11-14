@@ -23,8 +23,9 @@ defmodule MyLiege.Engine.Forecast do
   def direction(_change), do: :steady
 
   @doc """
-  The food stock's change in the last week and, if it falls, `weeks_left`: the weeks until it
-  goes below 0 (0 if it already is), otherwise `nil`. `nil` in week 0.
+  The food stock's change in the last week and, if it falls, `weeks_left`: the weeks until a
+  week runs short of food (R8; 0 if the last week already was), otherwise `nil`. `nil` in
+  week 0.
   """
   def food(%Game{} = game) do
     with change when is_integer(change) <- change(game, :food) do
@@ -33,7 +34,7 @@ defmodule MyLiege.Engine.Forecast do
       weeks_left =
         cond do
           change >= 0 -> nil
-          stock < 0 -> 0
+          game.report.food_short -> 0
           true -> div(stock, -change) + 1
         end
 

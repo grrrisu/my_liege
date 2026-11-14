@@ -2,7 +2,7 @@ defmodule MyLiege.Engine.Rules.Spoilage do
   @moduledoc """
   R9, spoilage: each week, every stock above 0 loses its product's
   `good_spoilage` share (per mille) of itself, rounded down, so the stock keeps the
-  remainder. Stocks at or below 0 (a short week's -1 food) don't spoil. While a granary is
+  remainder. An empty stock doesn't spoil. While a granary is
   working (R14), food spoils at the granary's rate instead (`Granary.food_spoilage/2`).
 
   Amounts are in thousandths (see `Fixed`).

@@ -2,9 +2,9 @@ defmodule MyLiege.Engine.Rules.Staffing do
   @moduledoc """
   R2, staffing: which workers work in a week. A placed worker works once it has arrived
   (travel 0) and its place is a path building (one with a colour, a way such as the granary
-  included), a king's demand project (R7), a book (R12), an invention (R15), a trade (R16) or
-  an expedition (R17) (the last two: mana only, their whole time away), which work
-  like a building of their colour (blue for a book or an invention). Workers in the neutral
+  included), a king's demand project (R7), a book (R12), an invention (R15), a trade route
+  (R16) or an expedition (R17) (the last two: mana only; a hunter his whole time away), which
+  work like a building of their colour (blue for a book or an invention). Workers in the neutral
   guildhouse or on sites produce nothing and make no mana. Whether a working worker produces
   into the stock is `Production.produces?/1`.
   """

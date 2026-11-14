@@ -39,9 +39,9 @@ rules vs. steps) is in the `engine-architecture` skill.
   `Game.decide_tax/2` (`Actions.DecideTax`), `Game.decide_demand/2`
   (`Actions.DecideDemand`), `Game.refuse_project/1` (`Actions.RefuseProject`),
   `Game.start_book/2` (`Actions.StartBook`), `Game.start_invention/2`
-  (`Actions.StartInvention`), `Game.start_trade/3` (`Actions.StartTrade`, pays the
-  trade's gold at once) and `Game.start_hunt/2` (`Actions.StartHunt`, raises
-  `game.suspicion` at once).
+  (`Actions.StartInvention`) and `Game.start_hunt/2` (`Actions.StartHunt`, raises
+  `game.suspicion` at once). Traders are placed on a trade route (R16) with
+  `place_worker/3` like any worker.
   Changes take effect in week N + 1. `construct/2` pays `build_cost_gold` from the gold stock
   at once and adds it to `gold_spent_buildings` of week N's report (`{:error, :not_enough_gold}`
   if the stock is short; `{:error, :locked}` for a way without its two books, R13).
@@ -55,28 +55,32 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers and their places (not the workers' colour or training) | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
-| 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `food_left` |
-| 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, `food_left`, the **updated** Manameter, `rand` | `newborn`, `rand` |
+| 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `stocks.food` (0 in a short week), `report.food_short` |
+| 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, the food left, `report.food_short`, the **updated** Manameter, `rand` | `newborn`, `rand` (no attempt and no draw in a short week) |
 | 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/4` | sites (`%Place.Project{}`), builders as at the **start** of the week (before step 3) | `progress` (+1 per arrived builder); a done site replaced by its `%Place.Building{}` with a new id; its builders `place: nil` with `travel_weeks` |
-| 8 | Books finished (R12) | `Books` → `Rules.Books.finish/4`, `Rules.Placement.release/3` | book projects with `progress >= target` | `game.books` (+1 of the colour), the project removed from `places`, its writer `place: nil` with `travel_weeks`; `report.books_finished` |
+| 8 | Books finished (R12), trade routes opened (R16) | `Books` → `Rules.Books.finish/4`, `Rules.Placement.release/3`, `Rules.Trades.open/2` | book projects with `progress >= target`; the books held | `game.books` (+1 of the colour), the project removed from `places`, its writer `place: nil` with `travel_weeks`; `report.books_finished`; a route the books now unlock appended to `places` (once), `report.routes_opened` |
 | 8 | Inventions finished (R15), after the books | `Inventions` → `Rules.Inventions.finish/4`, `Rules.Placement.release/3` | invention projects with `progress >= target` | `game.inventions` (+ the type), the project removed from `places`, its workers `place: nil` with `travel_weeks`; `report.inventions_finished` |
-| 8 | Trades return (R16), after the inventions | `Trades` → `Rules.Trades.return/4`, `Rules.Placement.release/3` | trades whose `return_week` is this week | `stocks.food` (+ the trade's food), the trade removed from `places`, its trader `place: nil` with `travel_weeks`; `report.food_from_trade` |
-| 8 | Hunts return (R17), after the trades | `Hunts` → `Rules.Hunting.return/5`, `Rules.Placement.release/3` | hunts whose `return_week` is this week, their party, `rand` | one luck draw per hunt (`rand`), `stocks.food` (+ the haul), the hunt removed from `places`, its party `place: nil` with `travel_weeks`; `report.food_from_hunting`, `report.hunts_returned` |
+| 8 | Hunts return (R17), after the inventions | `Hunts` → `Rules.Hunting.return/5`, `Rules.Placement.release/3` | hunts whose `return_week` is this week, their party, `rand` | one luck draw per hunt (`rand`), `stocks.food` (+ the haul), the hunt removed from `places`, its party `place: nil` with `travel_weeks`; `report.food_from_hunting`, `report.hunts_returned` |
 | 9 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
 | 10 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
 | 11 | Demand delivery (R7): deadline week, a project done, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/4`, `Rules.Placement.release/3` | stocks, `demand`, its project, `deliver_demand` | stocks (not for projects), the project removed from `places` and its workers released, `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
 | 12 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5`, `open_project/2` | week, Manameter, workers at the start of the week | `game.demand`, for knowledge and culture its project appended to `places`; `report.demand`, `report.demand_progress` (0 for a project) |
-| 13 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 10–11, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
-| 14 | Spoilage (R9), granary (R14) | `Spoilage` → `Rules.Spoilage.spoil/3` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`); food at `place_granary_food_spoilage` if `report.granary_working` (step 1) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
-| 15 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `books`, `inventions`, `game_over`; `start: nil` |
+| 13 | Trade route (R16), every week | `TradeRoute` → `Rules.Trades.settle/4` | each route's queue, its traders' travel at the **start** of the week, the gold stock | `stocks.gold` (− each price paid), `stocks.food` (+ `way_grain_trade_food_per_week` per paying trader), the queue cut to the workers still on the route; `report.gold_to_trade`, `food_from_trade`, `traders` |
+| 14 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 10–13, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
+| 15 | Spoilage (R9), granary (R14) | `Spoilage` → `Rules.Spoilage.spoil/3` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`); food at `place_granary_food_spoilage` if `report.granary_working` (step 1) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
+| 16 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `books`, `inventions`, `game_over`; `start: nil` |
 
 Consequences of the order:
 - A newborn is drawn from the Manameter updated in step 4 of the same week.
 - Production, mana and construction see travel as it was before step 3, and training starts
   after the travel, so a worker placed at state N does nothing in N + 1 and works from N + 2.
 - An invention finished in step 8 of week M takes effect from the production of week M + 1.
-- A trade's food and a hunt's haul arrive in step 8: after eating and birth, before taxes,
-  demands, bandits and spoilage of the same week.
+- A hunt's haul arrives in step 8: after eating and birth, before taxes, demands, bandits
+  and spoilage of the same week.
+- The trade route settles in step 13, after taxes and demands (so it never makes them
+  miss) and before bandits and spoilage: the bandits see the gold after the trade, and its
+  food spoils that week. A trader placed at state N arrives after
+  `way_grain_trade_travel_weeks` like production: he trades from week N + 1 + travel.
 - A hunt's luck is drawn in step 8, after the week's birth draw (step 6): it never changes
   that week's birth, only later ones.
 - A granary works (spoilage, upkeep) in the weeks its keeper works: the staffing at the
@@ -89,10 +93,10 @@ Consequences of the order:
   project, so eating and bandits see the changed production; culture made on a project
   doesn't count toward it; a newborn counts in the
   population from the following week.
-- Bandits see the gold after taxes and demands: paying the king lowers the pressure, and a
-  raid never causes a tax or demand miss.
+- Bandits see the gold after taxes, demands and the trade route: paying the king lowers the
+  pressure, and a raid never causes a tax or demand miss.
 - Births, taxes, demands and bandits see the stocks before spoilage; spoilage rounds down and leaves
-  stocks at or below 0 (a short week's -1) alone.
+  an empty stock alone. No stock goes below 0.
 
 ## Rules each step relies on
 
@@ -114,11 +118,13 @@ Consequences of the order:
   worker is trained, unplaced and travelling. Moving it out earlier loses the progress.
   Trainees still eat and count for taxes; no other cost.
 - **Births:** attempted in weeks 1, 1 + interval, … (`rem(week - 1, birth_interval_weeks) == 0`),
-  only if `food_left >= Fixed.from(birth_min_food_left)`. `Rules.Births.attempt/5` is the
+  only if the week wasn't short and `food_left >= Fixed.from(birth_min_food_left)`. `Rules.Births.attempt/5` is the
   single place that decides a birth.
 - **Short week:** if food after production is less than everyone eats, the missing food is
-  forgotten and `food_left` is set to -1. That blocks the birth and marks the week as short
-  (`food_left < 0`). The -1 carries into the next week. Revisit with T65 (hunger).
+  forgotten and the food stock stops at 0 (`Rules.Food.eat/3` returns `{0, true}`).
+  `report.food_short` marks the week; it blocks the birth, the UI shows "short", the bots'
+  `Feed` reads it and the analysis counts it (`weeks_food_below_0`). Revisit with T65
+  (hunger).
 - **Manameter:** shares in per mille, always summing to 1000. Each week
   `manameter_points_per_week` shares are removed in proportion to current shares and added
   in proportion to the week's mana; round down, leftover units to the largest remainders,
@@ -186,7 +192,7 @@ Consequences of the order:
 - **Granary (R14):** a violet building for food, ordered and built as usual; capacity
   `place_capacity.granary`. Its keeper produces nothing (`Production.produces?/1`), makes
   mana (2 violet, 1 green). A granary works while its keeper works (`Granary.working/3`):
-  then food spoils at `place_granary_food_spoilage` in step 14 (however many granaries), and
+  then food spoils at `place_granary_food_spoilage` in step 15 (however many granaries), and
   each working granary takes `place_granary_culture_upkeep` culture from the stock in step 1,
   never below 0; what is taken is subtracted from the culture for happiness, never below 0.
 - **Improved plough (R15):** `Game.start_invention(game, :plough)` (free, once unlocked, one
@@ -195,14 +201,16 @@ Consequences of the order:
   building × green's experience (`Rules.Inventions.written/3`); mana 2 blue, 1 green. Step 8
   appends `:plough` to `game.inventions`; from then on each farm worker's output ×
   (1000 + `way_plough_bonus`) ÷ 1000, rounded down per worker, before happiness.
-- **Grain trade (R16):** `Game.start_trade(game, worker_id, :grain_trade)` (unlocked,
-  arrived trader not already away, enough gold) pays `Rules.Trades.cost/3` (gold × 1000 ÷
-  the trader's factor against yellow) and appends a `%Place.Trade{}` with `return_week =
-  week + 2 × way_grain_trade_travel_weeks + way_grain_trade_trade_weeks`; the trader is on
-  it at travel 0. Every week until then he is a working worker for mana (2 yellow, 1 green;
-  `Staffing.works?/2`) but produces nothing (`Production.produces?/1`); he eats and counts
-  for taxes; `Placement.check_leave/1` refuses moving or unplacing him (`:away`). Step 8 of
-  the return week adds `way_grain_trade_food` to the food stock and releases him.
+- **Grain trade route (R16):** `%Place.Trade{}` appended by the Books step once a yellow
+  and a green book are held, one per game. `place_worker/3` puts a worker on it up to
+  `way_grain_trade_capacity` (any colour, trained or not) and last in its `traders` queue
+  (`Trades.join/3`); travel there and away is `way_grain_trade_travel_weeks`
+  (`Rules.Travel.weeks/3`). Arrived, a trader is a working worker for mana (2 yellow,
+  1 green; `Staffing.works?/2`) but produces nothing (`Production.produces?/1`); he eats and
+  counts for taxes. Step 13: for each arrived trader in queue order, price =
+  `Fixed.from(way_grain_trade_gold_per_week) × 1000 ÷` his factor against yellow (R2),
+  rounded down (`Trades.price/3`); paid if the gold left covers it, then
+  `way_grain_trade_food_per_week` food; otherwise nothing, and he stays.
 - **Hunting (R17):** `Game.start_hunt(game, worker_ids)` (unlocked, 1 to
   `way_hunting_max_party` distinct arrived workers not away) appends a
   `%Place.Expedition{}` with `return_week = week + 2 × way_hunting_travel_weeks +
@@ -225,8 +233,8 @@ Consequences of the order:
 travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, king_took, spoiled,
 gold_spent_buildings, bandit_pressure, bandit_protected, bandit_threat, bandit_threat_change,
 bandits_weeks_to_raid, bandit_raid, gold_robbed, happiness, books, books_finished,
-granary_working, culture_upkeep, inventions, inventions_finished, food_from_trade,
-food_from_hunting, hunts_returned, suspicion, stock_change,
+granary_working, culture_upkeep, inventions, inventions_finished, food_short,
+food_from_trade, gold_to_trade, traders, routes_opened, food_from_hunting, hunts_returned, suspicion, stock_change,
 project_change, game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
 on sites and `travelling` the workers with travel above 0, both at the end of the week;
 `king_took` is `%{food, gold}`, what the king took that week on misses.

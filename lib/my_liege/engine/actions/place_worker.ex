@@ -1,18 +1,19 @@
 defmodule MyLiege.Engine.Actions.PlaceWorker do
   @moduledoc """
   Places or moves a worker. It takes its place at once but travels `travel_weeks` first
-  (see `Rules.Travel`), also when it was still travelling. Whether it may enter is decided by
+  (to or from a trade route, the route's travel weeks; see `Rules.Travel`), also when it was
+  still travelling. On a trade route (R16) it goes last in the route's queue. Whether it may enter is decided by
   `Rules.Placement.check_enter/3`. In the guildhouse the worker starts training after its
   travel (see `Rules.Training`). Moving a trainee out loses its progress; moving a builder
   off a site leaves the site's progress as it is.
 
   Returns `{:ok, game}` on success, or `{:error, reason}` with reason `:unknown_worker`,
-  `:unknown_place`, `:away` (a trader can't leave his trade, R16), `:travelling`, `:full`,
+  `:unknown_place`, `:away` (a hunter can't leave his hunt, R17), `:travelling`, `:full`,
   `:already_trained` or `:below_threshold`. The placement takes effect in the next week.
   """
 
   alias MyLiege.Engine.Game
-  alias MyLiege.Engine.Rules.{Placement, Training, Travel}
+  alias MyLiege.Engine.Rules.{Placement, Trades, Training, Travel}
 
   def run(%Game{} = game, worker_id, place_id) do
     with {:ok, worker} <- Game.fetch_worker(game, worker_id),
@@ -36,15 +37,18 @@ defmodule MyLiege.Engine.Actions.PlaceWorker do
       training_started =
         if Placement.trains?(place), do: Training.first_week(game.week, game.config)
 
-      {:ok, move(game, worker, place.id, training_started)}
+      {:ok, move(game, worker, place, training_started)}
     end
   end
 
   defp current_place(game, worker), do: Enum.find(game.places, &(&1.id == worker.place))
 
-  defp move(game, worker, place_id, training_started) do
+  defp move(game, worker, place, training_started) do
+    from = current_place(game, worker)
     worker = %{worker | training_started: training_started}
-    moved = Travel.depart(worker, place_id, game.config)
-    Game.put_worker(game, moved)
+    moved = Travel.depart(worker, from, place, game.config)
+
+    %{game | places: Trades.join(game.places, worker.id, place.id)}
+    |> Game.put_worker(moved)
   end
 end

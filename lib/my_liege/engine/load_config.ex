@@ -131,10 +131,10 @@ defmodule MyLiege.Engine.LoadConfig do
       way_plough_work: "way.plough.work",
       way_plough_capacity: "way.plough.capacity",
       way_plough_bonus: "way.plough.bonus_permille",
-      way_grain_trade_gold: "way.grain_trade.gold",
-      way_grain_trade_food: "way.grain_trade.food",
+      way_grain_trade_capacity: "way.grain_trade.capacity",
+      way_grain_trade_gold_per_week: "way.grain_trade.gold_per_week",
+      way_grain_trade_food_per_week: "way.grain_trade.food_per_week",
       way_grain_trade_travel_weeks: "way.grain_trade.travel_weeks",
-      way_grain_trade_trade_weeks: "way.grain_trade.trade_weeks",
       # the party rows depend on max_party: read them before max_party is taken
       way_hunting_party: &hunting_parties!/1,
       way_hunting_max_party: "way.hunting.max_party",

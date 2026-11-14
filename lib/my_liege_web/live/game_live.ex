@@ -124,12 +124,6 @@ defmodule MyLiegeWeb.GameLive do
     end
   end
 
-  def handle_event("start_trade", %{"type" => type}, socket) do
-    %{game: game, selected: worker_id} = socket.assigns
-    type = Enum.find(Trades.types(), &(Atom.to_string(&1) == type))
-    {:noreply, apply_result(socket, Game.start_trade(game, worker_id, type))}
-  end
-
   def handle_event("start_invention", %{"type" => type}, socket) do
     type = Enum.find(Inventions.types(), &(Atom.to_string(&1) == type))
     {:noreply, apply_result(socket, Game.start_invention(socket.assigns.game, type))}
@@ -182,6 +176,7 @@ defmodule MyLiegeWeb.GameLive do
         king_took(report.king_took),
         bandits_message(before, report),
         hunts_message(report.hunts_returned),
+        routes_message(report.routes_opened),
         report.demand &&
           "The king demands #{units(report.demand.amount)} #{report.demand.product} " <>
             "by week #{report.demand.due_week}."
@@ -226,13 +221,12 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_type), do: "Unknown building type."
   defp error_message(:unknown_colour), do: "Unknown colour."
   defp error_message(:unknown_invention), do: "Unknown invention."
-  defp error_message(:unknown_trade), do: "Unknown trade."
 
   defp error_message(:party_size),
     do: "A hunting party needs at least one hunter and no more than the most allowed."
 
   defp error_message(:duplicate), do: "A worker can be in the party only once."
-  defp error_message(:away), do: "That worker is away until the trade or hunt returns."
+  defp error_message(:away), do: "That worker is away until the hunt returns."
   defp error_message(:locked), do: "This way needs a book of each of its two colours first."
   defp error_message(:already_invented), do: "That has already been invented."
   defp error_message(:already_open), do: "That invention is already being worked on."
@@ -569,7 +563,7 @@ defmodule MyLiegeWeb.GameLive do
                   <td class="pr-4">food left</td>
                   <td>
                     {units(@report.food_left)}
-                    <span :if={@report.food_left < 0} class="ml-2 font-semibold text-red-600">short</span>
+                    <span :if={@report.food_short} class="ml-2 font-semibold text-red-600">short</span>
                   </td>
                 </tr>
                 <tr id="newborn">
@@ -673,10 +667,19 @@ defmodule MyLiegeWeb.GameLive do
           </span>
           <span
             :if={trade?(place)}
-            id={"trade-#{place.id}"}
+            id={"route-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            away, back at the end of week {place.return_week}
+            last week paid {units(@game.report.gold_to_trade)} gold, brought {units(
+              @game.report.food_from_trade
+            )} food
+          </span>
+          <span
+            :if={trade?(place) && route_price(place, @game, @selected)}
+            id={"route-price-#{place.id}"}
+            class="text-sm tabular-nums"
+          >
+            this worker would pay {route_price(place, @game, @selected)} gold a week
           </span>
           <span
             :if={expedition?(place)}
@@ -724,6 +727,16 @@ defmodule MyLiegeWeb.GameLive do
           >
             Place here
           </button>
+        </div>
+        <div
+          :for={type <- closed_routes(@game)}
+          id={"route-locked-#{type}"}
+          class="flex flex-wrap items-center gap-3 opacity-60"
+          title={way_title(type, @game)}
+        >
+          <div class={["h-4 w-4 rounded-sm", type |> type_colour() |> colour_class()]}></div>
+          <span class="min-w-24 text-sm">{trade_name(type)}</span>
+          <.locked type={type} game={@game} />
         </div>
         <div id="unplaced" class="flex flex-wrap items-center gap-3">
           <div class="h-4 w-4"></div>
@@ -781,32 +794,6 @@ defmodule MyLiegeWeb.GameLive do
         >
           <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
           {type}
-          <.locked type={type} game={@game} />
-        </button>
-      </div>
-      <h2 class="mt-4 mb-2 font-semibold">Trade</h2>
-      <p class="mb-2 text-sm opacity-60">
-        Select an arrived worker as the trader; the gold is paid at the start.
-      </p>
-      <div class="flex flex-wrap gap-2">
-        <button
-          :for={type <- Trades.types()}
-          id={"start-trade-#{type}"}
-          phx-click="start_trade"
-          phx-value-type={type}
-          disabled={trade_check(type, @game, @selected) != :ok}
-          title={way_title(type, @game)}
-          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
-          start a {trade_name(type)}
-          <span
-            :if={trade_cost(type, @game, @selected)}
-            id={"trade-cost-#{type}"}
-            class="tabular-nums opacity-60"
-          >
-            for {trade_cost(type, @game, @selected)} gold
-          </span>
           <.locked type={type} game={@game} />
         </button>
       </div>
@@ -922,25 +909,22 @@ defmodule MyLiegeWeb.GameLive do
   defp selected_worker(_game, nil), do: nil
   defp selected_worker(game, worker_id), do: Enum.find(game.workers, &(&1.id == worker_id))
 
-  # `:ok` if the selected worker can start the trade now; no selection is not ok
-  defp trade_check(type, game, worker_id) do
-    case selected_worker(game, worker_id) do
-      nil ->
-        {:error, :unknown_worker}
-
-      worker ->
-        place = Enum.find(game.places, &(&1.id == worker.place))
-        Trades.check_start(type, worker, place, game.stocks.gold, game.books, game.config)
-    end
-  end
-
-  # the price for the selected worker, in whole gold; nil without a selection
-  defp trade_cost(type, game, worker_id) do
+  # the selected worker's weekly price on the route, in whole gold; nil without a selection
+  defp route_price(route, game, worker_id) do
     with %{} = worker <- selected_worker(game, worker_id),
-         do: type |> Trades.cost(worker, game.config) |> units()
+         do: route |> Place.type() |> Trades.price(worker, game.config) |> units()
   end
 
-  defp trade_name(:grain_trade), do: "grain trade"
+  # the trade routes not open yet: shown locked until the books open them
+  defp closed_routes(game),
+    do: Enum.filter(Trades.types(), &(Trades.route(game.places, &1) == nil))
+
+  defp routes_message([]), do: nil
+
+  defp routes_message(types),
+    do: Enum.map_join(types, " ", &"The #{trade_name(&1)} route is open: place traders on it.")
+
+  defp trade_name(:grain_trade), do: "grain trade route"
 
   defp away?(game, worker_id) do
     with %{place: place_id} when place_id != nil <- selected_worker(game, worker_id),

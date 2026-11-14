@@ -91,9 +91,15 @@ defmodule MyLiege.Engine.ForecastTest do
       assert %{weeks_left: 4} = Forecast.food(game)
     end
 
-    test "already out of food: 0 weeks" do
-      game = after_change(week_1(), %{food: -3_000}, %{food: -1})
+    test "already short of food last week: 0 weeks" do
+      game = after_change(week_1(), %{food: -3_000}, %{food: 0})
+      game = %{game | report: %{game.report | food_short: true}}
       assert %{weeks_left: 0} = Forecast.food(game)
+    end
+
+    test "0 food after a week that was just enough: short next week" do
+      game = after_change(week_1(), %{food: -3_000}, %{food: 0})
+      assert %{weeks_left: 1} = Forecast.food(game)
     end
   end
 

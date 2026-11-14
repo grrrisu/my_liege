@@ -29,7 +29,12 @@ defmodule MyLiege.Engine.WeeklyReport do
   R15: `inventions` are the types invented at the end of the week; `inventions_finished` the
   types finished that week.
 
-  R16: `food_from_trade` is the food the trades that returned that week brought (thousandths).
+  R8: `food_short` is whether the food after production didn't cover the week's eating (the
+  stock then stops at 0, R8).
+
+  R16: `food_from_trade` is the food the trade route brought that week, `gold_to_trade` the
+  gold paid to it (thousandths), `traders` the workers on it in the week's trade step, arrived
+  or not; `routes_opened` the types of route opened that week.
   R17: `food_from_hunting` is the food the hunts that returned that week brought (thousandths);
   `hunts_returned` one `%{hunters, luck, food}` per returned hunt. R18: `suspicion` is the
   king's suspicion at the end of the week.
@@ -82,7 +87,11 @@ defmodule MyLiege.Engine.WeeklyReport do
     culture_upkeep: 0,
     inventions: nil,
     inventions_finished: [],
+    food_short: false,
     food_from_trade: 0,
+    gold_to_trade: 0,
+    traders: 0,
+    routes_opened: [],
     food_from_hunting: 0,
     hunts_returned: [],
     suspicion: nil,
@@ -126,7 +135,11 @@ defmodule MyLiege.Engine.WeeklyReport do
           culture_upkeep: non_neg_integer(),
           inventions: [atom()] | nil,
           inventions_finished: [atom()],
+          food_short: boolean(),
           food_from_trade: non_neg_integer(),
+          gold_to_trade: non_neg_integer(),
+          traders: non_neg_integer(),
+          routes_opened: [atom()],
           food_from_hunting: non_neg_integer(),
           hunts_returned: [%{hunters: pos_integer(), luck: atom(), food: non_neg_integer()}],
           suspicion: non_neg_integer() | nil,

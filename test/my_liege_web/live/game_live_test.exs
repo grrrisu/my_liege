@@ -3,8 +3,7 @@ defmodule MyLiegeWeb.GameLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias MyLiege.Engine.{Config, Worker}
-  alias MyLiege.Engine.Rules.Trades
+  alias MyLiege.Engine.Config
 
   test "shows the starting state as week 0", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
@@ -266,19 +265,14 @@ defmodule MyLiegeWeb.GameLiveTest do
     refute has_element?(view, "#plough-invented")
   end
 
-  test "R16: the grain trade is locked; selecting a worker shows his price", %{conn: conn} do
+  test "R16: the grain trade route is shown locked until its books open it", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
-    assert has_element?(view, "#start-trade-grain_trade[disabled]")
-    assert has_element?(view, "#start-trade-grain_trade #locked-grain_trade")
-    refute has_element?(view, "#trade-cost-grain_trade")
-
-    # worker 1 is the green farmer
-    cost = Trades.cost(:grain_trade, %Worker{colour: :green}, Config.from_csv())
+    assert has_element?(view, "#route-locked-grain_trade #locked-grain_trade")
+    refute has_element?(view, "#start-trade-grain_trade")
 
     view |> element("#worker-1") |> render_click()
-    assert has_element?(view, "#trade-cost-grain_trade", "#{div(cost, 1000)}")
-    assert has_element?(view, "#start-trade-grain_trade[disabled]")
+    refute has_element?(view, "#place-3")
   end
 
   test "R17/R18: a hunting party is picked worker by worker; locked hunts can't set out; suspicion shown",

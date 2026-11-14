@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.Place.Blueprint do
   colour, the good it makes, and which kind of place it becomes, its `engine`). A place in
   the game points to its blueprint (see `Place`). The catalogue lists the types that can stand
   and be ordered (`engine: :building`), the inventions that can be started
-  (`engine: :project`), the trades (`engine: :trade`, see `Place.Trade`) and the expeditions
+  (`engine: :project`), the trade routes (`engine: :trade`, see `Place.Trade`) and the expeditions
   (`engine: :expedition`, see `Place.Expedition`); other projects
   build their own blueprint (see `Place.Project`).
 
@@ -69,7 +69,7 @@ defmodule MyLiege.Engine.Place.Blueprint do
   @doc "The types of the five home places, in pentagon order."
   def home_types, do: Enum.map(@homes, & &1.type)
 
-  @doc "The types of the trades (`engine: :trade`), in catalogue order."
+  @doc "The types of the trade routes (`engine: :trade`), in catalogue order."
   def trade_types, do: for(%{engine: :trade, type: type} <- @catalogue, do: type)
 
   @doc "The types of the expeditions (`engine: :expedition`), in catalogue order."
