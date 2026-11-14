@@ -51,10 +51,23 @@ defmodule MyLiege.Engine.Rules.GranaryTest do
     end
   end
 
-  describe "R14: food spoilage" do
-    test "the granary's rate while one works, else the good's", %{config: config} do
-      assert Granary.food_spoilage(true, config) == 10
-      assert Granary.food_spoilage(false, config) == 50
+  describe "R14: protected food" do
+    test "working granaries × place.granary.food_capacity, at most the stock", %{config: config} do
+      assert Granary.protected(0, 850_000, config) == 0
+      assert Granary.protected(1, 850_000, config) == 300_000
+      assert Granary.protected(2, 850_000, config) == 600_000
+      assert Granary.protected(3, 850_000, config) == 850_000
+      assert Granary.protected(2, 0, config) == 0
+    end
+
+    test "protected food spoils at the granary's rate, the rest at the good's, each rounded down",
+         %{config: config} do
+      # 600 → 6, 250 → 12.5 (exact in thousandths): 18.5 instead of 42.5
+      assert Granary.food_spoiled(850_000, 600_000, config) == 18_500
+      assert Granary.food_spoiled(850_000, 0, config) == 42_500
+      # rounded down in thousandths: 999 × 10 ÷ 1000 = 9.99 → 9, 100 × 50 ÷ 1000 = 5
+      assert Granary.food_spoiled(1_099, 999, config) == 9 + 5
+      assert Granary.food_spoiled(0, 0, config) == 0
     end
   end
 

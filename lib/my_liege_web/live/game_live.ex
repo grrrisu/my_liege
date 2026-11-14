@@ -330,7 +330,7 @@ defmodule MyLiegeWeb.GameLive do
                 </span>
               </div>
               <p :if={@report.granary_working} id="granary-working" class="mt-1 text-sm">
-                granary kept: food spoiled at {per_mille(@game.config.place_granary_food_spoilage)} last week, upkeep {units(
+                granaries: {units(@report.food_protected)} of {units(@report.food_left)} food protected, upkeep {units(
                   @report.culture_upkeep
                 )} culture
               </p>

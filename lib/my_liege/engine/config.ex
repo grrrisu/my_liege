@@ -27,6 +27,7 @@ defmodule MyLiege.Engine.Config do
     :book_work,
     :place_granary_food_spoilage,
     :place_granary_culture_upkeep,
+    :place_granary_food_capacity,
     :way_plough_work,
     :way_plough_capacity,
     :way_plough_bonus,

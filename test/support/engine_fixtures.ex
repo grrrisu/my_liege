@@ -35,6 +35,7 @@ defmodule MyLiege.EngineFixtures do
         book_work: 96,
         place_granary_food_spoilage: 10,
         place_granary_culture_upkeep: 5,
+        place_granary_food_capacity: 300,
         way_plough_work: 96,
         way_plough_capacity: 4,
         way_plough_bonus: 125,

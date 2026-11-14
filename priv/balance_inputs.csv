@@ -104,3 +104,4 @@ way.plough_2.work,144
 way.plough_2.capacity,4
 way.plough_2.bonus_permille,125
 way.plough_2.books,2
+place.granary.food_capacity,300

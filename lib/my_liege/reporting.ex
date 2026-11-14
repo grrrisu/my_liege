@@ -28,7 +28,8 @@ defmodule MyLiege.Reporting do
   R14/R15: `plough_level` is how many ploughs are invented at the end of the week (0, 1 for
   plough I, 2 for plough I and II);
   `granary_working` whether a granary had a working keeper that week; `culture_upkeep` the
-  culture taken from the stock for the granaries that week (thousandths).
+  culture taken from the stock for the granaries that week (thousandths); `food_protected` the
+  food the working granaries protected at that week's spoilage (thousandths).
   R16: `food_from_trade` is the food the trade route brought that week, `gold_to_trade` the
   gold paid to it that week (thousandths), `traders` the workers on the route in the week's
   trade step, arrived or not.
@@ -63,7 +64,7 @@ defmodule MyLiege.Reporting do
       Enum.map(Pentagon.colours(), &"books_#{&1}") ++
       ["plough_level", "granary_working", "culture_upkeep", "food_from_trade"] ++
       ["food_from_hunting", "suspicion", "gold_to_trade", "traders", "hunters"] ++
-      ["suspicion_miss"]
+      ["suspicion_miss", "food_protected"]
   end
 
   defp row(report) do
@@ -109,7 +110,8 @@ defmodule MyLiege.Reporting do
         report.gold_to_trade,
         report.traders,
         report.hunters,
-        report.suspicion_miss
+        report.suspicion_miss,
+        report.food_protected
       ]
   end
 
