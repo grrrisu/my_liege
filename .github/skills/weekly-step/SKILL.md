@@ -50,14 +50,14 @@ rules vs. steps) is in the `engine-architecture` skill.
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
 | 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2), granary upkeep (R14), plough bonus (R15), happiness (R11) | `Production` → `Rules.Production.output/5` and `project_output/5`, `Rules.Granary.working/3`, `upkeep/3` and `culture_for_happiness/2`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on projects (`Rules.Staffing.working/3`); `game.inventions`; the culture stock; **all** workers at the start of the week (population) | home buildings' output (farm workers × the plough bonus once invented; a granary produces nothing): `report.production` (food and defence after the happiness step), added to `stocks`; the granaries' upkeep taken from `stocks.culture` (never below 0): `report.culture_upkeep`, `report.granary_working`; `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture minus the upkeep, never below 0; demand projects' output (same step), books' and inventions' output (as in a blue building × the experience of the book's colour, or of the invention's good's home colour; Manameter at the **start** of the week) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
+| 1 | Production (R2), granary upkeep (R14), the ploughs' bonus (R15), happiness (R11) | `Production` → `Rules.Production.output/5` and `project_output/5`, `Rules.Granary.working/3`, `upkeep/3` and `culture_for_happiness/2`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on projects (`Rules.Staffing.working/3`); `game.inventions`; the culture stock; **all** workers at the start of the week (population) | home buildings' output (farm workers × the plough bonus once invented; a granary produces nothing): `report.production` (food and defence after the happiness step), added to `stocks`; the granaries' upkeep taken from `stocks.culture` (never below 0): `report.culture_upkeep`, `report.granary_working`; `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture minus the upkeep, never below 0; demand projects' output (same step), books' and inventions' output (as in a blue building × the experience of the book's colour, or of the invention's good's home colour; Manameter at the **start** of the week) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
 | 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers and their places (not the workers' colour or training) | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
 | 5 | Eating (R8) | `Eating` → `Rules.Food.eat/3` | food stock after production, **all** workers (placed or not) | `stocks.food` (0 in a short week), `report.food_short` |
 | 6 | Birth (R1) | `Birth` → `Rules.Births.attempt/5` | week, the food left, `report.food_short`, the **updated** Manameter, `rand` | `newborn`, `rand` (no attempt and no draw in a short week) |
 | 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/4` | sites (`%Place.Project{}`), builders as at the **start** of the week (before step 3) | `progress` (+1 per arrived builder); a done site replaced by its `%Place.Building{}` with a new id; its builders `place: nil` with `travel_weeks` |
-| 8 | Books finished (R12), trade route (R16) and hunting camp (R17) opened | `Books` → `Rules.Books.finish/4`, `Rules.Placement.release/3`, `Rules.Ways.open/2` | book projects with `progress >= target`; the books held | `game.books` (+1 of the colour), the project removed from `places`, its writer `place: nil` with `travel_weeks`; `report.books_finished`; a route or camp the books now unlock appended to `places` (once each), `report.ways_opened` |
+| 8 | Books finished (R12), trade route (R16) and hunting camp (R17) opened | `Books` → `Rules.Books.finish/4`, `Rules.Placement.release/3`, `Rules.Ways.open/4` | book projects with `progress >= target`; the books held | `game.books` (+1 of the colour), the project removed from `places`, its writer `place: nil` with `travel_weeks`; `report.books_finished`; a route or camp the books now unlock appended to `places` (once each), `report.ways_opened` |
 | 8 | Inventions finished (R15), after the books | `Inventions` → `Rules.Inventions.finish/4`, `Rules.Placement.release/3` | invention projects with `progress >= target` | `game.inventions` (+ the type), the project removed from `places`, its workers `place: nil` with `travel_weeks`; `report.inventions_finished` |
 | 8 | Hunting camp (R17) and the king's suspicion (R18), after the inventions | `Hunts` → `Rules.Hunting.hunt/4`, `Rules.Suspicion.after_haul/4`, `block_end?/2`, `decay/2`, `check_threshold/2`, `Rules.Misses.add/2` | the camp, its hunters' travel at the **start** of the week, `rand`, `suspicion`, `misses`, week | the camp's `bag`, `weeks`, `hunted_in_block`; in a haul week one luck draw (`rand`) and `stocks.food` (+ the haul); `suspicion` (haul change, idle-block decay at weeks 6, 12, …, halved at the threshold); `misses`, `game_over` at the threshold; `report.hunters`, `haul`, `food_from_hunting`, `suspicion_miss` |
 | 9 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
@@ -190,21 +190,26 @@ Consequences of the order:
   8 (`Rules.Books.finish/4`) adds a finished book to `game.books` (colour => count, all
   colours from 0), removes the project and releases the writer. Books are never used up;
   they unlock ways (R13).
-- **Ways (R13):** `Rules.Ways.missing/2`: a way (`Blueprint.way?/1`) needs one book of its
-  colour and one of its good's home colour; `Construct` and `StartInvention` refuse a locked
-  way with `{:error, :locked}`.
+- **Ways (R13):** `Rules.Ways.missing/4` (blueprint, books, inventions, config): a way
+  (`Blueprint.way?/1`) needs `Ways.books_needed/2` books of its colour and as many of its
+  good's home colour (the entry's `books`: 1, or `:config` for `config.way_books[type]`),
+  and the invention in its entry's `requires`, if any. It returns what is missing,
+  `[{:book, colour, count} | {:invention, type}]`. `Construct` and `StartInvention` refuse a
+  locked way with `{:error, :locked}`; the Books step opens a standing way once unlocked.
 - **Granary (R14):** a violet building for food, ordered and built as usual; capacity
   `place_capacity.granary`. Its keeper produces nothing (`Production.produces?/1`), makes
   mana (2 violet, 1 green). A granary works while its keeper works (`Granary.working/3`):
   then food spoils at `place_granary_food_spoilage` in step 15 (however many granaries), and
   each working granary takes `place_granary_culture_upkeep` culture from the stock in step 1,
   never below 0; what is taken is subtracted from the culture for happiness, never below 0.
-- **Improved plough (R15):** `Game.start_invention(game, :plough)` (free, once unlocked, one
-  at a time, once per game) appends `%Place.Project{gives: {:invention, :plough}}`, target
-  `Fixed.from(way_plough_work)`, up to `way_plough_capacity` workers. They write as in a blue
-  building × green's experience (`Rules.Inventions.written/3`); mana 2 blue, 1 green. Step 8
-  appends `:plough` to `game.inventions`; from then on each farm worker's output ×
-  (1000 + `way_plough_bonus`) ÷ 1000, rounded down per worker, before happiness.
+- **Improved plough I and II (R15):** `Game.start_invention(game, type)` with `:plough` or
+  `:plough_2` (free, once unlocked, one open project per type, once per game) appends
+  `%Place.Project{gives: {:invention, type}}`, target `Inventions.target/2`
+  (`way_plough_work`, `way_plough_2_work`), up to `Inventions.capacity/2` workers. They write
+  as in a blue building × green's experience (`Rules.Inventions.written/3`); mana 2 blue,
+  1 green. Step 8 appends the type to `game.inventions`; from the next week each farm
+  worker's output × (1000 + `Inventions.farm_bonus/2`, the bonuses of the ploughs invented
+  added) ÷ 1000, rounded down per worker, before happiness.
 - **Grain trade route (R16):** `%Place.Trade{}` appended by the Books step once a yellow
   and a green book are held, one per game. `place_worker/3` puts a worker on it up to
   `way_grain_trade_capacity` (any colour, trained or not) and last in its `traders` queue

@@ -71,7 +71,7 @@ place.granary.food_spoilage_permille,10
 place.granary.culture_upkeep,5
 way.plough.work,96
 way.plough.capacity,4
-way.plough.bonus_permille,250
+way.plough.bonus_permille,125
 way.grain_trade.capacity,8
 way.grain_trade.gold_per_week,12
 way.grain_trade.food_per_week,40
@@ -100,3 +100,7 @@ king.suspicion.mid,1
 king.suspicion.high,2
 king.suspicion.decay,1
 king.suspicion.threshold,12
+way.plough_2.work,144
+way.plough_2.capacity,4
+way.plough_2.bonus_permille,125
+way.plough_2.books,2

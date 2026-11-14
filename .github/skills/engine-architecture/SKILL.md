@@ -34,7 +34,7 @@ lib/my_liege/engine/
     books.ex         R12: books, their experience factor, finishing
     ways.ex          R13: when a way is unlocked (one rule for every way)
     granary.ex       R14: working granaries, culture upkeep, food spoilage
-    inventions.ex    R15: starting, writing and finishing inventions; the plough's bonus
+    inventions.ex    R15: starting, writing and finishing inventions; their effects (the ploughs' bonus)
     trades.ex        R16: a trade route's opening, queue, price, food and weekly settlement
     hunting.ex       R17: the camp's week: filling the bag, the haul and its luck draw; a camp left empty
     suspicion.ex     R18: the king's suspicion: a haul's change, idle-block decay, the threshold
@@ -84,14 +84,17 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
   output per worker).
 - A **way** (R13) is a catalogue entry whose colour is not its good's home colour
   (`Blueprint.way?/1`), decided by data alone: the granary (violet, food, `engine:
-  :building`) and the improved plough (blue, food, `engine: :project`, an invention). One
-  rule unlocks them all (`Rules.Ways`). A way building is ordered like any building but
+  :building`), the improved ploughs I and II (blue, food, `engine: :project`, inventions),
+  the grain trade route and the hunting camp. One rule unlocks them all (`Rules.Ways`): the
+  catalogue entry says how many books of each colour (`books`: 1 by default, or `:config`,
+  read from `way.<type>.books` into `config.way_books`) and which invention it `requires`;
+  `Blueprint` stays pure data and never reads the config. A way building is ordered like any building but
   produces nothing (`Production.produces?/1`); its effect is its own rule (`Rules.Granary`).
   An invention is never ordered (`Construct` takes only `building_types/0`); it is started
   with `Game.start_invention/2` and is a project with its catalogue blueprint. A trade
   route (`engine: :trade`, a `Place.Trade`) and the hunting camp (`engine: :expedition`, a
   `Place.Expedition`) are never ordered or started: they open in the Books step once the
-  books unlock them (`Rules.Ways.open/2`).
+  books unlock them (`Rules.Ways.open/4`).
 - A **place** is one that exists in the game. There is one struct per kind of place:
   `Place.Building` (always finished), `Place.Project`, `Place.Trade` and
   `Place.Expedition`. Each holds
@@ -118,15 +121,18 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
     (`Rules.Books.finish/4`) adds it to `game.books` (colour => count) and removes the
     project.
   - an **invention** (R15) gives `{:invention, type}`: blueprint `Blueprint.fetch!(type)`
-    (the plough: blue, food); target `way_plough_work` knowledge; up to
-    `way_plough_capacity` workers, who write as in a blue building times the experience
+    (plough I and II: blue, food); target `Inventions.target/2` knowledge; up to
+    `Inventions.capacity/2` workers, who write as in a blue building times the experience
     of the good's home colour (`Rules.Inventions.written/3`) and make mana as at a blue
     place for food (2 blue, 1 green). Started by `Actions.StartInvention`; once done, step 8
     (`SimSteps.Inventions`, `Rules.Inventions.finish/4`) appends the type to
-    `game.inventions` and removes the project.
+    `game.inventions` and removes the project. What an invention does is
+    `Inventions.effect/2` (`{:farm_output, bonus}` for the ploughs); the production bonus,
+    the UI's overview and the farm's label all read it, so a new invention is a catalogue
+    entry, its config keys and one clause each of `target/2`, `capacity/2` and `effect/2`.
 - A **trade route** (`Place.Trade`: `id`, `blueprint`, `traders`, R16) has its way's
   catalogue blueprint (the grain trade: yellow, food); one per type, opened in step 8 by
-  `Rules.Ways.open/2` once `game.books` unlock it, and never removed. Workers are placed
+  `Rules.Ways.open/4` once `game.books` unlock it, and never removed. Workers are placed
   and leave as in a building (`Placement.check_enter/3`: `:travelling`, `:full` at
   `way_grain_trade_capacity`), but travel `way_grain_trade_travel_weeks` both ways
   (`Rules.Travel.weeks/3`, used by `Travel.depart/4` in `PlaceWorker` and `UnplaceWorker`).
@@ -136,7 +142,7 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
   arrived and produces nothing; step 13 (`SimSteps.TradeRoute`, `Rules.Trades.settle/4`)
   charges each arrived trader's price and adds the food.
 - The **hunting camp** (`Place.Expedition`: `id`, `blueprint`, `bag`, `weeks`,
-  `hunted_in_block`, R17) is one per game, opened by `Rules.Ways.open/2` and never removed.
+  `hunted_in_block`, R17) is one per game, opened by `Rules.Ways.open/4` and never removed.
   Workers are placed and leave as in a building (`check_enter/3`: `:travelling`, `:full` at
   `way_hunting_max_party`), travelling `way_hunting_travel_weeks` both ways
   (`Rules.Travel.weeks/3`). `PlaceWorker` and `UnplaceWorker` call

@@ -12,16 +12,23 @@ defmodule MyLiege.Engine.Place.Blueprint do
   its own colour. Then the ways (R13): a colour and a good that are not each other's home
   (`way?/1`). Then the neutral ones. The catalogue is read at compile time, also by the
   loading of the designer's inputs, so this module depends on no other module.
+
+  What a way needs to unlock (R13, `Rules.Ways`) is part of its entry:
+  - `books`: how many books of each of its two colours: a number (default 1), or `:config`
+    when the designer sets it, as `way.<type>.books` (read into `Config.way_books`).
+  - `requires`: the invention that must already be made (a type), or `nil` (default).
   """
 
   @enforce_keys [:type, :colour, :good, :engine]
-  defstruct @enforce_keys
+  defstruct @enforce_keys ++ [books: 1, requires: nil]
 
   @type t :: %__MODULE__{
           type: atom(),
           colour: atom() | nil,
           good: atom() | nil,
-          engine: :building | :project | :trade | :expedition
+          engine: :building | :project | :trade | :expedition,
+          books: pos_integer() | :config,
+          requires: atom() | nil
         }
 
   # plain maps, as the struct can't be built while this module compiles; the home places'
@@ -34,10 +41,19 @@ defmodule MyLiege.Engine.Place.Blueprint do
     %{type: :tavern, colour: :violet, good: :culture, engine: :building}
   ]
 
-  # R13: violet's (R14), blue's (R15), yellow's (R16) and red's (R17) ways to food
+  # R13: violet's (R14), blue's (R15, plough I and II), yellow's (R16) and red's (R17) ways to
+  # food
   @ways [
     %{type: :granary, colour: :violet, good: :food, engine: :building},
     %{type: :plough, colour: :blue, good: :food, engine: :project},
+    %{
+      type: :plough_2,
+      colour: :blue,
+      good: :food,
+      engine: :project,
+      books: :config,
+      requires: :plough
+    },
     %{type: :grain_trade, colour: :yellow, good: :food, engine: :trade},
     %{type: :hunting, colour: :red, good: :food, engine: :expedition}
   ]
@@ -68,6 +84,9 @@ defmodule MyLiege.Engine.Place.Blueprint do
 
   @doc "The types of the five home places, in pentagon order."
   def home_types, do: Enum.map(@homes, & &1.type)
+
+  @doc "The types of the ways whose book count the designer sets (`books: :config`)."
+  def config_book_types, do: for(%{books: :config, type: type} <- @catalogue, do: type)
 
   @doc "The types of the trade routes (`engine: :trade`), in catalogue order."
   def trade_types, do: for(%{engine: :trade, type: type} <- @catalogue, do: type)
