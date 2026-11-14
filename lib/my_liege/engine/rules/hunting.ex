@@ -3,7 +3,7 @@ defmodule MyLiege.Engine.Rules.Hunting do
   R17, the hunting camp: red's way to food, a `Place.Expedition`.
 
   - Once unlocked (`Rules.Ways`: a red and a green book), the camp is a place in the village
-    (`Rules.Ways.open/2`, in the Books step): one camp, nothing to build or pay, open to the
+    (`Rules.Ways.open/4`, in the Books step): one camp, nothing to build or pay, open to the
     end of the game.
   - Workers of any colour, trained or not, are placed on it and leave it as in a building, up
     to `way_hunting_max_party`, but travel `way_hunting_travel_weeks` instead of

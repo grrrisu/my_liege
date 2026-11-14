@@ -7,8 +7,8 @@ defmodule MyLiege.Engine.Rules.Production do
   (`output/5`). A worker on a book (R12) writes as in a blue building, times the book colour's
   experience factor (`Rules.Books`), into the book; a worker on an invention (R15) the same,
   times the experience factor of the colour of its good's home place (`Rules.Inventions`).
-  A way building (R13, the granary) produces nothing. With the improved plough invented, each
-  farm worker's output gets its bonus (`Rules.Inventions.farm_output/3`). Amounts are in
+  A way building (R13, the granary) produces nothing. With the improved ploughs (I, II) invented,
+  each farm worker's output gets their bonuses added (`Rules.Inventions.farm_output/3`). Amounts are in
   thousandths (see `Fixed`), so the result is exact.
   """
 

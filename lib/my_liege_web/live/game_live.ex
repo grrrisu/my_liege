@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
-  alias MyLiege.Engine.Place.{Blueprint, Expedition, Project, Trade}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Expedition, Project, Trade}
 
   alias MyLiege.Engine.Rules.{
     Bandits,
@@ -315,13 +315,20 @@ defmodule MyLiegeWeb.GameLive do
                   ).week})
                 </span>
               </p>
-              <p
-                :if={:plough in @game.inventions}
-                id="plough-invented"
-                class="mt-1 text-sm"
-              >
-                improved plough invented: farm output +{div(@game.config.way_plough_bonus, 10)}%
-              </p>
+              <div :if={@game.inventions != []} id="inventions-made" class="mt-1 text-sm">
+                <span>invented</span>
+                <span
+                  :for={type <- invented(@game)}
+                  id={"invented-#{type}"}
+                  class="ml-3 inline-flex items-center gap-1"
+                >
+                  <span class={[
+                    "inline-block h-3 w-3 rounded-sm",
+                    type |> type_colour() |> colour_class()
+                  ]}></span>
+                  {invention_name(type)}: {effect_text(Inventions.effect(type, @game.config))}
+                </span>
+              </div>
               <p :if={@report.granary_working} id="granary-working" class="mt-1 text-sm">
                 granary kept: food spoiled at {per_mille(@game.config.place_granary_food_spoilage)} last week, upkeep {units(
                   @report.culture_upkeep
@@ -627,6 +634,14 @@ defmodule MyLiegeWeb.GameLive do
             selected={@selected == worker.id}
           />
           <span
+            :if={farm?(place) && farm_bonus(@game)}
+            id={"farm-bonus-#{place.id}"}
+            class="text-sm tabular-nums"
+            title="the inventions' bonus on every farm worker's output"
+          >
+            {farm_bonus(@game)}
+          </span>
+          <span
             :if={book?(place)}
             id={"book-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
@@ -756,7 +771,7 @@ defmodule MyLiegeWeb.GameLive do
           id={"build-#{type}"}
           phx-click="build"
           phx-value-type={type}
-          disabled={!@affordable? or missing_books(type, @game) != []}
+          disabled={!@affordable? or missing(type, @game) != []}
           title={way_title(type, @game)}
           class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
@@ -765,23 +780,44 @@ defmodule MyLiegeWeb.GameLive do
           <.locked type={type} game={@game} />
         </button>
       </div>
-      <h2 class="mt-4 mb-2 font-semibold">Invent</h2>
-      <p class="mb-2 text-sm opacity-60">Free; a way opens with a book of each of its two colours.</p>
-      <div class="flex flex-wrap gap-2">
-        <button
-          :for={type <- Inventions.types()}
-          id={"start-invention-#{type}"}
-          phx-click="start_invention"
-          phx-value-type={type}
-          disabled={invention_state(type, @game) != :startable}
-          title={way_title(type, @game)}
-          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
-          {invention_label(type, invention_state(type, @game))}
-          <.locked type={type} game={@game} />
-        </button>
-      </div>
+      <section id="inventions">
+        <h2 class="mt-4 mb-2 font-semibold">Inventions</h2>
+        <p class="mb-2 text-sm opacity-60">
+          Free to start; one project per invention; each is invented once.
+        </p>
+        <div class="space-y-1">
+          <div
+            :for={type <- Inventions.types()}
+            id={"invention-#{type}"}
+            class="flex flex-wrap items-center gap-2 text-sm"
+          >
+            <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
+            <span class="min-w-32">{invention_name(type)}</span>
+            <%= case invention_state(type, @game) do %>
+              <% :invented -> %>
+                <span id={"invention-state-#{type}"} class="font-semibold">
+                  invented: {effect_text(Inventions.effect(type, @game.config))}
+                </span>
+              <% :open -> %>
+                <span id={"invention-state-#{type}"} class="tabular-nums">
+                  being invented: {invention_progress(type, @game)}
+                </span>
+              <% :startable -> %>
+                <button
+                  id={"start-invention-#{type}"}
+                  phx-click="start_invention"
+                  phx-value-type={type}
+                  class="rounded border px-2 py-0.5 hover:bg-zinc-100"
+                >
+                  start ({effect_text(Inventions.effect(type, @game.config))})
+                </button>
+              <% :locked -> %>
+                <span id={"invention-state-#{type}"} class="opacity-60">locked</span>
+                <.locked type={type} game={@game} />
+            <% end %>
+          </div>
+        </div>
+      </section>
       <h2 class="mt-4 mb-2 font-semibold">Write a book</h2>
       <p class="mb-2 text-sm opacity-60">Free; one writer per book.</p>
       <div class="flex flex-wrap gap-2">
@@ -803,9 +839,10 @@ defmodule MyLiegeWeb.GameLive do
   attr :type, :atom, required: true
   attr :game, Game, required: true
 
-  # the books a locked way still needs, one swatch per missing colour
+  # what a locked way still needs: a swatch with the count per colour short of books, and the
+  # invention it requires
   defp locked(assigns) do
-    assigns = assign(assigns, :missing, missing_books(assigns.type, assigns.game))
+    assigns = assign(assigns, :missing, missing(assigns.type, assigns.game))
 
     ~H"""
     <span
@@ -814,21 +851,41 @@ defmodule MyLiegeWeb.GameLive do
       class="inline-flex items-center gap-1 text-xs opacity-80"
     >
       <.icon name="hero-lock-closed" class="h-3 w-3" /> needs
-      <span
-        :for={colour <- @missing}
-        class={["inline-block h-3 w-3 rounded-sm", colour_class(colour)]}
-        title={"a #{colour} book"}
-      ></span>
+      <%= for item <- @missing do %>
+        <span
+          :if={match?({:book, _, _}, item)}
+          id={"locked-#{@type}-#{elem(item, 1)}"}
+          class="inline-flex items-center gap-0.5 tabular-nums"
+          title={missing_text(item)}
+        >
+          <span class={["inline-block h-3 w-3 rounded-sm", colour_class(elem(item, 1))]}></span>×{elem(
+            item,
+            2
+          )}
+        </span>
+        <span
+          :if={match?({:invention, _}, item)}
+          id={"locked-#{@type}-invention"}
+          title={missing_text(item)}
+        >
+          {invention_name(elem(item, 1))}
+        </span>
+      <% end %>
     </span>
     """
   end
 
-  defp missing_books(type, game), do: type |> Blueprint.fetch!() |> Ways.missing(game.books)
+  defp missing(type, game),
+    do: type |> Blueprint.fetch!() |> Ways.missing(game.books, game.inventions, game.config)
+
+  defp missing_text({:book, colour, 1}), do: "1 more #{colour} book"
+  defp missing_text({:book, colour, count}), do: "#{count} more #{colour} books"
+  defp missing_text({:invention, type}), do: "#{invention_name(type)} invented"
 
   defp way_title(type, game) do
-    case missing_books(type, game) do
+    case missing(type, game) do
       [] -> nil
-      missing -> "needs " <> Enum.map_join(missing, " and ", &"a #{&1} book")
+      missing -> "needs " <> Enum.map_join(missing, " and ", &missing_text/1)
     end
   end
 
@@ -871,16 +928,49 @@ defmodule MyLiegeWeb.GameLive do
   defp signed_count(change) when change > 0, do: "+#{change}"
   defp signed_count(change), do: "#{change}"
 
-  defp invention_state(type, game) do
-    case Inventions.check_start(type, game.places, game.inventions, game.books) do
-      :ok -> :startable
-      {:error, reason} -> reason
+  defp invention_state(type, game),
+    do: Inventions.state(type, game.places, game.inventions, game.books, game.config)
+
+  # the invented types in catalogue order
+  defp invented(game), do: Enum.filter(Inventions.types(), &(&1 in game.inventions))
+
+  defp invention_name(:plough), do: "improved plough I"
+  defp invention_name(:plough_2), do: "improved plough II"
+
+  defp short_name(:plough), do: "plough I"
+  defp short_name(:plough_2), do: "plough II"
+
+  defp effect_text({:farm_output, bonus}), do: "farm output +#{percent(bonus)}"
+
+  # an open invention's progress and workers
+  defp invention_progress(type, game) do
+    project = Inventions.project(game.places, type)
+    workers = game.workers |> Place.workers_at(project.id) |> length()
+
+    "#{units(project.progress)}/#{units(project.target)} knowledge, " <>
+      "#{workers}/#{Inventions.capacity(type, game.config)} workers"
+  end
+
+  # the farm's total bonus from inventions, e.g. "+25% (plough I + II)"; nil without one
+  defp farm_bonus(game) do
+    case Inventions.farm_inventions(game.inventions, game.config) do
+      [] ->
+        nil
+
+      types ->
+        # "plough I + plough II" reads as "plough I + II"
+        names =
+          types
+          |> Enum.map_join(" + ", &short_name/1)
+          |> String.replace(" + plough ", " + ")
+
+        "+#{percent(Inventions.farm_bonus(game.inventions, game.config))} (#{names})"
     end
   end
 
-  defp invention_label(:plough, :already_invented), do: "improved plough invented"
-  defp invention_label(:plough, :already_open), do: "improved plough: being invented"
-  defp invention_label(:plough, _state), do: "invent the improved plough"
+  # per mille as a percentage, with one decimal when needed: 125 -> "12.5%", 250 -> "25%"
+  defp percent(permille) when rem(permille, 10) == 0, do: "#{div(permille, 10)}%"
+  defp percent(permille), do: "#{div(permille, 10)}.#{rem(permille, 10)}%"
 
   attr :worker, :map, required: true
   attr :selected, :boolean, default: false
@@ -926,6 +1016,7 @@ defmodule MyLiegeWeb.GameLive do
   defp site?(place), do: match?(%Project{gives: {:building, _}}, place)
   defp demand_project?(place), do: match?(%Project{gives: {:demand, _}}, place)
   defp book?(place), do: match?(%Project{gives: {:book, _}}, place)
+  defp farm?(place), do: match?(%Building{blueprint: %{type: :farm}}, place)
   defp invention?(place), do: match?(%Project{gives: {:invention, _}}, place)
   defp trade?(place), do: match?(%Trade{}, place)
   defp expedition?(place), do: match?(%Expedition{}, place)
@@ -941,7 +1032,7 @@ defmodule MyLiegeWeb.GameLive do
     do: "king's demand: #{Place.good(project)}"
 
   defp place_name(%Project{gives: {:book, colour}}), do: "#{colour} book"
-  defp place_name(%Project{gives: {:invention, :plough}}), do: "improved plough"
+  defp place_name(%Project{gives: {:invention, type}}), do: invention_name(type)
   defp place_name(%Trade{} = trade), do: trade |> Place.type() |> way_name()
   defp place_name(%Expedition{} = camp), do: camp |> Place.type() |> way_name()
 

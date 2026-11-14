@@ -4,7 +4,7 @@ defmodule MyLiege.Engine.WaysTest do
 
   alias MyLiege.Engine.{Forecast, Game, Worker}
   alias MyLiege.Engine.Place.{Expedition, Trade}
-  alias MyLiege.Engine.Rules.{Books, Hunting, Production, Trades, Ways}
+  alias MyLiege.Engine.Rules.{Books, Hunting, Inventions, Production, Trades, Ways}
   alias MyLiege.EngineFixtures
   alias MyLiege.Reporting
 
@@ -89,7 +89,7 @@ defmodule MyLiege.Engine.WaysTest do
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",false,true,5000,0,0,0,0,0,0,false")
+      assert String.ends_with?(row, ",0,true,5000,0,0,0,0,0,0,false")
     end
   end
 
@@ -116,8 +116,32 @@ defmodule MyLiege.Engine.WaysTest do
       assert report.production.knowledge == 0
 
       {:ok, report, game} = Game.run_week(game)
-      assert report.production.food == 11_250
+      assert report.production.food == 10_125
       assert Game.start_invention(game, :plough) == {:error, :already_invented}
+    end
+
+    test "plough II needs two books of each colour; then the bonuses add", %{game: game} do
+      {:ok, _report, game} = Game.run_week(game)
+      assert Game.start_invention(game, :plough_2) == {:error, :locked}
+
+      game = %{
+        game
+        | books: %{game.books | blue: 2, green: 2},
+          config: %{game.config | way_plough_2_work: 5}
+      }
+
+      {:ok, game} = Game.start_invention(game, :plough_2)
+      project = Inventions.project(game.places, :plough_2)
+      {:ok, game} = Game.place_worker(game, 2, project.id)
+      {:ok, report, game} = Game.run_week(game)
+
+      assert report.inventions_finished == [:plough_2]
+      assert report.production.food == 10_125
+
+      {:ok, report, _game} = Game.run_week(game)
+      # 9 × 1250 ÷ 1000, as the single plough of 250 before
+      assert report.production.food == 11_250
+      assert Inventions.plough_level(report.inventions) == 2
     end
 
     test "only farm workers get the bonus" do
@@ -129,7 +153,7 @@ defmodule MyLiege.Engine.WaysTest do
         %Worker{id: 2, colour: :violet, place: 2}
       ]
 
-      assert %{food: 11_250, culture: 3_000} =
+      assert %{food: 10_125, culture: 3_000} =
                Production.output(workers, places, 1, config, [:plough])
     end
 
@@ -143,11 +167,11 @@ defmodule MyLiege.Engine.WaysTest do
       assert Game.place_worker(game, d, 3) == {:error, :full}
     end
 
-    test "exports plough_done", %{game: game} do
+    test "exports plough_level", %{game: game} do
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",true,false,0,0,0,0,0,0,0,false")
+      assert String.ends_with?(row, ",1,false,0,0,0,0,0,0,0,false")
     end
   end
 
@@ -156,7 +180,10 @@ defmodule MyLiege.Engine.WaysTest do
     # (4) open
     setup do
       game = game(start_gold: 1000, start_food: 1000)
-      {places, [:grain_trade, :hunting]} = Ways.open(game.places, game.books)
+
+      {places, [:grain_trade, :hunting]} =
+        Ways.open(game.places, game.books, game.inventions, game.config)
+
       %{game: %{game | places: places}}
     end
 
@@ -300,7 +327,7 @@ defmodule MyLiege.Engine.WaysTest do
     # (4) open; plenty of food
     setup do
       game = game(start_food: 10_000)
-      {places, _opened} = Ways.open(game.places, game.books)
+      {places, _opened} = Ways.open(game.places, game.books, game.inventions, game.config)
       %{game: %{game | places: places}}
     end
 

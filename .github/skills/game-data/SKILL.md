@@ -98,7 +98,11 @@ is left out when a group has only one thing (`travel.weeks`).
 | `place_granary_culture_upkeep` | int (culture units a week) | `place.granary.culture_upkeep` | `Rules.Granary.upkeep/3` (`Fixed.from`) |
 | `way_plough_work` | int (knowledge units) | `way.plough.work` | `Rules.Inventions.new_invention/3` (the target, `Fixed.from`) |
 | `way_plough_capacity` | int | `way.plough.capacity` | `Rules.Inventions.capacity/2` (via `Rules.Placement.capacity/2`) |
-| `way_plough_bonus` | ‰ | `way.plough.bonus_permille` | `Rules.Inventions.farm_output/3`, GameLive |
+| `way_plough_bonus` | ‰ | `way.plough.bonus_permille` | `Rules.Inventions.effect/2` (→ `farm_bonus/2`, `farm_output/3`), GameLive |
+| `way_plough_2_work` | int (knowledge units) | `way.plough_2.work` | `Rules.Inventions.target/2` |
+| `way_plough_2_capacity` | int | `way.plough_2.capacity` | `Rules.Inventions.capacity/2` |
+| `way_plough_2_bonus` | ‰ | `way.plough_2.bonus_permille` | `Rules.Inventions.effect/2` |
+| `way_books` | `%{type => int}` for the catalogue entries with `books: :config` (today `:plough_2`) | `way.<type>.books` | `Rules.Ways.books_needed/2` |
 | `way_grain_trade_capacity` | int | `way.grain_trade.capacity` | `Rules.Trades.capacity/2` (via `Rules.Placement.capacity/2`) |
 | `way_grain_trade_gold_per_week` | int (gold units per trader and week, at factor 1000) | `way.grain_trade.gold_per_week` | `Rules.Trades.price/3`, GameLive |
 | `way_grain_trade_food_per_week` | int (food units per trader and week) | `way.grain_trade.food_per_week` | `Rules.Trades.food/2` |
@@ -155,9 +159,10 @@ you add one, ask the designer whether it should be a CSV key.
 | Colours in pentagon order `green, yellow, blue, red, violet` (Growth, Wealth, Wisdom, Strength, Culture) | `Pentagon` `@colours`, `colours/0` | everything that iterates colours, the `Manameter` struct keys, `LoadConfig`, `Reporting` |
 | Manameter total 1000 | `Manameter.total_shares/0` | `LoadConfig` (validation) |
 | Same / neighbour / opposite from pentagon distance | `Pentagon.relation/2` | `Rules.Production` |
-| Place type → colour, type → good; home places, ways (granary violet→food, building; plough blue→food, invention; grain trade route yellow→food, trade), guildhouse neutral | `Place.Blueprint` catalogue, `types/0`, `building_types/0`, `home_types/0`, `trade_types/0`, `ways/0`, `way?/1`, `goods/0`, `home_type/1`, `home_colour/1` | everything that iterates types or goods |
-| A way unlocks with 1 book of its colour and 1 of its good's home colour | `Rules.Ways.missing/2` | `Construct`, `Rules.Inventions.check_start/4`, GameLive |
-| The improved plough's bonus applies to farm workers only | `Rules.Production` (`with_bonus`) | `Production.output/5` |
+| Place type → colour, type → good; home places, ways (granary violet→food, building; plough I and II blue→food, inventions; grain trade route yellow→food, trade), guildhouse neutral | `Place.Blueprint` catalogue, `types/0`, `building_types/0`, `home_types/0`, `trade_types/0`, `ways/0`, `way?/1`, `goods/0`, `home_type/1`, `home_colour/1` | everything that iterates types or goods |
+| A way unlocks with its entry's `books` (default 1) of its colour and of its good's home colour, and its `requires` invention; plough II requires plough I | `Place.Blueprint` catalogue (`books`, `requires`), `Rules.Ways.missing/4` | `Construct`, `Rules.Inventions.check_start/5`, `Ways.open/4`, GameLive |
+| The ploughs' bonuses add up and apply to farm workers only | `Rules.Inventions.farm_bonus/2`, `Rules.Production` (`with_bonus`) | `Production.output/5` |
+| `plough_level` counts `:plough` and `:plough_2` | `Rules.Inventions.plough_level/1` | `Reporting` |
 | Hunting luck: one draw out of 10 (`:rand.uniform_s(10, _)`); levels `low, mid, high` in that order | `Rules.Hunting.draw_luck/3`, `luck_for/2`; `LoadConfig` `@luck_draws`, `@lucks` | the `Hunts` step |
 | Suspicion starts at 0; idle blocks counted from week 1; halved (rounded down) at the threshold | `Rules.Suspicion.none/0`, `block_end?/2`, `check_threshold/2` | `Game` defaults, the `Hunts` step |
 | A trade route's price divides by the trader's factor against the route's colour; one route per type, opened by the books; travel to and from it is the same | `Rules.Trades.price/3`, `open/2`, `Rules.Travel.weeks/3` | `TradeRoute` and `Books` steps, `PlaceWorker`, `UnplaceWorker`, GameLive |
@@ -231,8 +236,8 @@ removes it once done and adds the book to `game.books`.
 
 A trade route is not a project: see `%Place.Trade{}` below.
 
-An invention (R15) has its way's catalogue blueprint (`Blueprint.fetch!(:plough)`: blue,
-food), `target: Fixed.from(way_plough_work)` and `gives: {:invention, type}`;
+An invention (R15) has its way's catalogue blueprint (`Blueprint.fetch!(:plough)` or
+`:plough_2`: blue, food), `target: Inventions.target/2` and `gives: {:invention, type}`;
 `Actions.StartInvention` appends it (unlocked, not open, not invented), the `Production`
 step adds its workers' output (as in a blue building × the experience of food's home
 colour, green) to `progress`, the `Inventions` step removes it once done and appends the
@@ -251,7 +256,7 @@ never change; `traders` is the queue of worker ids in the order they were placed
 (`Rules.Trades.join/3`, called by `PlaceWorker`: a worker placed again goes last). It may
 hold ids of workers who left; `Rules.Trades.traders/2` reads only those still on it, and
 the `TradeRoute` step cuts it to them. The `Books` step appends the route once the books
-unlock it (`Rules.Ways.open/2`); nothing removes it.
+unlock it (`Rules.Ways.open/4`); nothing removes it.
 
 ### `%Place.Expedition{}` ([place/expedition.ex](../../../lib/my_liege/engine/place/expedition.ex))
 
@@ -261,7 +266,7 @@ hunter since then: the `Hunts` step adds to both and empties them at a haul;
 `Rules.Hunting.abandon_empty/2` (called by `PlaceWorker` and `UnplaceWorker`) empties them
 when no worker is left on the camp. `hunted_in_block` (R18) is set by a week with an arrived
 hunter and cleared at the end of every block of `way_hunting_haul_weeks` game weeks. The
-`Books` step appends the camp once the books unlock it (`Rules.Ways.open/2`); nothing
+`Books` step appends the camp once the books unlock it (`Rules.Ways.open/4`); nothing
 removes it. The hunters are the workers whose `place` is its id.
 
 ## 4. The weekly report
@@ -279,7 +284,7 @@ the steps fill it. The field-by-step mapping is the "Order inside a week" table 
   demand_outcome, demand_progress, king_took, spoiled, gold_spent_buildings,
   bandit_pressure, bandit_threat, bandits_weeks_to_raid, gold_robbed, happiness_ratio,
   happiness_step, game_over, books (`books_<colour>` in pentagon order, held at the end of
-  the week), `plough_done` (`:plough in report.inventions`, end of the week),
+  the week), `plough_level` (`Inventions.plough_level/1`: 0, 1 or 2 ploughs invented, end of the week),
   `granary_working`, `culture_upkeep` (thousandths, taken that week), `food_from_trade`
   (thousandths, brought by the trade route that week), `food_from_hunting`
   (thousandths, the camp's haul that week), `suspicion` (end of the week), `gold_to_trade` (thousandths, paid to the

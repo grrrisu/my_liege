@@ -25,7 +25,8 @@ defmodule MyLiege.Reporting do
   in per mille; `happiness_step` (−3 to 3, a plain number) is the step applied to food and
   defence, 0 in the grace period. Both empty in week 0.
   R12: `books_<colour>` are the books held at the end of the week, in pentagon order.
-  R14/R15: `plough_done` is whether the improved plough is invented at the end of the week;
+  R14/R15: `plough_level` is how many ploughs are invented at the end of the week (0, 1 for
+  plough I, 2 for plough I and II);
   `granary_working` whether a granary had a working keeper that week; `culture_upkeep` the
   culture taken from the stock for the granaries that week (thousandths).
   R16: `food_from_trade` is the food the trade route brought that week, `gold_to_trade` the
@@ -39,6 +40,7 @@ defmodule MyLiege.Reporting do
 
   alias MyLiege.Engine.Pentagon
   alias MyLiege.Engine.Place.Blueprint
+  alias MyLiege.Engine.Rules.Inventions
 
   @doc "Returns the reports as CSV text with a header row."
   def to_csv(reports) do
@@ -59,7 +61,7 @@ defmodule MyLiege.Reporting do
       ["happiness_ratio", "happiness_step"] ++
       ["game_over"] ++
       Enum.map(Pentagon.colours(), &"books_#{&1}") ++
-      ["plough_done", "granary_working", "culture_upkeep", "food_from_trade"] ++
+      ["plough_level", "granary_working", "culture_upkeep", "food_from_trade"] ++
       ["food_from_hunting", "suspicion", "gold_to_trade", "traders", "hunters"] ++
       ["suspicion_miss"]
   end
@@ -98,7 +100,7 @@ defmodule MyLiege.Reporting do
       ] ++
       Enum.map(Pentagon.colours(), &Map.fetch!(report.books, &1)) ++
       [
-        :plough in report.inventions,
+        Inventions.plough_level(report.inventions),
         report.granary_working,
         report.culture_upkeep,
         report.food_from_trade,

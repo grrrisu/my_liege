@@ -3,7 +3,7 @@ defmodule MyLiege.Engine.Rules.Trades do
   R16, trade routes: a way (R13) that is a `Place.Trade`; for now the grain trade route,
   yellow's way to food.
 
-  - Once unlocked (`Rules.Ways`), the route is a place in the village (`Ways.open/2`, in the
+  - Once unlocked (`Rules.Ways`), the route is a place in the village (`Ways.open/4`, in the
     Books step that finishes the last book it needs): one route, nothing to build or pay.
   - Workers of any colour, trained or not, are placed on it and leave it as in a building,
     up to `way_grain_trade_capacity`, but travel `way_grain_trade_travel_weeks` instead of

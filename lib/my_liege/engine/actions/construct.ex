@@ -20,7 +20,7 @@ defmodule MyLiege.Engine.Actions.Construct do
       type not in Blueprint.building_types() ->
         {:error, :unknown_type}
 
-      not Ways.unlocked?(Blueprint.fetch!(type), game.books) ->
+      not Ways.unlocked?(Blueprint.fetch!(type), game.books, game.inventions, game.config) ->
         {:error, :locked}
 
       not Game.can_afford_building?(game) ->

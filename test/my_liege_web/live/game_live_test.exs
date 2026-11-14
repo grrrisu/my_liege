@@ -259,10 +259,30 @@ defmodule MyLiegeWeb.GameLiveTest do
 
     assert has_element?(view, "#build-granary[disabled]")
     assert has_element?(view, "#build-granary #locked-granary")
-    assert has_element?(view, "#start-invention-plough[disabled]")
-    assert has_element?(view, "#start-invention-plough #locked-plough")
     refute has_element?(view, "#build-farm #locked-farm")
-    refute has_element?(view, "#plough-invented")
+  end
+
+  test "R13/R15: the inventions overview lists every invention with what it lacks, from week 0",
+       %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#inventions #invention-plough", "improved plough I")
+    assert has_element?(view, "#invention-plough #locked-plough-blue", "×1")
+    assert has_element?(view, "#invention-plough #locked-plough-green", "×1")
+    refute has_element?(view, "#locked-plough-invention")
+    refute has_element?(view, "#start-invention-plough")
+
+    assert has_element?(view, "#invention-plough_2 #locked-plough_2-blue", "×2")
+    assert has_element?(view, "#invention-plough_2 #locked-plough_2-green", "×2")
+
+    assert has_element?(
+             view,
+             "#invention-plough_2 #locked-plough_2-invention",
+             "improved plough I"
+           )
+
+    refute has_element?(view, "#inventions-made")
+    refute has_element?(view, "#farm-bonus-1")
   end
 
   test "R16/R17: the grain trade route and the hunting camp are shown locked until their books open them",
