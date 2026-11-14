@@ -29,6 +29,8 @@ defmodule MyLiege.Reporting do
   `granary_working` whether a granary had a working keeper that week; `culture_upkeep` the
   culture taken from the stock for the granaries that week (thousandths).
   R16: `food_from_trade` is the food the returning trades brought that week (thousandths).
+  R17: `food_from_hunting` is the food the returning hunts brought that week (thousandths).
+  R18: `suspicion` is the king's suspicion at the end of the week.
   """
 
   alias MyLiege.Engine.Pentagon
@@ -53,7 +55,8 @@ defmodule MyLiege.Reporting do
       ["happiness_ratio", "happiness_step"] ++
       ["game_over"] ++
       Enum.map(Pentagon.colours(), &"books_#{&1}") ++
-      ["plough_done", "granary_working", "culture_upkeep", "food_from_trade"]
+      ["plough_done", "granary_working", "culture_upkeep", "food_from_trade"] ++
+      ["food_from_hunting", "suspicion"]
   end
 
   defp row(report) do
@@ -93,7 +96,9 @@ defmodule MyLiege.Reporting do
         :plough in report.inventions,
         report.granary_working,
         report.culture_upkeep,
-        report.food_from_trade
+        report.food_from_trade,
+        report.food_from_hunting,
+        report.suspicion
       ]
   end
 

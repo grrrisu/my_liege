@@ -24,6 +24,9 @@ defmodule MyLiege.Engine.LoadConfig do
   # config test checks they match
   @trainings [:untrained, :trained]
   @levels [:level1, :level2, :level3]
+  @lucks [:low, :mid, :high]
+  # the chances of each luck are counts out of this many
+  @luck_draws 10
 
   @doc false
   def names, do: %{trainings: @trainings}
@@ -132,6 +135,14 @@ defmodule MyLiege.Engine.LoadConfig do
       way_grain_trade_food: "way.grain_trade.food",
       way_grain_trade_travel_weeks: "way.grain_trade.travel_weeks",
       way_grain_trade_trade_weeks: "way.grain_trade.trade_weeks",
+      # the party rows depend on max_party: read them before max_party is taken
+      way_hunting_party: &hunting_parties!/1,
+      way_hunting_max_party: "way.hunting.max_party",
+      way_hunting_travel_weeks: "way.hunting.travel_weeks",
+      way_hunting_hunt_weeks: "way.hunting.hunt_weeks",
+      way_hunting_food_per_week: "way.hunting.food_per_week",
+      way_hunting_luck: by(@lucks, &"way.hunting.luck_#{&1}_permille"),
+      king_suspicion_per_expedition: "king.suspicion.per_expedition",
       travel_weeks: "travel.weeks",
       king_grace_weeks: "king.grace_weeks",
       king_misses_forgiven: "king.misses_forgiven",
@@ -174,6 +185,25 @@ defmodule MyLiege.Engine.LoadConfig do
       {value, rest} = reader.(inputs)
       {fun.(value), rest}
     end
+  end
+
+  # `way.hunting.party<n>.<luck>` for every party size n from 1 to `way.hunting.max_party`;
+  # each size's counts must sum to @luck_draws
+  defp hunting_parties!(inputs) do
+    {max_party, _rest} = take!(inputs, "way.hunting.max_party")
+
+    sizes = 1..max_party//1 |> Enum.to_list()
+
+    {parties, rest} =
+      by(sizes, fn size -> by(@lucks, &"way.hunting.party#{size}.#{&1}") end).(inputs)
+
+    for {size, counts} <- parties, counts |> Map.values() |> Enum.sum() != @luck_draws do
+      raise ArgumentError,
+            "config inputs: way.hunting.party#{size}.* must sum to #{@luck_draws}, " <>
+              "got #{counts |> Map.values() |> Enum.sum()}"
+    end
+
+    {parties, rest}
   end
 
   defp manameter_start!(shares) do

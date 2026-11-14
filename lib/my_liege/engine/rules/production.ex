@@ -13,7 +13,7 @@ defmodule MyLiege.Engine.Rules.Production do
   """
 
   alias MyLiege.Engine.{Config, Fixed, Manameter, Pentagon, Place, Worker}
-  alias MyLiege.Engine.Place.{Blueprint, Building, Project, Trade}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Expedition, Project, Trade}
   alias MyLiege.Engine.Rules.{Books, Inventions, Staffing}
 
   @doc """
@@ -52,6 +52,7 @@ defmodule MyLiege.Engine.Rules.Production do
   def produces?(%Building{blueprint: blueprint}), do: not Blueprint.way?(blueprint)
   def produces?(%Project{}), do: false
   def produces?(%Trade{}), do: false
+  def produces?(%Expedition{}), do: false
 
   defp with_bonus(output, place, inventions, config) do
     if Place.type(place) == :farm,

@@ -2,15 +2,16 @@ defmodule MyLiege.Engine.Place do
   @moduledoc """
   What all kinds of place share: anything a worker is placed at. Every place has an `id`,
   which workers point to (`Worker.place`), and a `blueprint`, its entry in the catalogue
-  (`Place.Blueprint`). A place is a `Place.Building`, a `Place.Project` or a `Place.Trade`.
+  (`Place.Blueprint`). A place is a `Place.Building`, a `Place.Project`, a `Place.Trade` or a
+  `Place.Expedition`.
 
   The functions here only read the stored data; what a place allows or does is decided in the
   rules, with one clause per kind of place.
   """
 
-  alias MyLiege.Engine.Place.{Building, Project, Trade}
+  alias MyLiege.Engine.Place.{Building, Expedition, Project, Trade}
 
-  @type t :: Building.t() | Project.t() | Trade.t()
+  @type t :: Building.t() | Project.t() | Trade.t() | Expedition.t()
 
   @doc "The place's colour, or `nil` for a neutral place such as the guildhouse."
   def colour(%{blueprint: blueprint}), do: blueprint.colour

@@ -32,7 +32,7 @@ defmodule MyLiege.Bot.Placing do
 
   alias MyLiege.Bot.BotActions.Feed
   alias MyLiege.Engine.{Forecast, Game, Place, Worker}
-  alias MyLiege.Engine.Place.{Blueprint, Building, Project, Trade}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Expedition, Project, Trade}
   alias MyLiege.Engine.Rules.{Production, Travel}
 
   @behaviour MyLiege.Bot.BotAction
@@ -265,7 +265,8 @@ defmodule MyLiege.Bot.Placing do
   defp builds(%Project{gives: {:demand, _}}), do: nil
   # nor on a book (R12): the bots start no books
   defp builds(%Project{gives: {:book, _}}), do: nil
-  # nor on an invention (R15) or a trade (R16): the bots start neither
+  # nor on an invention (R15), a trade (R16) or a hunt (R17): the bots start none
   defp builds(%Project{gives: {:invention, _}}), do: nil
   defp builds(%Trade{}), do: nil
+  defp builds(%Expedition{}), do: nil
 end

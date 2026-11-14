@@ -4,7 +4,8 @@ defmodule MyLiege.Engine.Place.Blueprint do
   colour, the good it makes, and which kind of place it becomes, its `engine`). A place in
   the game points to its blueprint (see `Place`). The catalogue lists the types that can stand
   and be ordered (`engine: :building`), the inventions that can be started
-  (`engine: :project`) and the trades (`engine: :trade`, see `Place.Trade`); other projects
+  (`engine: :project`), the trades (`engine: :trade`, see `Place.Trade`) and the expeditions
+  (`engine: :expedition`, see `Place.Expedition`); other projects
   build their own blueprint (see `Place.Project`).
 
   The five home places, one per colour, come first in pentagon order: each makes the good of
@@ -20,7 +21,7 @@ defmodule MyLiege.Engine.Place.Blueprint do
           type: atom(),
           colour: atom() | nil,
           good: atom() | nil,
-          engine: :building | :project | :trade
+          engine: :building | :project | :trade | :expedition
         }
 
   # plain maps, as the struct can't be built while this module compiles; the home places'
@@ -33,11 +34,12 @@ defmodule MyLiege.Engine.Place.Blueprint do
     %{type: :tavern, colour: :violet, good: :culture, engine: :building}
   ]
 
-  # R13: violet's way to food (R14), blue's way to food (R15), yellow's way to food (R16)
+  # R13: violet's (R14), blue's (R15), yellow's (R16) and red's (R17) ways to food
   @ways [
     %{type: :granary, colour: :violet, good: :food, engine: :building},
     %{type: :plough, colour: :blue, good: :food, engine: :project},
-    %{type: :grain_trade, colour: :yellow, good: :food, engine: :trade}
+    %{type: :grain_trade, colour: :yellow, good: :food, engine: :trade},
+    %{type: :hunting, colour: :red, good: :food, engine: :expedition}
   ]
 
   @neutral [
@@ -69,6 +71,9 @@ defmodule MyLiege.Engine.Place.Blueprint do
 
   @doc "The types of the trades (`engine: :trade`), in catalogue order."
   def trade_types, do: for(%{engine: :trade, type: type} <- @catalogue, do: type)
+
+  @doc "The types of the expeditions (`engine: :expedition`), in catalogue order."
+  def expedition_types, do: for(%{engine: :expedition, type: type} <- @catalogue, do: type)
 
   @doc "The blueprints of the ways (R13), in catalogue order."
   def ways, do: Enum.map(@ways, &struct!(__MODULE__, &1))

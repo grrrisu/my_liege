@@ -30,6 +30,9 @@ defmodule MyLiege.Engine.WeeklyReport do
   types finished that week.
 
   R16: `food_from_trade` is the food the trades that returned that week brought (thousandths).
+  R17: `food_from_hunting` is the food the hunts that returned that week brought (thousandths);
+  `hunts_returned` one `%{hunters, luck, food}` per returned hunt. R18: `suspicion` is the
+  king's suspicion at the end of the week.
 
   For the forecasts (`Forecast`): `stock_change` is every stock at the end of the week minus at
   its start (one-off payments, the king's takings and robbery included; gold spent on buildings
@@ -80,6 +83,9 @@ defmodule MyLiege.Engine.WeeklyReport do
     inventions: nil,
     inventions_finished: [],
     food_from_trade: 0,
+    food_from_hunting: 0,
+    hunts_returned: [],
+    suspicion: nil,
     stock_change: nil,
     project_change: nil,
     game_over: false
@@ -121,6 +127,9 @@ defmodule MyLiege.Engine.WeeklyReport do
           inventions: [atom()] | nil,
           inventions_finished: [atom()],
           food_from_trade: non_neg_integer(),
+          food_from_hunting: non_neg_integer(),
+          hunts_returned: [%{hunters: pos_integer(), luck: atom(), food: non_neg_integer()}],
+          suspicion: non_neg_integer() | nil,
           stock_change: %{atom() => integer()} | nil,
           project_change: integer() | nil,
           game_over: boolean()

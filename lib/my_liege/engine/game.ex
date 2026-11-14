@@ -16,6 +16,7 @@ defmodule MyLiege.Engine.Game do
     PlaceWorker,
     RefuseProject,
     StartBook,
+    StartHunt,
     StartInvention,
     StartTrade,
     UnplaceWorker
@@ -23,7 +24,7 @@ defmodule MyLiege.Engine.Game do
 
   alias MyLiege.Engine.{Config, Fixed, Random, SimSteps, WeeklyReport, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Building}
-  alias MyLiege.Engine.Rules.{Bandits, Books, Demands, Food, Taxes}
+  alias MyLiege.Engine.Rules.{Bandits, Books, Demands, Food, Suspicion, Taxes}
 
   @derive {Inspect, except: [:config]}
   @enforce_keys [
@@ -48,6 +49,7 @@ defmodule MyLiege.Engine.Game do
                 bandits: Bandits.starting(),
                 books: Books.none(),
                 inventions: [],
+                suspicion: Suspicion.none(),
                 game_over: false
               ]
 
@@ -65,6 +67,7 @@ defmodule MyLiege.Engine.Game do
     SimSteps.Books,
     SimSteps.Inventions,
     SimSteps.Trades,
+    SimSteps.Hunts,
     SimSteps.TrainingEnd,
     SimSteps.TaxPayment,
     SimSteps.DemandDelivery,
@@ -193,6 +196,9 @@ defmodule MyLiege.Engine.Game do
   @doc "See `MyLiege.Engine.Actions.StartTrade`."
   def start_trade(%__MODULE__{} = game, worker_id, type),
     do: StartTrade.run(game, worker_id, type)
+
+  @doc "See `MyLiege.Engine.Actions.StartHunt`."
+  def start_hunt(%__MODULE__{} = game, worker_ids), do: StartHunt.run(game, worker_ids)
 
   @doc "The price of any building, in thousandths of gold."
   def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)
