@@ -3,6 +3,7 @@ defmodule MyLiege.Engine.WaysTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.{Game, Worker}
+  alias MyLiege.Engine.Place.Trade
   alias MyLiege.Engine.Rules.Production
   alias MyLiege.EngineFixtures
   alias MyLiege.Reporting
@@ -88,7 +89,7 @@ defmodule MyLiege.Engine.WaysTest do
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",false,true,5000")
+      assert String.ends_with?(row, ",false,true,5000,0")
     end
   end
 
@@ -146,7 +147,49 @@ defmodule MyLiege.Engine.WaysTest do
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",true,false,0")
+      assert String.ends_with?(row, ",true,false,0,0")
+    end
+  end
+
+  describe "R16: grain trade" do
+    setup do
+      game = game(start_gold: 1000)
+      {:ok, game} = Game.start_trade(game, 1, :grain_trade)
+      %{game: game}
+    end
+
+    test "the trader is away 18 weeks: eats, makes 2 yellow and 1 green mana, produces nothing; then 480 food",
+         %{game: game} do
+      {reports, game} = EngineFixtures.run_weeks(game, 17)
+
+      for report <- reports do
+        assert report.mana == %{green: 1, yellow: 2, blue: 0, red: 3, violet: 0}
+        assert report.production.food == 0
+        assert report.food_from_trade == 0
+      end
+
+      # nobody farms: from week 1 every week is short
+      assert game.stocks.food == -1
+      assert Game.unplace_worker(game, 1) == {:error, :away}
+      assert Game.place_worker(game, 1, 1) == {:error, :away}
+
+      {:ok, report, game} = Game.run_week(game)
+
+      assert report.week == 18
+      assert report.mana.yellow == 2
+      assert report.food_from_trade == 480_000
+      # after eating: −1, then the trade's food
+      assert report.food_left == 479_999
+      assert %{place: nil} = Enum.find(game.workers, &(&1.id == 1))
+      refute Enum.any?(game.places, &match?(%Trade{}, &1))
+    end
+
+    test "exports food_from_trade in the return week", %{game: game} do
+      {reports, _game} = EngineFixtures.run_weeks(game, 18)
+      rows = reports |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
+
+      assert rows |> Enum.at(16) |> String.ends_with?(",0")
+      assert rows |> Enum.at(17) |> String.ends_with?(",480000")
     end
   end
 

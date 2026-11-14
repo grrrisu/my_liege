@@ -3,7 +3,8 @@ defmodule MyLiegeWeb.GameLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias MyLiege.Engine.Config
+  alias MyLiege.Engine.{Config, Worker}
+  alias MyLiege.Engine.Rules.Trades
 
   test "shows the starting state as week 0", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
@@ -263,6 +264,21 @@ defmodule MyLiegeWeb.GameLiveTest do
     assert has_element?(view, "#start-invention-plough #locked-plough")
     refute has_element?(view, "#build-farm #locked-farm")
     refute has_element?(view, "#plough-invented")
+  end
+
+  test "R16: the grain trade is locked; selecting a worker shows his price", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#start-trade-grain_trade[disabled]")
+    assert has_element?(view, "#start-trade-grain_trade #locked-grain_trade")
+    refute has_element?(view, "#trade-cost-grain_trade")
+
+    # worker 1 is the green farmer
+    cost = Trades.cost(:grain_trade, %Worker{colour: :green}, Config.from_csv())
+
+    view |> element("#worker-1") |> render_click()
+    assert has_element?(view, "#trade-cost-grain_trade", "#{div(cost, 1000)}")
+    assert has_element?(view, "#start-trade-grain_trade[disabled]")
   end
 
   defp next_week(view) do

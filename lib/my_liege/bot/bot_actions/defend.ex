@@ -17,7 +17,7 @@ defmodule MyLiege.Bot.BotActions.Defend do
 
   alias MyLiege.Bot.Placing
   alias MyLiege.Engine.{Forecast, Game, Place}
-  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Project, Trade}
   alias MyLiege.Engine.Rules.{Bandits, Production, Travel}
 
   @impl true
@@ -101,6 +101,7 @@ defmodule MyLiege.Bot.BotActions.Defend do
     do: Place.type(place) not in [:watchtower, :guildhouse]
 
   defp spare_building?(%Project{}), do: false
+  defp spare_building?(%Trade{}), do: false
 
   defp surplus(%Game{report: %{stock_change: nil}}), do: Map.new(Blueprint.goods(), &{&1, 0})
   defp surplus(%Game{report: report}), do: report.stock_change

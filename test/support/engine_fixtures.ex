@@ -38,6 +38,10 @@ defmodule MyLiege.EngineFixtures do
         way_plough_work: 96,
         way_plough_capacity: 4,
         way_plough_bonus: 250,
+        way_grain_trade_gold: 144,
+        way_grain_trade_food: 480,
+        way_grain_trade_travel_weeks: 3,
+        way_grain_trade_trade_weeks: 12,
         # no travel, so tests about other rules see placements take effect at once
         travel_weeks: 0,
         mana_place_colour: 2,

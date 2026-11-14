@@ -3,7 +3,7 @@ defmodule MyLiegeWeb.GameLive do
   use MyLiegeWeb, :live_view
 
   alias MyLiege.Engine.{Config, Fixed, Forecast, Game, Pentagon, Place}
-  alias MyLiege.Engine.Place.{Blueprint, Project}
+  alias MyLiege.Engine.Place.{Blueprint, Project, Trade}
 
   alias MyLiege.Engine.Rules.{
     Bandits,
@@ -13,6 +13,7 @@ defmodule MyLiegeWeb.GameLive do
     Inventions,
     Placement,
     Taxes,
+    Trades,
     Training,
     Ways
   }
@@ -67,7 +68,17 @@ defmodule MyLiegeWeb.GameLive do
 
   def handle_event("select_worker", %{"id" => id}, socket) do
     id = parse_id(id)
-    {:noreply, assign(socket, :selected, if(socket.assigns.selected == id, do: nil, else: id))}
+
+    cond do
+      socket.assigns.selected == id ->
+        {:noreply, assign(socket, :selected, nil)}
+
+      away?(socket.assigns.game, id) ->
+        {:noreply, put_flash(socket, :error, error_message(:away))}
+
+      true ->
+        {:noreply, assign(socket, :selected, id)}
+    end
   end
 
   def handle_event("place", %{"building" => place_id}, socket) do
@@ -86,6 +97,12 @@ defmodule MyLiegeWeb.GameLive do
     type = Enum.find(Blueprint.building_types(), &(Atom.to_string(&1) == type))
     result = Game.construct(socket.assigns.game, type)
     {:noreply, apply_result(socket, result)}
+  end
+
+  def handle_event("start_trade", %{"type" => type}, socket) do
+    %{game: game, selected: worker_id} = socket.assigns
+    type = Enum.find(Trades.types(), &(Atom.to_string(&1) == type))
+    {:noreply, apply_result(socket, Game.start_trade(game, worker_id, type))}
   end
 
   def handle_event("start_invention", %{"type" => type}, socket) do
@@ -183,6 +200,8 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_type), do: "Unknown building type."
   defp error_message(:unknown_colour), do: "Unknown colour."
   defp error_message(:unknown_invention), do: "Unknown invention."
+  defp error_message(:unknown_trade), do: "Unknown trade."
+  defp error_message(:away), do: "That worker is away trading until the trade returns."
   defp error_message(:locked), do: "This way needs a book of each of its two colours first."
   defp error_message(:already_invented), do: "That has already been invented."
   defp error_message(:already_open), do: "That invention is already being worked on."
@@ -254,7 +273,7 @@ defmodule MyLiegeWeb.GameLive do
         <div class="grid gap-10 lg:grid-cols-2">
           <div id="column-village" class="space-y-8">
             <.village game={@game} selected={@selected} blocked?={@blocked?} />
-            <.build_buttons game={@game} />
+            <.build_buttons game={@game} selected={@selected} />
           </div>
 
           <div id="column-state" class="space-y-8">
@@ -619,6 +638,13 @@ defmodule MyLiegeWeb.GameLive do
             progress {units(place.progress)}/{units(place.target)} knowledge
           </span>
           <span
+            :if={trade?(place)}
+            id={"trade-#{place.id}"}
+            class="text-sm tabular-nums opacity-60"
+          >
+            away, back at the end of week {place.return_week}
+          </span>
+          <span
             :if={invention?(place)}
             id={"invention-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
@@ -649,7 +675,7 @@ defmodule MyLiegeWeb.GameLive do
             trained after week {Training.last_week(worker.training_started, @game.config)}
           </span>
           <button
-            :if={@selected}
+            :if={@selected && not trade?(place)}
             id={"place-#{place.id}"}
             phx-click="place"
             phx-value-building={place.id}
@@ -690,6 +716,7 @@ defmodule MyLiegeWeb.GameLive do
   end
 
   attr :game, Game, required: true
+  attr :selected, :integer, default: nil
 
   defp build_buttons(assigns) do
     assigns = assign(assigns, :affordable?, Game.can_afford_building?(assigns.game))
@@ -712,6 +739,32 @@ defmodule MyLiegeWeb.GameLive do
         >
           <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
           {type}
+          <.locked type={type} game={@game} />
+        </button>
+      </div>
+      <h2 class="mt-4 mb-2 font-semibold">Trade</h2>
+      <p class="mb-2 text-sm opacity-60">
+        Select an arrived worker as the trader; the gold is paid at the start.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          :for={type <- Trades.types()}
+          id={"start-trade-#{type}"}
+          phx-click="start_trade"
+          phx-value-type={type}
+          disabled={trade_check(type, @game, @selected) != :ok}
+          title={way_title(type, @game)}
+          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
+          start a {trade_name(type)}
+          <span
+            :if={trade_cost(type, @game, @selected)}
+            id={"trade-cost-#{type}"}
+            class="tabular-nums opacity-60"
+          >
+            for {trade_cost(type, @game, @selected)} gold
+          </span>
           <.locked type={type} game={@game} />
         </button>
       </div>
@@ -782,6 +835,36 @@ defmodule MyLiegeWeb.GameLive do
     end
   end
 
+  defp selected_worker(_game, nil), do: nil
+  defp selected_worker(game, worker_id), do: Enum.find(game.workers, &(&1.id == worker_id))
+
+  # `:ok` if the selected worker can start the trade now; no selection is not ok
+  defp trade_check(type, game, worker_id) do
+    case selected_worker(game, worker_id) do
+      nil ->
+        {:error, :unknown_worker}
+
+      worker ->
+        place = Enum.find(game.places, &(&1.id == worker.place))
+        Trades.check_start(type, worker, place, game.stocks.gold, game.books, game.config)
+    end
+  end
+
+  # the price for the selected worker, in whole gold; nil without a selection
+  defp trade_cost(type, game, worker_id) do
+    with %{} = worker <- selected_worker(game, worker_id),
+         do: type |> Trades.cost(worker, game.config) |> units()
+  end
+
+  defp trade_name(:grain_trade), do: "grain trade"
+
+  defp away?(game, worker_id) do
+    with %{place: place_id} when place_id != nil <- selected_worker(game, worker_id),
+         %Trade{} <- Enum.find(game.places, &(&1.id == place_id)),
+         do: true,
+         else: (_ -> false)
+  end
+
   defp invention_state(type, game) do
     case Inventions.check_start(type, game.places, game.inventions, game.books) do
       :ok -> :startable
@@ -838,6 +921,7 @@ defmodule MyLiegeWeb.GameLive do
   defp demand_project?(place), do: match?(%Project{gives: {:demand, _}}, place)
   defp book?(place), do: match?(%Project{gives: {:book, _}}, place)
   defp invention?(place), do: match?(%Project{gives: {:invention, _}}, place)
+  defp trade?(place), do: match?(%Trade{}, place)
 
   # a book shows its own colour, not its blue method
   defp card_colour(%Project{gives: {:book, colour}}), do: colour
@@ -851,6 +935,7 @@ defmodule MyLiegeWeb.GameLive do
 
   defp place_name(%Project{gives: {:book, colour}}), do: "#{colour} book"
   defp place_name(%Project{gives: {:invention, :plough}}), do: "improved plough"
+  defp place_name(%Trade{} = trade), do: trade |> Place.type() |> trade_name()
 
   defp place_name(place), do: Place.type(place)
 

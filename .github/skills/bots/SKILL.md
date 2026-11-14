@@ -59,6 +59,9 @@ a step:
 | `PlaceOwn` | workers go to their own colour's home type (placing) | – |
 | `PayAndDeliver` | always pay the tax and deliver the king's demands | – |
 
+No bot action uses the ways (R13–R16): the bots never order a granary, start the improved
+plough or start a trade. `Bot.Placing` sends no worker to an invention or a trade.
+
 The `Bot.BotAction` contract: `run(game, opts) :: game`. It receives its own opts merged
 over the strategy's `build` and the run options (`pivot_week:`, `weeks:`). Named
 `BotAction` to keep them apart from the engine's player actions, `Engine.Actions.*`.

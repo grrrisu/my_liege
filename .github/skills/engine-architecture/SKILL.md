@@ -24,6 +24,7 @@ lib/my_liege/engine/
     blueprint.ex     model: the catalogue, one blueprint per type of place
     building.ex      model: a building that stands in the game, always finished
     project.ex       model: a project, collects progress to a target, then gives something once
+    trade.ex         model: a trade, one trader away until its return week (R16)
   worker.ex          data
   manameter.ex       data
   pentagon.ex        data
@@ -33,6 +34,7 @@ lib/my_liege/engine/
     ways.ex          R13: when a way is unlocked (one rule for every way)
     granary.ex       R14: working granaries, culture upkeep, food spoilage
     inventions.ex    R15: starting, writing and finishing inventions; the plough's bonus
+    trades.ex        R16: a trade's gold, time and food; starting and returning
     staffing.ex      R2: which workers work in a week
     …
   sim_steps/         when it happens: MyLiege.Engine.SimSteps.*
@@ -83,9 +85,10 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
   rule unlocks them all (`Rules.Ways`). A way building is ordered like any building but
   produces nothing (`Production.produces?/1`); its effect is its own rule (`Rules.Granary`).
   An invention is never ordered (`Construct` takes only `building_types/0`); it is started
-  with `Game.start_invention/2` and is a project with its catalogue blueprint.
+  with `Game.start_invention/2` and is a project with its catalogue blueprint. A trade
+  (`engine: :trade`) is started with `Game.start_trade/3` and is a `Place.Trade`.
 - A **place** is one that exists in the game. There is one struct per kind of place:
-  `Place.Building` (always finished) and `Place.Project`, later `Place.Trade`. Each holds
+  `Place.Building` (always finished), `Place.Project` and `Place.Trade`. Each holds
   its `id` and its `blueprint`; `Place.next_id/1` gives the next free id over all places.
 - A **project** (`Place.Project`: `id`, `blueprint`, `target`, `gives`, `progress`) collects
   progress until `done?/1` (`progress >= target`), then gives `gives` once and leaves
@@ -115,12 +118,20 @@ Ask: "Could the designer change this in `rules/rules.md`?" If yes, it is a rule.
     place for food (2 blue, 1 green). Started by `Actions.StartInvention`; once done, step 8
     (`SimSteps.Inventions`, `Rules.Inventions.finish/4`) appends the type to
     `game.inventions` and removes the project.
+- A **trade** (`Place.Trade`: `id`, `blueprint`, `return_week`, R16) has its way's catalogue
+  blueprint (the grain trade: yellow, food) and one trader, chosen when it starts
+  (`Actions.StartTrade`, which pays its gold): no one can be placed on it
+  (`Placement.check_enter/3` gives `:full`) and its trader can't leave
+  (`Placement.check_leave/1`, `:away`, used by `PlaceWorker` and `UnplaceWorker`). The
+  trader works for mana every week and produces nothing; step 8 (`SimSteps.Trades`,
+  `Rules.Trades.return/4`) adds its food at the end of `return_week`, removes it and
+  releases the trader.
 - The **demand** (`game.demand`, `%{product, amount, due_week, project_id}`) is the king's
   obligation, not a place; `project_id` points to its project (`Demands.project/2`), `nil`
   for a demand from the stock.
 - When a place ends, its workers leave with `Rules.Placement.release/3` (unplaced,
   travelling): a finished site, a settled or refused demand project, a finished book or
-  invention.
+  invention, a returned trade.
 - `game.places` is one list of all places, whatever their kind. Workers point to their place
   by id (`worker.place`, `nil` when unplaced).
 - `Place` holds what all kinds share and only reads `place.blueprint` (`colour/1`, `good/1`,

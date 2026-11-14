@@ -13,7 +13,7 @@ defmodule MyLiege.Engine.Rules.Production do
   """
 
   alias MyLiege.Engine.{Config, Fixed, Manameter, Pentagon, Place, Worker}
-  alias MyLiege.Engine.Place.{Blueprint, Building, Project}
+  alias MyLiege.Engine.Place.{Blueprint, Building, Project, Trade}
   alias MyLiege.Engine.Rules.{Books, Inventions, Staffing}
 
   @doc """
@@ -21,11 +21,15 @@ defmodule MyLiege.Engine.Rules.Production do
   book's blue method), before a book's experience factor.
   """
   def worker_output(%Worker{} = worker, place, %Config{} = config) do
-    training = if worker.trained, do: :trained, else: :untrained
-    relation = Pentagon.relation(worker.colour, Place.colour(place))
-    factor_per_mille = config.efficiency[training][relation]
+    factor_per_mille = efficiency(worker, Place.colour(place), config)
     base = config.place_output_per_worker |> Map.fetch!(base_type(place)) |> Fixed.from()
     div(base * factor_per_mille, 1000)
+  end
+
+  @doc "A worker's colour factor (per mille) against `colour`, untrained or trained."
+  def efficiency(%Worker{} = worker, colour, %Config{} = config) do
+    training = if worker.trained, do: :trained, else: :untrained
+    config.efficiency[training][Pentagon.relation(worker.colour, colour)]
   end
 
   @doc """
@@ -47,6 +51,7 @@ defmodule MyLiege.Engine.Rules.Production do
   @doc "Whether working workers at `place` produce into the stock: in a building that is no way."
   def produces?(%Building{blueprint: blueprint}), do: not Blueprint.way?(blueprint)
   def produces?(%Project{}), do: false
+  def produces?(%Trade{}), do: false
 
   defp with_bonus(output, place, inventions, config) do
     if Place.type(place) == :farm,

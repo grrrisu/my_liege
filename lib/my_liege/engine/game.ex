@@ -17,6 +17,7 @@ defmodule MyLiege.Engine.Game do
     RefuseProject,
     StartBook,
     StartInvention,
+    StartTrade,
     UnplaceWorker
   }
 
@@ -63,6 +64,7 @@ defmodule MyLiege.Engine.Game do
     SimSteps.Construction,
     SimSteps.Books,
     SimSteps.Inventions,
+    SimSteps.Trades,
     SimSteps.TrainingEnd,
     SimSteps.TaxPayment,
     SimSteps.DemandDelivery,
@@ -187,6 +189,10 @@ defmodule MyLiege.Engine.Game do
 
   @doc "See `MyLiege.Engine.Actions.StartInvention`."
   def start_invention(%__MODULE__{} = game, type), do: StartInvention.run(game, type)
+
+  @doc "See `MyLiege.Engine.Actions.StartTrade`."
+  def start_trade(%__MODULE__{} = game, worker_id, type),
+    do: StartTrade.run(game, worker_id, type)
 
   @doc "The price of any building, in thousandths of gold."
   def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)
