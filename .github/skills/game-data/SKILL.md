@@ -103,13 +103,15 @@ is left out when a group has only one thing (`travel.weeks`).
 | `way_grain_trade_gold_per_week` | int (gold units per trader and week, at factor 1000) | `way.grain_trade.gold_per_week` | `Rules.Trades.price/3`, GameLive |
 | `way_grain_trade_food_per_week` | int (food units per trader and week) | `way.grain_trade.food_per_week` | `Rules.Trades.food/2` |
 | `way_grain_trade_travel_weeks` | int | `way.grain_trade.travel_weeks` | `Rules.Trades.travel_weeks/2` (via `Rules.Travel.weeks/3`, both ways) |
-| `way_hunting_max_party` | int | `way.hunting.max_party` | `Rules.Hunting.check_start/3`, `LoadConfig` (party rows), GameLive |
-| `way_hunting_travel_weeks` | int | `way.hunting.travel_weeks` | `Rules.Hunting.weeks/1` (×2) |
-| `way_hunting_hunt_weeks` | int | `way.hunting.hunt_weeks` | `Rules.Hunting.weeks/1`, `hunter_haul/2` |
-| `way_hunting_food_per_week` | int (food units) | `way.hunting.food_per_week` | `Rules.Hunting.hunter_haul/2` |
+| `way_hunting_max_party` | int | `way.hunting.max_party` | `Rules.Hunting.capacity/1` (via `Rules.Placement.capacity/2`), `LoadConfig` (party rows) |
+| `way_hunting_travel_weeks` | int | `way.hunting.travel_weeks` | `Rules.Hunting.travel_weeks/1` (via `Rules.Travel.weeks/3`, both ways) |
+| `way_hunting_haul_weeks` | int | `way.hunting.haul_weeks` | `Rules.Hunting.hunt/4` (hunting weeks per haul), `Rules.Suspicion.block_end?/2` (idle blocks), GameLive |
+| `way_hunting_food_per_week` | int (food units per hunter and week, at factor 1000) | `way.hunting.food_per_week` | `Rules.Hunting.hunter_week/2` |
 | `way_hunting_luck` | `%{low \| mid \| high => ‰}` | `way.hunting.luck_<luck>_permille` ×3 | `Rules.Hunting.haul/3` |
 | `way_hunting_party` | `%{size => %{low, mid, high}}`, counts out of 10, sizes 1 to `max_party` | `way.hunting.party<n>.<luck>` ×3 per size | `Rules.Hunting.draw_luck/3` |
-| `king_suspicion_per_expedition` | int | `king.suspicion.per_expedition` | `Rules.Suspicion.add_expedition/2` |
+| `king_suspicion` | `%{low \| mid \| high => int}` | `king.suspicion.<luck>` ×3 | `Rules.Suspicion.after_haul/4` (hauls by 2+ hunters) |
+| `king_suspicion_decay` | int | `king.suspicion.decay` | `Rules.Suspicion.after_haul/4` (1 hunter), `decay/2` (idle block) |
+| `king_suspicion_threshold` | int | `king.suspicion.threshold` | `Rules.Suspicion.check_threshold/2`, GameLive |
 | `travel_weeks` | int | `travel.weeks` | `Rules.Travel.depart/3`, `Rules.Training.first_week/2` |
 | `training_min_share` | ‰ | `training.min_share_permille` | `Rules.Training.check/3` |
 | `training_weeks` | int | `training.weeks` | `Rules.Training.last_week/2` |
@@ -157,7 +159,7 @@ you add one, ask the designer whether it should be a CSV key.
 | A way unlocks with 1 book of its colour and 1 of its good's home colour | `Rules.Ways.missing/2` | `Construct`, `Rules.Inventions.check_start/4`, GameLive |
 | The improved plough's bonus applies to farm workers only | `Rules.Production` (`with_bonus`) | `Production.output/5` |
 | Hunting luck: one draw out of 10 (`:rand.uniform_s(10, _)`); levels `low, mid, high` in that order | `Rules.Hunting.draw_luck/3`, `luck_for/2`; `LoadConfig` `@luck_draws`, `@lucks` | the `Hunts` step |
-| Suspicion starts at 0 | `Rules.Suspicion.none/0` | `Game` defaults |
+| Suspicion starts at 0; idle blocks counted from week 1; halved (rounded down) at the threshold | `Rules.Suspicion.none/0`, `block_end?/2`, `check_threshold/2` | `Game` defaults, the `Hunts` step |
 | A trade route's price divides by the trader's factor against the route's colour; one route per type, opened by the books; travel to and from it is the same | `Rules.Trades.price/3`, `open/2`, `Rules.Travel.weeks/3` | `TradeRoute` and `Books` steps, `PlaceWorker`, `UnplaceWorker`, GameLive |
 | The experience factor's normal share 200 ‰ (books and inventions) | `Rules.Books` `@normal_share` | `Books.written/3`, `Inventions.written/3` |
 | Starting buildings: farm (id 1) and watchtower (id 2), both ready | `Place.Building.starting/0` | `Game.new/2` |
@@ -186,18 +188,18 @@ you add one, ask the designer whether it should be a CSV key.
 | `week` | int, last week run | 0 | `run_week/1` (+1) |
 | `demand_weeks` | `[week]`, one per half year at most | `Demands.schedule/3` in `new/2` | never (tests: `EngineFixtures.game_without_demands/2` sets `[]`) |
 | `workers` | `[%Worker{}]` | `Worker.starting/2` | `place_worker/3`, `unplace_worker/2` (between weeks); steps `Travel`, `Birth` (appends), `Construction` and `TrainingEnd` (release) |
-| `places` | `[%Place.Building{} \| %Place.Project{} \| %Place.Trade{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `start_book/2`, `start_invention/2` (append a project), `place_worker/3` (a route's `traders` queue), `start_hunt/2` (appends an expedition), step `Hunts` (removes what returned), step `Books` (appends a trade route once unlocked), step `TradeRoute` (cuts a route's queue), `refuse_project/1` (removes the demand project); steps `Production` (project progress), `Construction` (site progress; replaces a done site by a building with a new id), `Books`, `Inventions` (remove done projects), `DemandDelivery` (removes the settled demand project), `DemandMade` (appends a demand project) |
+| `places` | `[%Place.Building{} \| %Place.Project{} \| %Place.Trade{} \| %Place.Expedition{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `start_book/2`, `start_invention/2` (append a project), `place_worker/3` (a route's `traders` queue; a camp left empty loses its bag), `unplace_worker/2` (the same for the camp), step `Hunts` (the camp's bag, count and block flag), step `Books` (appends a trade route and the hunting camp once unlocked), step `TradeRoute` (cuts a route's queue), `refuse_project/1` (removes the demand project); steps `Production` (project progress), `Construction` (site progress; replaces a done site by a building with a new id), `Books`, `Inventions` (remove done projects), `DemandDelivery` (removes the settled demand project), `DemandMade` (appends a demand project) |
 | `manameter` | `%Manameter{}` ‰ | `config.manameter_start` | `ManameterUpdate` step |
-| `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2` (gold); step `Hunts` (+ food on return); step `TradeRoute` (− gold, + food); steps `Production` (+, and − the granaries' culture upkeep), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
+| `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2` (gold); step `Hunts` (+ food at a haul); step `TradeRoute` (− gold, + food); steps `Production` (+, and − the granaries' culture upkeep), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
 | `report` | `%WeeklyReport{}` | week-0 report | `run_week/1`; `construct/2` adds to `gold_spent_buildings` |
 | `tax_due` | thousandths \| nil | nil | `TaxCount` sets it, `TaxPayment` clears it |
 | `pay_tax` | bool \| nil | nil | `decide_tax/2` sets it, `TaxPayment` clears it |
 | `demand` | `%{product, amount, due_week, project_id}` \| nil (`project_id` is the id of its project for knowledge and culture, `nil` otherwise) | nil | `DemandMade` sets it, `DemandDelivery` clears it |
 | `deliver_demand` | bool \| nil | nil | `decide_demand/2`, `refuse_project/1`; `DemandDelivery` clears it |
-| `misses` | int | 0 | `TaxPayment`, `DemandDelivery` (via `Rules.Misses`) |
+| `misses` | int | 0 | `Hunts` (the suspicion threshold, R18), `TaxPayment`, `DemandDelivery` (via `Rules.Misses`) |
 | `bandits` | `%{threat (thousandths), raid_week \| nil}` | `Bandits.starting/0` | `Bandits` step |
 | `books` | `%{colour => count}`, all five colours | `Rules.Books.none/0` (all 0) | `Books` step (+1 per finished book) |
-| `suspicion` | int (R18) | 0 (`Rules.Suspicion.none/0`) | `start_hunt/2` (+ `king_suspicion_per_expedition`) |
+| `suspicion` | int (R18), never below 0 | 0 (`Rules.Suspicion.none/0`) | step `Hunts` (a haul's change, idle-block decay, halved at the threshold) |
 | `inventions` | `[type]`, the types invented, in the order finished (R15) | `[]` | `Inventions` step (appends a finished invention) |
 | `game_over` | bool | false | `TaxPayment`, `DemandDelivery` |
 
@@ -249,14 +251,18 @@ never change; `traders` is the queue of worker ids in the order they were placed
 (`Rules.Trades.join/3`, called by `PlaceWorker`: a worker placed again goes last). It may
 hold ids of workers who left; `Rules.Trades.traders/2` reads only those still on it, and
 the `TradeRoute` step cuts it to them. The `Books` step appends the route once the books
-unlock it (`Rules.Trades.open/2`); nothing removes it.
+unlock it (`Rules.Ways.open/2`); nothing removes it.
 
 ### `%Place.Expedition{}` ([place/expedition.ex](../../../lib/my_liege/engine/place/expedition.ex))
 
-`id`, `blueprint` (`engine: :expedition`) and `return_week` never change.
-`Actions.StartHunt` appends it with `return_week = week + Rules.Hunting.weeks/1` and puts
-the party on it (travel 0); the `Hunts` step draws the luck, adds the haul, removes it and
-releases the party at the end of `return_week`.
+The hunting camp (R17). `id` and `blueprint` (`engine: :expedition`) never change. `bag`
+(thousandths) is the food hunted since the last haul, `weeks` the weeks with an arrived
+hunter since then: the `Hunts` step adds to both and empties them at a haul;
+`Rules.Hunting.abandon_empty/2` (called by `PlaceWorker` and `UnplaceWorker`) empties them
+when no worker is left on the camp. `hunted_in_block` (R18) is set by a week with an arrived
+hunter and cleared at the end of every block of `way_hunting_haul_weeks` game weeks. The
+`Books` step appends the camp once the books unlock it (`Rules.Ways.open/2`); nothing
+removes it. The hunters are the workers whose `place` is its id.
 
 ## 4. The weekly report
 
@@ -276,14 +282,16 @@ the steps fill it. The field-by-step mapping is the "Order inside a week" table 
   the week), `plough_done` (`:plough in report.inventions`, end of the week),
   `granary_working`, `culture_upkeep` (thousandths, taken that week), `food_from_trade`
   (thousandths, brought by the trade route that week), `food_from_hunting`
-  (thousandths), `suspicion` (end of the week), `gold_to_trade` (thousandths, paid to the
-  trade route that week), `traders` (on the route in the week's trade step, arrived or not).
+  (thousandths, the camp's haul that week), `suspicion` (end of the week), `gold_to_trade` (thousandths, paid to the
+  trade route that week), `traders` (on the route in the week's trade step, arrived or not), `hunters` (on the camp in
+  the week's step 8, arrived or not), `suspicion_miss` (the threshold counted a miss that
+  week).
 - **Not exported**: `start` (the game at the start of the week, `nil` once the week is done),
   `stock_change` and `project_change` (for `Forecast`), `bandit_protected`,
   `bandit_threat_change` and `bandit_raid` (for the UI), `books_finished` (the colours of
   the books finished that week), `inventions_finished` (the types finished that week), `food_short` (the week was short of
-  food, R8), `routes_opened` (the trade routes opened that week), `hunts_returned` (one
-  `%{hunters, luck, food}` per returned hunt, for the UI).
+  food, R8), `ways_opened` (the trade route and hunting camp opened that week), `haul` (the week's
+  `%{hunters, luck, food, suspicion_change}` or `nil`, for the UI).
 
 The export format is fixed. Ask before changing a column (hard rule 5).
 

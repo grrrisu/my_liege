@@ -34,10 +34,12 @@ defmodule MyLiege.Engine.WeeklyReport do
 
   R16: `food_from_trade` is the food the trade route brought that week, `gold_to_trade` the
   gold paid to it (thousandths), `traders` the workers on it in the week's trade step, arrived
-  or not; `routes_opened` the types of route opened that week.
-  R17: `food_from_hunting` is the food the hunts that returned that week brought (thousandths);
-  `hunts_returned` one `%{hunters, luck, food}` per returned hunt. R18: `suspicion` is the
-  king's suspicion at the end of the week.
+  or not; `ways_opened` the types of standing way (route, camp) opened that week.
+  R17: `hunters` are the workers on the hunting camp in the week's hunt step, arrived or not;
+  `haul` is the week's haul, `%{hunters, luck, food, suspicion_change}` (arrived hunters,
+  luck drawn, food into the stock, R18 change it made), or `nil`; `food_from_hunting` its
+  food (thousandths). R18: `suspicion` is the king's suspicion at the end of the week;
+  `suspicion_miss` whether it reached the threshold and counted as a miss that week.
 
   For the forecasts (`Forecast`): `stock_change` is every stock at the end of the week minus at
   its start (one-off payments, the king's takings and robbery included; gold spent on buildings
@@ -91,9 +93,11 @@ defmodule MyLiege.Engine.WeeklyReport do
     food_from_trade: 0,
     gold_to_trade: 0,
     traders: 0,
-    routes_opened: [],
+    ways_opened: [],
     food_from_hunting: 0,
-    hunts_returned: [],
+    hunters: 0,
+    haul: nil,
+    suspicion_miss: false,
     suspicion: nil,
     stock_change: nil,
     project_change: nil,
@@ -139,9 +143,18 @@ defmodule MyLiege.Engine.WeeklyReport do
           food_from_trade: non_neg_integer(),
           gold_to_trade: non_neg_integer(),
           traders: non_neg_integer(),
-          routes_opened: [atom()],
+          ways_opened: [atom()],
           food_from_hunting: non_neg_integer(),
-          hunts_returned: [%{hunters: pos_integer(), luck: atom(), food: non_neg_integer()}],
+          hunters: non_neg_integer(),
+          haul:
+            %{
+              hunters: pos_integer(),
+              luck: atom(),
+              food: non_neg_integer(),
+              suspicion_change: integer()
+            }
+            | nil,
+          suspicion_miss: boolean(),
           suspicion: non_neg_integer() | nil,
           stock_change: %{atom() => integer()} | nil,
           project_change: integer() | nil,

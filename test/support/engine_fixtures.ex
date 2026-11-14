@@ -44,7 +44,7 @@ defmodule MyLiege.EngineFixtures do
         way_grain_trade_travel_weeks: 3,
         way_hunting_max_party: 4,
         way_hunting_travel_weeks: 3,
-        way_hunting_hunt_weeks: 12,
+        way_hunting_haul_weeks: 6,
         way_hunting_food_per_week: 15,
         way_hunting_luck: %{low: 500, mid: 1000, high: 1500},
         way_hunting_party: %{
@@ -53,7 +53,9 @@ defmodule MyLiege.EngineFixtures do
           3 => %{low: 2, mid: 4, high: 4},
           4 => %{low: 1, mid: 3, high: 6}
         },
-        king_suspicion_per_expedition: 1,
+        king_suspicion: %{low: 0, mid: 1, high: 2},
+        king_suspicion_decay: 1,
+        king_suspicion_threshold: 12,
         # no travel, so tests about other rules see placements take effect at once
         travel_weeks: 0,
         mana_place_colour: 2,

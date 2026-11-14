@@ -3,7 +3,7 @@ defmodule MyLiege.Engine.Rules.Trades do
   R16, trade routes: a way (R13) that is a `Place.Trade`; for now the grain trade route,
   yellow's way to food.
 
-  - Once unlocked (`Rules.Ways`), the route is a place in the village (`open/2`, in the
+  - Once unlocked (`Rules.Ways`), the route is a place in the village (`Ways.open/2`, in the
     Books step that finishes the last book it needs): one route, nothing to build or pay.
   - Workers of any colour, trained or not, are placed on it and leave it as in a building,
     up to `way_grain_trade_capacity`, but travel `way_grain_trade_travel_weeks` instead of
@@ -21,7 +21,7 @@ defmodule MyLiege.Engine.Rules.Trades do
 
   alias MyLiege.Engine.{Config, Fixed, Place, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Trade}
-  alias MyLiege.Engine.Rules.{Production, Ways}
+  alias MyLiege.Engine.Rules.Production
 
   @types Blueprint.trade_types()
 
@@ -49,23 +49,6 @@ defmodule MyLiege.Engine.Rules.Trades do
 
   @doc "The route of `type` among `places`, or `nil` while it isn't open."
   def route(places, type), do: Enum.find(places, &match?(%Trade{blueprint: %{type: ^type}}, &1))
-
-  @doc """
-  Appends every route that `books` unlock and that isn't open yet to `places`, with the next
-  free id and no traders. Returns `{places, opened_types}`.
-  """
-  def open(places, books) do
-    Enum.reduce(@types, {places, []}, fn type, {places, opened} ->
-      blueprint = Blueprint.fetch!(type)
-
-      if route(places, type) == nil and Ways.unlocked?(blueprint, books) do
-        route = %Trade{id: Place.next_id(places), blueprint: blueprint}
-        {places ++ [route], opened ++ [type]}
-      else
-        {places, opened}
-      end
-    end)
-  end
 
   @doc """
   Puts `worker_id` last in the queue of the route with id `route_id`, wherever he stood in it

@@ -78,7 +78,7 @@ way.grain_trade.food_per_week,40
 way.grain_trade.travel_weeks,3
 way.hunting.max_party,4
 way.hunting.travel_weeks,3
-way.hunting.hunt_weeks,12
+way.hunting.haul_weeks,6
 way.hunting.food_per_week,15
 way.hunting.luck_low_permille,500
 way.hunting.luck_mid_permille,1000
@@ -95,4 +95,8 @@ way.hunting.party3.high,4
 way.hunting.party4.low,1
 way.hunting.party4.mid,3
 way.hunting.party4.high,6
-king.suspicion.per_expedition,1
+king.suspicion.low,0
+king.suspicion.mid,1
+king.suspicion.high,2
+king.suspicion.decay,1
+king.suspicion.threshold,12

@@ -265,37 +265,29 @@ defmodule MyLiegeWeb.GameLiveTest do
     refute has_element?(view, "#plough-invented")
   end
 
-  test "R16: the grain trade route is shown locked until its books open it", %{conn: conn} do
+  test "R16/R17: the grain trade route and the hunting camp are shown locked until their books open them",
+       %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
-    assert has_element?(view, "#route-locked-grain_trade #locked-grain_trade")
+    assert has_element?(view, "#way-locked-grain_trade #locked-grain_trade")
+    assert has_element?(view, "#way-locked-hunting #locked-hunting")
     refute has_element?(view, "#start-trade-grain_trade")
+    refute has_element?(view, "#set-out-hunting")
 
     view |> element("#worker-1") |> render_click()
     refute has_element?(view, "#place-3")
   end
 
-  test "R17/R18: a hunting party is picked worker by worker; locked hunts can't set out; suspicion shown",
-       %{conn: conn} do
+  test "R18: the suspicion is shown against its threshold", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/game")
 
-    assert has_element?(view, "#suspicion", "0")
-    assert has_element?(view, "#add-to-party[disabled]")
-    assert has_element?(view, "#set-out-hunting[disabled]")
-    assert has_element?(view, "#set-out-hunting #locked-hunting")
+    assert has_element?(
+             view,
+             "#suspicion",
+             "king's suspicion 0 of #{Config.from_csv().king_suspicion_threshold}"
+           )
 
-    view |> element("#worker-1") |> render_click()
-    view |> element("#add-to-party") |> render_click()
-    assert has_element?(view, "#party-1")
-
-    view |> element("#worker-2") |> render_click()
-    view |> element("#add-to-party") |> render_click()
-    assert has_element?(view, "#party-2")
-    assert has_element?(view, "#set-out-hunting[disabled]")
-
-    view |> element("#party-1") |> render_click()
-    refute has_element?(view, "#party-1")
-    assert has_element?(view, "#party-2")
+    refute has_element?(view, "#suspicion-last-haul")
   end
 
   defp next_week(view) do

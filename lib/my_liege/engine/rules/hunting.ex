@@ -1,94 +1,54 @@
 defmodule MyLiege.Engine.Rules.Hunting do
   @moduledoc """
-  R17, hunting: red's way to food, an expedition (`Place.Expedition`).
+  R17, the hunting camp: red's way to food, a `Place.Expedition`.
 
-  - Once unlocked (`Rules.Ways`: a red and a green book), the player starts a hunt at no cost
-    with a party of 1 to `way_hunting_max_party` workers of any colour who have arrived
-    (travel 0), unplaced or taken out of their place (a trainee loses his training). No
-    building. Several hunts may run at once.
-  - The party is away `way_hunting_travel_weeks` + `way_hunting_hunt_weeks` +
-    `way_hunting_travel_weeks` weeks from the week after it sets out. Away, the hunters eat,
-    count for taxes, produce nothing (so they don't defend) and make mana as at a red place
-    for food (R3); they can't be moved or unplaced (`Placement.check_leave/1`).
-  - On return: the haul is every hunter's `way_hunting_food_per_week` × `way_hunting_hunt_weeks`
-    × his colour factor against red (R2), summed, × the luck factor, rounded down once. It
-    goes into the food stock; the expedition disappears and the party is released.
-  - Luck: one draw per hunt out of 10 when it returns, with the counts
-    `way_hunting_party[size]` (low, mid, high); the factor is `way_hunting_luck[level]`.
+  - Once unlocked (`Rules.Ways`: a red and a green book), the camp is a place in the village
+    (`Rules.Ways.open/2`, in the Books step): one camp, nothing to build or pay, open to the
+    end of the game.
+  - Workers of any colour, trained or not, are placed on it and leave it as in a building, up
+    to `way_hunting_max_party`, but travel `way_hunting_travel_weeks` instead of
+    `travel_weeks`, both ways (`Rules.Travel.weeks/3`). A hunter stays until moved.
+  - A hunter eats, counts for taxes, produces nothing (so he doesn't defend) and, once
+    arrived, makes mana as at a red place for food (R3).
+  - Every week (`hunt/4`), each arrived hunter adds `way_hunting_food_per_week` × his colour
+    factor against red (R2) to the camp's bag; a week with an arrived hunter counts. Every
+    `way_hunting_haul_weeks` counted weeks there is a haul: one luck draw by the number of
+    arrived hunters that week; bag × the luck factor ÷ 1000, rounded down, goes into the
+    stock, and the bag and the count start again.
+  - When the last worker leaves the camp (`abandon_empty/2`), the bag and the count are lost.
 
   Amounts are in thousandths (see `Fixed`). Random state is passed in and returned.
   """
 
   alias MyLiege.Engine.{Config, Fixed, Place, Worker}
   alias MyLiege.Engine.Place.{Blueprint, Expedition}
-  alias MyLiege.Engine.Rules.{Placement, Production, Travel, Ways}
+  alias MyLiege.Engine.Rules.Production
 
   @type luck :: :low | :mid | :high
   @lucks [:low, :mid, :high]
 
-  @doc "How many weeks a hunt is away: out, hunting, back."
-  def weeks(%Config{} = config),
-    do: 2 * config.way_hunting_travel_weeks + config.way_hunting_hunt_weeks
+  @doc "How many hunters the camp takes."
+  def capacity(%Config{} = config), do: config.way_hunting_max_party
 
-  @doc """
-  Whether `hunters` (each `{worker, place}`, `place` `nil` if unplaced) may set out: `:ok` or
-  `{:error, reason}` with reason `:locked`, `:party_size` (none, or more than
-  `way_hunting_max_party`), `:duplicate`, `:away` or `:travelling`, in this order.
-  """
-  def check_start(hunters, books, %Config{} = config) do
-    workers = Enum.map(hunters, &elem(&1, 0))
+  @doc "The weeks a worker travels on the way to or from the camp."
+  def travel_weeks(%Config{} = config), do: config.way_hunting_travel_weeks
 
-    cond do
-      Ways.check(Blueprint.fetch!(:hunting), books) != :ok ->
-        {:error, :locked}
+  @doc "The camp among `places`, or `nil` while it isn't open."
+  def camp(places), do: Enum.find(places, &match?(%Expedition{}, &1))
 
-      hunters == [] or length(hunters) > config.way_hunting_max_party ->
-        {:error, :party_size}
-
-      workers |> Enum.uniq_by(& &1.id) |> length() < length(workers) ->
-        {:error, :duplicate}
-
-      Enum.any?(hunters, fn {_w, place} -> Placement.check_leave(place) != :ok end) ->
-        {:error, :away}
-
-      Enum.any?(workers, &Travel.travelling?/1) ->
-        {:error, :travelling}
-
-      true ->
-        :ok
-    end
-  end
-
-  @doc """
-  Appends a hunt that sets out while the game stands at `week` to `places`, with the next
-  free id; it returns at the end of `week` + `weeks/1`.
-  """
-  def new_expedition(places, week, %Config{} = config) do
-    hunt = %Expedition{
-      id: Place.next_id(places),
-      blueprint: Blueprint.fetch!(:hunting),
-      return_week: week + weeks(config)
-    }
-
-    places ++ [hunt]
-  end
-
-  @doc "What one hunter brings at a luck factor of 1000 (thousandths)."
-  def hunter_haul(%Worker{} = worker, %Config{} = config) do
+  @doc "What one arrived hunter adds to the bag in a week (thousandths)."
+  def hunter_week(%Worker{} = worker, %Config{} = config) do
     factor = Production.efficiency(worker, Blueprint.fetch!(:hunting).colour, config)
-    base = Fixed.from(config.way_hunting_food_per_week * config.way_hunting_hunt_weeks)
-    div(base * factor, 1000)
+    div(Fixed.from(config.way_hunting_food_per_week) * factor, 1000)
   end
 
-  @doc "The haul of `hunters` at `luck`: their hunter hauls summed, × the luck factor, rounded down."
-  def haul(hunters, luck, %Config{} = config) when luck in @lucks do
-    total = hunters |> Enum.map(&hunter_haul(&1, config)) |> Enum.sum()
-    div(total * Map.fetch!(config.way_hunting_luck, luck), 1000)
-  end
+  @doc "A haul: `bag` × the luck factor ÷ 1000, rounded down."
+  def haul(bag, luck, %Config{} = config) when luck in @lucks,
+    do: div(bag * Map.fetch!(config.way_hunting_luck, luck), 1000)
 
   @doc """
-  Draws the luck of a party of `size`: one draw out of 10 from `rand`, low for the first
-  `low` counts, then mid, then high. Returns `{luck, rand}`.
+  Draws the luck of a haul by `size` arrived hunters: one draw out of 10 from `rand`, low for
+  the first `low` counts, then mid, then high. Returns `{luck, rand}`.
   """
   def draw_luck(size, %Config{} = config, rand) do
     {draw, rand} = :rand.uniform_s(10, rand)
@@ -105,25 +65,44 @@ defmodule MyLiege.Engine.Rules.Hunting do
   end
 
   @doc """
-  Every hunt returning at the end of `week`, in the order of `places`: draws its luck, adds
-  its haul, removes it and releases its party. Returns `{places, workers, food, results,
-  rand}` with `results` a list of `%{hunters, luck, food}`.
+  The camp's week. `workers` carry their travel as at the start of the week. Each arrived
+  hunter (travel 0) fills the bag; a week with one counts and marks the idle block as hunted.
+  At `way_hunting_haul_weeks` counted weeks: one luck draw, the haul, the bag and the count
+  start again. Returns `{camp, haul, rand}` with `haul` `%{hunters, luck, food}` or `nil`;
+  `rand` is used only for a haul.
   """
-  def return(places, workers, week, %Config{} = config, rand) do
-    returning = for %Expedition{} = hunt <- places, Expedition.returns?(hunt, week), do: hunt
+  def hunt(%Expedition{} = camp, workers, %Config{} = config, rand) do
+    arrived = workers |> Place.workers_at(camp.id) |> Enum.filter(&(&1.travel == 0))
 
-    {results, rand} =
-      Enum.map_reduce(returning, rand, fn hunt, rand ->
-        hunters = Place.workers_at(workers, hunt.id)
-        {luck, rand} = draw_luck(length(hunters), config, rand)
-        {%{hunters: length(hunters), luck: luck, food: haul(hunters, luck, config)}, rand}
-      end)
+    if arrived == [] do
+      {camp, nil, rand}
+    else
+      bag = camp.bag + (arrived |> Enum.map(&hunter_week(&1, config)) |> Enum.sum())
+      camp = %{camp | bag: bag, weeks: camp.weeks + 1, hunted_in_block: true}
 
-    ids = MapSet.new(returning, & &1.id)
-    places = Enum.reject(places, &MapSet.member?(ids, &1.id))
-    workers = Enum.reduce(returning, workers, &Placement.release(&2, &1.id, config))
-    food = results |> Enum.map(& &1.food) |> Enum.sum()
+      if camp.weeks >= config.way_hunting_haul_weeks do
+        {luck, rand} = draw_luck(length(arrived), config, rand)
+        haul = %{hunters: length(arrived), luck: luck, food: haul(bag, luck, config)}
+        {%{camp | bag: 0, weeks: 0}, haul, rand}
+      else
+        {camp, nil, rand}
+      end
+    end
+  end
 
-    {places, workers, food, results, rand}
+  @doc """
+  Empties the bag and the count of a camp that no worker is placed on any more, arrived or
+  not. Called when workers leave a place.
+  """
+  def abandon_empty(places, workers) do
+    Enum.map(places, fn
+      %Expedition{} = camp ->
+        if Place.workers_at(workers, camp.id) == [],
+          do: %{camp | bag: 0, weeks: 0},
+          else: camp
+
+      place ->
+        place
+    end)
   end
 end
