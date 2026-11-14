@@ -27,6 +27,7 @@ defmodule MyLiege.Engine.Place.BlueprintTest do
                :granary,
                :plough,
                :grain_trade,
+               :hunting,
                :guildhouse
              ]
 
@@ -40,8 +41,12 @@ defmodule MyLiege.Engine.Place.BlueprintTest do
   end
 
   test "R13: the ways come after the home places; a way's colour is not its good's home colour" do
-    assert Enum.map(Blueprint.ways(), & &1.type) == [:granary, :plough, :grain_trade]
+    assert Enum.map(Blueprint.ways(), & &1.type) == [:granary, :plough, :grain_trade, :hunting]
     assert Blueprint.trade_types() == [:grain_trade]
+    assert Blueprint.expedition_types() == [:hunting]
+
+    assert %Blueprint{colour: :red, good: :food, engine: :expedition} =
+             Blueprint.fetch!(:hunting)
 
     assert %Blueprint{colour: :yellow, good: :food, engine: :trade} =
              Blueprint.fetch!(:grain_trade)

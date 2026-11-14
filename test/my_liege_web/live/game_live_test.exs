@@ -281,6 +281,29 @@ defmodule MyLiegeWeb.GameLiveTest do
     assert has_element?(view, "#start-trade-grain_trade[disabled]")
   end
 
+  test "R17/R18: a hunting party is picked worker by worker; locked hunts can't set out; suspicion shown",
+       %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/game")
+
+    assert has_element?(view, "#suspicion", "0")
+    assert has_element?(view, "#add-to-party[disabled]")
+    assert has_element?(view, "#set-out-hunting[disabled]")
+    assert has_element?(view, "#set-out-hunting #locked-hunting")
+
+    view |> element("#worker-1") |> render_click()
+    view |> element("#add-to-party") |> render_click()
+    assert has_element?(view, "#party-1")
+
+    view |> element("#worker-2") |> render_click()
+    view |> element("#add-to-party") |> render_click()
+    assert has_element?(view, "#party-2")
+    assert has_element?(view, "#set-out-hunting[disabled]")
+
+    view |> element("#party-1") |> render_click()
+    refute has_element?(view, "#party-1")
+    assert has_element?(view, "#party-2")
+  end
+
   defp next_week(view) do
     deliver_demand(view)
     view |> element("#next-week") |> render_click()

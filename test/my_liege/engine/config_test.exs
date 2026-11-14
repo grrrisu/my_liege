@@ -36,6 +36,21 @@ defmodule MyLiege.Engine.ConfigTest do
       end
     end
 
+    test "R17: hunting party counts are read for sizes 1 to max_party and must sum to 10" do
+      inputs = "priv/balance_inputs.csv" |> File.read!() |> LoadConfig.parse!()
+      config = LoadConfig.read!(inputs)
+
+      assert Map.keys(config.way_hunting_party) == Enum.to_list(1..config.way_hunting_max_party)
+
+      assert_raise ArgumentError, ~r/way.hunting.party2.\* must sum to 10, got 11/, fn ->
+        inputs |> Map.update!("way.hunting.party2.low", &(&1 + 1)) |> LoadConfig.read!()
+      end
+
+      assert_raise ArgumentError, ~r/keys not read: \["way.hunting.party4/, fn ->
+        inputs |> Map.put("way.hunting.max_party", 3) |> LoadConfig.read!()
+      end
+    end
+
     test "the lists written out in LoadConfig match the engine's" do
       assert LoadConfig.names() == %{trainings: Worker.trainings()}
     end
