@@ -36,7 +36,8 @@ defmodule MyLiege.Engine.WeeklyReport do
 
   R16: `food_from_trade` is the food the trade route brought that week, `gold_to_trade` the
   gold paid to it (thousandths), `traders` the workers on it in the week's trade step, arrived
-  or not; `ways_opened` the types of standing way (route, camp) opened that week.
+  or not; `places_unlocked` the types of trade route and expedition (route, camp) unlocked, and so
+  opened as places, that week.
   R17: `hunters` are the workers on the hunting camp in the week's hunt step, arrived or not;
   `haul` is the week's haul, `%{hunters, luck, food, suspicion_change}` (arrived hunters,
   luck drawn, food into the stock, R18 change it made), or `nil`; `food_from_hunting` its
@@ -97,7 +98,7 @@ defmodule MyLiege.Engine.WeeklyReport do
     food_from_trade: 0,
     gold_to_trade: 0,
     traders: 0,
-    ways_opened: [],
+    places_unlocked: [],
     food_from_hunting: 0,
     hunters: 0,
     haul: nil,
@@ -149,7 +150,7 @@ defmodule MyLiege.Engine.WeeklyReport do
           food_from_trade: non_neg_integer(),
           gold_to_trade: non_neg_integer(),
           traders: non_neg_integer(),
-          ways_opened: [atom()],
+          places_unlocked: [atom()],
           food_from_hunting: non_neg_integer(),
           hunters: non_neg_integer(),
           haul:

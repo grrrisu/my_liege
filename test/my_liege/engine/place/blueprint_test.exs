@@ -72,4 +72,12 @@ defmodule MyLiege.Engine.Place.BlueprintTest do
     assert Enum.all?(Blueprint.ways(), &Blueprint.way?/1)
     refute Blueprint.way?(Blueprint.fetch!(:guildhouse))
   end
+
+  test "R13: every way needs at least one book of each colour; no other type needs any" do
+    for %Blueprint{books: books} <- Blueprint.ways(), do: assert(books == :config or books >= 1)
+
+    for %Blueprint{books: books} = blueprint <- Blueprint.all(),
+        not Blueprint.way?(blueprint),
+        do: assert(books == 0)
+  end
 end

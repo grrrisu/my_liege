@@ -12,7 +12,7 @@ defmodule MyLiege.Engine.Place.Project do
   - an invention gives `{:invention, type}`: once done, the type joins the village's
     inventions (see `Rules.Inventions`).
 
-  An invention's blueprint is its way's entry in the catalogue (`engine: :project`); the
+  An invention's blueprint is its own entry in the catalogue (`engine: :project`); the
   other projects build their own (`site_blueprint/0`, `demand_blueprint/1`,
   `book_blueprint/0`).
   """

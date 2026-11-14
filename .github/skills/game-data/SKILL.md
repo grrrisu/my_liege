@@ -59,11 +59,14 @@ is left out when a group has only one thing (`travel.weeks`).
 
 - **Group**, the system: `game`, `start`, `birth`, `place`, `good`, `efficiency`, `mana`,
   `manameter`, `training`, `build`, `travel`, `king` (also `king.suspicion`), `bandit`,
-  `happiness`, `book`, `way`
-  (v2 later: `trade`, `expedition`, `suspicion`). A way that is a building keeps its keys
-  under `place.<type>.*` (`place.granary.capacity`); a way that is an invention, a trade
-  route or an expedition under `way.<type>.*` (`way.plough.work`,
-  `way.grain_trade.capacity`, `way.hunting.max_party`).
+  `happiness`, `book`, `invention`, `trade`, `expedition` (v2 later: `suspicion`). A place
+  type's own keys go under the group of its kind of place, its blueprint's `engine`:
+  `:building` → `place` (`place.granary.capacity`), `:project` → `invention`
+  (`invention.plough.work`), `:trade` → `trade` (`trade.grain_trade.capacity`),
+  `:expedition` → `expedition` (`expedition.hunting.max_party`). There is no `way` group: a
+  way (R13) is a design idea that cuts across these kinds, not a kind of place, so later ways
+  slot in the same way (`invention.better_bows.*`, `trade.mercenaries.*`,
+  `expedition.raid.*`).
 - **Item**, a name the code already uses: place type, good, colour, training level,
   relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
 - **Unit** from the ending: `_permille`, `_weeks`, otherwise a whole amount.
@@ -71,6 +74,8 @@ is left out when a group has only one thing (`travel.weeks`).
   (`king.tax.per_worker` → `king_tax_per_worker`). Keys that differ only by item are one field,
   a map keyed by the item (`place.<type>.capacity` → `place_capacity: %{farm: …}`), and the
   item drops out of the name. A per-mille field shows its unit in this table, not in its name.
+  One exception: `<group>.<type>.books` spans groups, so its field is `books_needed`, keyed
+  by type, the group taken from the blueprint's `engine` (`LoadConfig`).
 
 ### Fields
 
@@ -97,23 +102,23 @@ is left out when a group has only one thing (`travel.weeks`).
 | `place_granary_food_spoilage` | ‰ | `place.granary.food_spoilage_permille` | `Rules.Granary.food_spoiled/3` (via `Rules.Spoilage.spoil/3`), the protected food's rate |
 | `place_granary_food_capacity` | int (food units per working granary) | `place.granary.food_capacity` | `Rules.Granary.protected/3` (`Fixed.from`) |
 | `place_granary_culture_upkeep` | int (culture units a week) | `place.granary.culture_upkeep` | `Rules.Granary.upkeep/3` (`Fixed.from`) |
-| `way_plough_work` | int (knowledge units) | `way.plough.work` | `Rules.Inventions.new_invention/3` (the target, `Fixed.from`) |
-| `way_plough_capacity` | int | `way.plough.capacity` | `Rules.Inventions.capacity/2` (via `Rules.Placement.capacity/2`) |
-| `way_plough_bonus` | ‰ | `way.plough.bonus_permille` | `Rules.Inventions.effect/2` (→ `farm_bonus/2`, `farm_output/3`), GameLive |
-| `way_plough_2_work` | int (knowledge units) | `way.plough_2.work` | `Rules.Inventions.target/2` |
-| `way_plough_2_capacity` | int | `way.plough_2.capacity` | `Rules.Inventions.capacity/2` |
-| `way_plough_2_bonus` | ‰ | `way.plough_2.bonus_permille` | `Rules.Inventions.effect/2` |
-| `way_books` | `%{type => int}` for the catalogue entries with `books: :config` (today `:plough_2`) | `way.<type>.books` | `Rules.Ways.books_needed/2` |
-| `way_grain_trade_capacity` | int | `way.grain_trade.capacity` | `Rules.Trades.capacity/2` (via `Rules.Placement.capacity/2`) |
-| `way_grain_trade_gold_per_week` | int (gold units per trader and week, at factor 1000) | `way.grain_trade.gold_per_week` | `Rules.Trades.price/3`, GameLive |
-| `way_grain_trade_food_per_week` | int (food units per trader and week) | `way.grain_trade.food_per_week` | `Rules.Trades.food/2` |
-| `way_grain_trade_travel_weeks` | int | `way.grain_trade.travel_weeks` | `Rules.Trades.travel_weeks/2` (via `Rules.Travel.weeks/3`, both ways) |
-| `way_hunting_max_party` | int | `way.hunting.max_party` | `Rules.Hunting.capacity/1` (via `Rules.Placement.capacity/2`), `LoadConfig` (party rows) |
-| `way_hunting_travel_weeks` | int | `way.hunting.travel_weeks` | `Rules.Hunting.travel_weeks/1` (via `Rules.Travel.weeks/3`, both ways) |
-| `way_hunting_haul_weeks` | int | `way.hunting.haul_weeks` | `Rules.Hunting.hunt/4` (hunting weeks per haul), `Rules.Suspicion.block_end?/2` (idle blocks), GameLive |
-| `way_hunting_food_per_week` | int (food units per hunter and week, at factor 1000) | `way.hunting.food_per_week` | `Rules.Hunting.hunter_week/2` |
-| `way_hunting_luck` | `%{low \| mid \| high => ‰}` | `way.hunting.luck_<luck>_permille` ×3 | `Rules.Hunting.haul/3` |
-| `way_hunting_party` | `%{size => %{low, mid, high}}`, counts out of 10, sizes 1 to `max_party` | `way.hunting.party<n>.<luck>` ×3 per size | `Rules.Hunting.draw_luck/3` |
+| `invention_plough_work` | int (knowledge units) | `invention.plough.work` | `Rules.Inventions.new_invention/3` (the target, `Fixed.from`) |
+| `invention_plough_capacity` | int | `invention.plough.capacity` | `Rules.Inventions.capacity/2` (via `Rules.Placement.capacity/2`) |
+| `invention_plough_bonus` | ‰ | `invention.plough.bonus_permille` | `Rules.Inventions.effect/2` (→ `farm_bonus/2`, `farm_output/3`), GameLive |
+| `invention_plough_2_work` | int (knowledge units) | `invention.plough_2.work` | `Rules.Inventions.target/2` |
+| `invention_plough_2_capacity` | int | `invention.plough_2.capacity` | `Rules.Inventions.capacity/2` |
+| `invention_plough_2_bonus` | ‰ | `invention.plough_2.bonus_permille` | `Rules.Inventions.effect/2` |
+| `books_needed` | `%{type => int}` for the catalogue entries with `books: :config` (today `:plough_2`) | `<group>.<type>.books`, the group by the blueprint's `engine` (today `invention.plough_2.books`) | `Rules.Requirements.books_needed/2` |
+| `trade_grain_trade_capacity` | int | `trade.grain_trade.capacity` | `Rules.Trades.capacity/2` (via `Rules.Placement.capacity/2`) |
+| `trade_grain_trade_gold_per_week` | int (gold units per trader and week, at factor 1000) | `trade.grain_trade.gold_per_week` | `Rules.Trades.price/3`, GameLive |
+| `trade_grain_trade_food_per_week` | int (food units per trader and week) | `trade.grain_trade.food_per_week` | `Rules.Trades.food/2` |
+| `trade_grain_trade_travel_weeks` | int | `trade.grain_trade.travel_weeks` | `Rules.Trades.travel_weeks/2` (via `Rules.Travel.weeks/3`, both ways) |
+| `expedition_hunting_max_party` | int | `expedition.hunting.max_party` | `Rules.Hunting.capacity/1` (via `Rules.Placement.capacity/2`), `LoadConfig` (party rows) |
+| `expedition_hunting_travel_weeks` | int | `expedition.hunting.travel_weeks` | `Rules.Hunting.travel_weeks/1` (via `Rules.Travel.weeks/3`, both ways) |
+| `expedition_hunting_haul_weeks` | int | `expedition.hunting.haul_weeks` | `Rules.Hunting.hunt/4` (hunting weeks per haul), `Rules.Suspicion.block_end?/2` (idle blocks), GameLive |
+| `expedition_hunting_food_per_week` | int (food units per hunter and week, at factor 1000) | `expedition.hunting.food_per_week` | `Rules.Hunting.hunter_week/2` |
+| `expedition_hunting_luck` | `%{low \| mid \| high => ‰}` | `expedition.hunting.luck_<luck>_permille` ×3 | `Rules.Hunting.haul/3` |
+| `expedition_hunting_party` | `%{size => %{low, mid, high}}`, counts out of 10, sizes 1 to `max_party` | `expedition.hunting.party<n>.<luck>` ×3 per size | `Rules.Hunting.draw_luck/3` |
 | `king_suspicion` | `%{low \| mid \| high => int}` | `king.suspicion.<luck>` ×3 | `Rules.Suspicion.after_haul/4` (hauls by 2+ hunters) |
 | `king_suspicion_decay` | int | `king.suspicion.decay` | `Rules.Suspicion.after_haul/4` (1 hunter), `decay/2` (idle block) |
 | `king_suspicion_threshold` | int | `king.suspicion.threshold` | `Rules.Suspicion.check_threshold/2`, GameLive |
@@ -144,8 +149,8 @@ and colours and relations from `Pentagon.colours/0` and `Pentagon.relations/0`; 
 them depends on `Config`. The list of trainings is written out in `LoadConfig`, not taken
 from `Worker`, which depends on `Config` at compile time; `config_test.exs` checks it equals
 `Worker.trainings/0`, and that every building type has its `place.<type>.*` keys.
-`way.hunting.party<n>.*` is read for n = 1 to `way.hunting.max_party` (peeked first); each
-size's counts must sum to 10, and a row beyond `max_party` is unread and fails the build.
+`expedition.hunting.party<n>.*` is read for n = 1 to `expedition.hunting.max_party` (peeked
+first); each size's counts must sum to 10, and a row beyond `max_party` is unread and fails the build.
 
 ## 2. Hardcoded values
 
@@ -161,7 +166,7 @@ you add one, ask the designer whether it should be a CSV key.
 | Manameter total 1000 | `Manameter.total_shares/0` | `LoadConfig` (validation) |
 | Same / neighbour / opposite from pentagon distance | `Pentagon.relation/2` | `Rules.Production` |
 | Place type → colour, type → good; home places, ways (granary violet→food, building; plough I and II blue→food, inventions; grain trade route yellow→food, trade), guildhouse neutral | `Place.Blueprint` catalogue, `types/0`, `building_types/0`, `home_types/0`, `trade_types/0`, `ways/0`, `way?/1`, `goods/0`, `home_type/1`, `home_colour/1` | everything that iterates types or goods |
-| A way unlocks with its entry's `books` (default 1) of its colour and of its good's home colour, and its `requires` invention; plough II requires plough I | `Place.Blueprint` catalogue (`books`, `requires`), `Rules.Ways.missing/4` | `Construct`, `Rules.Inventions.check_start/5`, `Ways.open/4`, GameLive |
+| A type unlocks with its entry's `books` (default 0; 1 for every way, R13) of its colour and of its good's home colour, and its `requires` invention; plough II requires plough I | `Place.Blueprint` catalogue (`books`, `requires`), `Rules.Requirements.missing/4` | `Construct`, `Rules.Inventions.check_start/5`, `Requirements.open/4`, GameLive |
 | The ploughs' bonuses add up and apply to farm workers only | `Rules.Inventions.farm_bonus/2`, `Rules.Production` (`with_bonus`) | `Production.output/5` |
 | `plough_level` counts `:plough` and `:plough_2` | `Rules.Inventions.plough_level/1` | `Reporting` |
 | Hunting luck: one draw out of 10 (`:rand.uniform_s(10, _)`); levels `low, mid, high` in that order | `Rules.Hunting.draw_luck/3`, `luck_for/2`; `LoadConfig` `@luck_draws`, `@lucks` | the `Hunts` step |
@@ -237,7 +242,7 @@ removes it once done and adds the book to `game.books`.
 
 A trade route is not a project: see `%Place.Trade{}` below.
 
-An invention (R15) has its way's catalogue blueprint (`Blueprint.fetch!(:plough)` or
+An invention (R15) has its own catalogue blueprint (`Blueprint.fetch!(:plough)` or
 `:plough_2`: blue, food), `target: Inventions.target/2` and `gives: {:invention, type}`;
 `Actions.StartInvention` appends it (unlocked, not open, not invented), the `Production`
 step adds its workers' output (as in a blue building × the experience of food's home
@@ -252,12 +257,12 @@ remove it and release its workers.
 
 ### `%Place.Trade{}` ([place/trade.ex](../../../lib/my_liege/engine/place/trade.ex))
 
-A trade route (R16). `id` and `blueprint` (its way's catalogue entry, `engine: :trade`)
+A trade route (R16). `id` and `blueprint` (its own catalogue entry, `engine: :trade`)
 never change; `traders` is the queue of worker ids in the order they were placed on it
 (`Rules.Trades.join/3`, called by `PlaceWorker`: a worker placed again goes last). It may
 hold ids of workers who left; `Rules.Trades.traders/2` reads only those still on it, and
 the `TradeRoute` step cuts it to them. The `Books` step appends the route once the books
-unlock it (`Rules.Ways.open/4`); nothing removes it.
+unlock it (`Rules.Requirements.open/4`); nothing removes it.
 
 ### `%Place.Expedition{}` ([place/expedition.ex](../../../lib/my_liege/engine/place/expedition.ex))
 
@@ -266,8 +271,8 @@ The hunting camp (R17). `id` and `blueprint` (`engine: :expedition`) never chang
 hunter since then: the `Hunts` step adds to both and empties them at a haul;
 `Rules.Hunting.abandon_empty/2` (called by `PlaceWorker` and `UnplaceWorker`) empties them
 when no worker is left on the camp. `hunted_in_block` (R18) is set by a week with an arrived
-hunter and cleared at the end of every block of `way_hunting_haul_weeks` game weeks. The
-`Books` step appends the camp once the books unlock it (`Rules.Ways.open/4`); nothing
+hunter and cleared at the end of every block of `expedition_hunting_haul_weeks` game weeks. The
+`Books` step appends the camp once the books unlock it (`Rules.Requirements.open/4`); nothing
 removes it. The hunters are the workers whose `place` is its id.
 
 ## 4. The weekly report
@@ -298,7 +303,7 @@ the steps fill it. The field-by-step mapping is the "Order inside a week" table 
   granaries worked, for the spoilage step), `bandit_protected`,
   `bandit_threat_change` and `bandit_raid` (for the UI), `books_finished` (the colours of
   the books finished that week), `inventions_finished` (the types finished that week), `food_short` (the week was short of
-  food, R8), `ways_opened` (the trade route and hunting camp opened that week), `haul` (the week's
+  food, R8), `places_unlocked` (the trade route and hunting camp unlocked, and so opened, that week), `haul` (the week's
   `%{hunters, luck, food, suspicion_change}` or `nil`, for the UI).
 
 The export format is fixed. Ask before changing a column (hard rule 5).

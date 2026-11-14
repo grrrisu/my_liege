@@ -34,8 +34,8 @@ defmodule MyLiege.Engine.Rules.InventionsTest do
                {:error, :already_invented}
     end
 
-    test "a new invention is a project with the catalogue's blueprint and way.plough.work" do
-      config = EngineFixtures.config(way_plough_work: 50)
+    test "a new invention is a project with its catalogue blueprint and invention.plough.work" do
+      config = EngineFixtures.config(invention_plough_work: 50)
       places = Inventions.new_invention([EngineFixtures.new_building(1, :farm)], :plough, config)
 
       assert %Project{id: 2, gives: {:invention, :plough}, target: 50_000, progress: 0} =
@@ -44,12 +44,13 @@ defmodule MyLiege.Engine.Rules.InventionsTest do
       assert project.blueprint == Blueprint.fetch!(:plough)
     end
 
-    test "takes way.plough.capacity workers" do
-      assert Inventions.capacity(:plough, EngineFixtures.config(way_plough_capacity: 3)) == 3
+    test "takes invention.plough.capacity workers" do
+      config = EngineFixtures.config(invention_plough_capacity: 3)
+      assert Inventions.capacity(:plough, config) == 3
     end
 
     test "plough II: two books of each colour and plough I invented; its own work and capacity" do
-      config = EngineFixtures.config(way_plough_2_work: 70, way_plough_2_capacity: 2)
+      config = EngineFixtures.config(invention_plough_2_work: 70, invention_plough_2_capacity: 2)
       two = %{Books.none() | blue: 2, green: 2}
 
       assert Inventions.check_start(:plough_2, [], [:plough], @unlocked, config) ==
@@ -105,7 +106,7 @@ defmodule MyLiege.Engine.Rules.InventionsTest do
     end
 
     test "effects, the total farm bonus, the farm inventions and the plough level" do
-      config = EngineFixtures.config(way_plough_2_bonus: 100)
+      config = EngineFixtures.config(invention_plough_2_bonus: 100)
 
       assert Inventions.effect(:plough, config) == {:farm_output, 125}
       assert Inventions.effect(:plough_2, config) == {:farm_output, 100}

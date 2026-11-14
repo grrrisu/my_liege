@@ -1,7 +1,7 @@
 defmodule MyLiege.Engine.Place.Trade do
   @moduledoc """
   A trade route, one kind of `Place` (R16): workers are placed on it as in a building and
-  trade every week until moved. Its blueprint is its way's entry in the catalogue
+  trade every week until moved. Its blueprint is its own entry in the catalogue
   (`engine: :trade`), e.g. the grain trade (yellow, food). The traders are the workers whose
   `place` is the route's id; `traders` keeps their ids in the order they were placed on it,
   the order in which they pay (`Rules.Trades.settle/4`). An id may stay in `traders` after

@@ -3,10 +3,10 @@ defmodule MyLiege.Engine.SimSteps.Hunts do
   Step 8 of the week, after the inventions, R17 the hunting camp and R18 the king's suspicion:
 
   1. Each hunter who has arrived (travel 0 at the start of the week, as for production) fills
-     the camp's bag; at every `way_hunting_haul_weeks`-th week with an arrived hunter there is
-     a haul: one luck draw from `game.rand`, its food into the stock, and the suspicion changes
-     by the haul (`Rules.Hunting.hunt/4`, `Rules.Suspicion.after_haul/4`).
-  2. At the end of a block of `way_hunting_haul_weeks` game weeks in which no hunter had
+     the camp's bag; at every `expedition_hunting_haul_weeks`-th week with an arrived hunter
+     there is a haul: one luck draw from `game.rand`, its food into the stock, and the
+     suspicion changes by the haul (`Rules.Hunting.hunt/4`, `Rules.Suspicion.after_haul/4`).
+  2. At the end of a block of `expedition_hunting_haul_weeks` game weeks in which no hunter had
      arrived, the suspicion decays.
   3. At the threshold the suspicion counts as one miss (R7) and is halved.
 

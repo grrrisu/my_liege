@@ -19,7 +19,7 @@ defmodule MyLiege.Engine.Rules.HuntingTest do
 
   defp always(luck, config) do
     table = %{low: 0, mid: 0, high: 0} |> Map.put(luck, 10)
-    %{config | way_hunting_party: Map.new(1..4, &{&1, table})}
+    %{config | expedition_hunting_party: Map.new(1..4, &{&1, table})}
   end
 
   describe "R17: the week's hunting" do
@@ -95,7 +95,7 @@ defmodule MyLiege.Engine.Rules.HuntingTest do
       assert next != rand
       assert Hunting.draw_luck(4, config, rand) == {luck, next}
 
-      always_low = %{config | way_hunting_party: %{1 => %{low: 10, mid: 0, high: 0}}}
+      always_low = %{config | expedition_hunting_party: %{1 => %{low: 10, mid: 0, high: 0}}}
       assert {:low, _} = Hunting.draw_luck(1, always_low, rand)
     end
   end

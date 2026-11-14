@@ -10,7 +10,9 @@ defmodule MyLiege.Engine.SimSteps.HuntsTest do
   # always high luck
   setup do
     config =
-      EngineFixtures.config(way_hunting_party: Map.new(1..4, &{&1, %{low: 0, mid: 0, high: 10}}))
+      EngineFixtures.config(
+        expedition_hunting_party: Map.new(1..4, &{&1, %{low: 0, mid: 0, high: 10}})
+      )
 
     game = EngineFixtures.game_without_demands(config, 1)
     camp = %Expedition{id: 3, blueprint: Blueprint.fetch!(:hunting)}

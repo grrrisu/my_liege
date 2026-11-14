@@ -32,7 +32,7 @@ defmodule MyLiege.Engine.Rules.TradesTest do
     end
 
     test "rounded down", %{config: config} do
-      config = %{config | way_grain_trade_gold_per_week: 1}
+      config = %{config | trade_grain_trade_gold_per_week: 1}
       factors = %{config.efficiency | untrained: %{config.efficiency.untrained | same: 3000}}
 
       assert Trades.price(:grain_trade, worker(:yellow), %{config | efficiency: factors}) == 333
