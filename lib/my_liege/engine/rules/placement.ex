@@ -7,15 +7,14 @@ defmodule MyLiege.Engine.Rules.Placement do
   builders of any colour; a king's demand project (R7) takes any number of workers of any
   colour; a book (R12) takes one writer of any colour; an invention (R15) up to its capacity
   (`Inventions.capacity/2`) of any colour; a trade route (R16) up to its capacity
-  (`Trades.capacity/2`) of any colour. Entering the guildhouse starts training, which the
-  worker must be allowed (see `Training.check/3`). An expedition (R17) takes no one by
-  placing: its party is chosen when it sets out (`Rules.Hunting`) and can't leave until it
-  returns (`check_leave/1`). Leaving a place changes no place.
+  (`Trades.capacity/2`) and the hunting camp (R17) up to its capacity
+  (`Hunting.capacity/1`), of any colour. Entering the guildhouse starts training, which the
+  worker must be allowed (see `Training.check/3`). Any worker may leave any place.
   """
 
   alias MyLiege.Engine.{Config, Manameter, Place, Worker}
   alias MyLiege.Engine.Place.{Building, Expedition, Project, Trade}
-  alias MyLiege.Engine.Rules.{Inventions, Trades, Training, Travel}
+  alias MyLiege.Engine.Rules.{Hunting, Inventions, Trades, Training, Travel}
 
   @type facts :: %{
           week: non_neg_integer(),
@@ -30,11 +29,9 @@ defmodule MyLiege.Engine.Rules.Placement do
   Returns `:ok` or `{:error, reason}`. On a demand project the reason can only be
   `:travelling`; on a site, a book or an invention `:travelling` or `:full`; in a building one of `:travelling`,
   `:full`, `:already_trained` and `:below_threshold`, checked in this order; on a trade route
-  `:travelling` or `:full`.
+  or the hunting camp `:travelling` or `:full`.
   """
   @spec check_enter(Place.t(), Worker.t(), facts()) :: :ok | {:error, atom()}
-  def check_enter(%Expedition{}, %Worker{}, _facts), do: {:error, :full}
-
   def check_enter(%Project{gives: {:demand, _}}, %Worker{} = worker, _facts) do
     if is_nil(worker.place) and Travel.travelling?(worker),
       do: {:error, :travelling},
@@ -48,6 +45,9 @@ defmodule MyLiege.Engine.Rules.Placement do
   def check_enter(%Trade{} = route, %Worker{} = worker, facts),
     do: check_room(route, worker, facts)
 
+  def check_enter(%Expedition{} = camp, %Worker{} = worker, facts),
+    do: check_room(camp, worker, facts)
+
   def check_enter(%Building{} = building, %Worker{} = worker, facts) do
     %{workers: workers, manameter: manameter, config: config} = facts
 
@@ -58,13 +58,6 @@ defmodule MyLiege.Engine.Rules.Placement do
       true -> :ok
     end
   end
-
-  @doc """
-  Whether a worker may leave `place` (moved or unplaced): not while away on an expedition
-  (R17), `{:error, :away}`; `place` is `nil` for an unplaced worker.
-  """
-  def check_leave(%Expedition{}), do: {:error, :away}
-  def check_leave(_place), do: :ok
 
   @doc "Whether a worker entering `place` starts training there: in the guildhouse."
   def trains?(%Project{}), do: false
@@ -87,7 +80,7 @@ defmodule MyLiege.Engine.Rules.Placement do
   def capacity(%Trade{} = route, %Config{} = config),
     do: route |> Place.type() |> Trades.capacity(config)
 
-  def capacity(%Expedition{}, %Config{} = config), do: config.way_hunting_max_party
+  def capacity(%Expedition{}, %Config{} = config), do: Hunting.capacity(config)
 
   def capacity(%Building{} = building, %Config{} = config),
     do: Map.fetch!(config.place_capacity, Place.type(building))

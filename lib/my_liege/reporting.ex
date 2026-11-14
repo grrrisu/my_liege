@@ -31,8 +31,10 @@ defmodule MyLiege.Reporting do
   R16: `food_from_trade` is the food the trade route brought that week, `gold_to_trade` the
   gold paid to it that week (thousandths), `traders` the workers on the route in the week's
   trade step, arrived or not.
-  R17: `food_from_hunting` is the food the returning hunts brought that week (thousandths).
-  R18: `suspicion` is the king's suspicion at the end of the week.
+  R17: `food_from_hunting` is the hunting camp's haul that week (thousandths); `hunters` the
+  workers on the camp in the week's hunt step, arrived or not.
+  R18: `suspicion` is the king's suspicion at the end of the week; `suspicion_miss` whether
+  it reached the threshold and counted as a miss that week.
   """
 
   alias MyLiege.Engine.Pentagon
@@ -58,7 +60,8 @@ defmodule MyLiege.Reporting do
       ["game_over"] ++
       Enum.map(Pentagon.colours(), &"books_#{&1}") ++
       ["plough_done", "granary_working", "culture_upkeep", "food_from_trade"] ++
-      ["food_from_hunting", "suspicion", "gold_to_trade", "traders"]
+      ["food_from_hunting", "suspicion", "gold_to_trade", "traders", "hunters"] ++
+      ["suspicion_miss"]
   end
 
   defp row(report) do
@@ -102,7 +105,9 @@ defmodule MyLiege.Reporting do
         report.food_from_hunting,
         report.suspicion,
         report.gold_to_trade,
-        report.traders
+        report.traders,
+        report.hunters,
+        report.suspicion_miss
       ]
   end
 

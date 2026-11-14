@@ -27,18 +27,18 @@ defmodule MyLiege.ReportingTest do
                "gold_robbed,happiness_ratio,happiness_step,game_over," <>
                "books_green,books_yellow,books_blue,books_red,books_violet," <>
                "plough_done,granary_working,culture_upkeep,food_from_trade," <>
-               "food_from_hunting,suspicion,gold_to_trade,traders"
+               "food_from_hunting,suspicion,gold_to_trade,traders,hunters,suspicion_miss"
 
     assert week_0 ==
-             "0,0,0,0,0,0,0,0,0,0,0,800,50,50,100,0,24000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,,0,,0,,,false,0,0,0,0,0,false,false,0,0,0,0,0,0"
+             "0,0,0,0,0,0,0,0,0,0,0,800,50,50,100,0,24000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,,0,,0,,,false,0,0,0,0,0,false,false,0,0,0,0,0,0,0,false"
 
     # seed 1 draws a green newborn in week 1
     assert week_1 ==
-             "1,9000,0,0,3000,0,3,0,0,3,0,799,50,50,101,0,27000,green,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,666,,0,0,-3,false,0,0,0,0,0,false,false,0,0,0,0,0,0"
+             "1,9000,0,0,3000,0,3,0,0,3,0,799,50,50,101,0,27000,green,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,666,,0,0,-3,false,0,0,0,0,0,false,false,0,0,0,0,0,0,0,false"
 
     # the unplaced newborn makes no mana but eats: 27 + 9 - 3 × 3
     assert week_2 ==
-             "2,9000,0,0,3000,0,3,0,0,3,0,798,50,50,102,0,27000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,1332,,0,0,-3,false,0,0,0,0,0,false,false,0,0,0,0,0,0"
+             "2,9000,0,0,3000,0,3,0,0,3,0,798,50,50,102,0,27000,,,0,0,100000,,,,,,,0,0,0,0,0,0,0,0,1666,1332,,0,0,-3,false,0,0,0,0,0,false,false,0,0,0,0,0,0,0,false"
   end
 
   test "the spoiled columns show what each stock lost; food_left and gold are after spoilage" do

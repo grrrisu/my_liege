@@ -10,7 +10,6 @@ defmodule MyLiegeWeb.GameLive do
     Construction,
     Demands,
     Grace,
-    Hunting,
     Inventions,
     Placement,
     Taxes,
@@ -36,7 +35,6 @@ defmodule MyLiegeWeb.GameLive do
     {:ok,
      socket
      |> assign(:selected, nil)
-     |> assign(:party, [])
      |> assign(:reports, [Game.report(game)])
      |> assign_game(game)}
   end
@@ -70,17 +68,8 @@ defmodule MyLiegeWeb.GameLive do
 
   def handle_event("select_worker", %{"id" => id}, socket) do
     id = parse_id(id)
-
-    cond do
-      socket.assigns.selected == id ->
-        {:noreply, assign(socket, :selected, nil)}
-
-      away?(socket.assigns.game, id) ->
-        {:noreply, put_flash(socket, :error, error_message(:away))}
-
-      true ->
-        {:noreply, assign(socket, :selected, id)}
-    end
+    selected = if socket.assigns.selected == id, do: nil, else: id
+    {:noreply, assign(socket, :selected, selected)}
   end
 
   def handle_event("place", %{"building" => place_id}, socket) do
@@ -99,29 +88,6 @@ defmodule MyLiegeWeb.GameLive do
     type = Enum.find(Blueprint.building_types(), &(Atom.to_string(&1) == type))
     result = Game.construct(socket.assigns.game, type)
     {:noreply, apply_result(socket, result)}
-  end
-
-  def handle_event("add_to_party", _params, socket) do
-    %{selected: worker_id, party: party} = socket.assigns
-
-    {:noreply,
-     socket
-     |> assign(:party, Enum.uniq(party ++ [worker_id]))
-     |> assign(:selected, nil)}
-  end
-
-  def handle_event("remove_from_party", %{"id" => id}, socket) do
-    id = parse_id(id)
-    {:noreply, update(socket, :party, &List.delete(&1, id))}
-  end
-
-  def handle_event("set_out", _params, socket) do
-    %{game: game, party: party} = socket.assigns
-
-    case Game.start_hunt(game, party) do
-      {:ok, game} -> {:noreply, socket |> assign(:party, []) |> apply_result({:ok, game})}
-      error -> {:noreply, apply_result(socket, error)}
-    end
   end
 
   def handle_event("start_invention", %{"type" => type}, socket) do
@@ -175,8 +141,10 @@ defmodule MyLiegeWeb.GameLive do
             "#{Taxes.next_due_week(report.week, before.config)}.",
         king_took(report.king_took),
         bandits_message(before, report),
-        hunts_message(report.hunts_returned),
-        routes_message(report.routes_opened),
+        haul_message(report.haul),
+        report.suspicion_miss &&
+          "The king's suspicion reached its threshold: it counts as a miss, and it halves.",
+        ways_message(report.ways_opened),
         report.demand &&
           "The king demands #{units(report.demand.amount)} #{report.demand.product} " <>
             "by week #{report.demand.due_week}."
@@ -222,11 +190,6 @@ defmodule MyLiegeWeb.GameLive do
   defp error_message(:unknown_colour), do: "Unknown colour."
   defp error_message(:unknown_invention), do: "Unknown invention."
 
-  defp error_message(:party_size),
-    do: "A hunting party needs at least one hunter and no more than the most allowed."
-
-  defp error_message(:duplicate), do: "A worker can be in the party only once."
-  defp error_message(:away), do: "That worker is away until the hunt returns."
   defp error_message(:locked), do: "This way needs a book of each of its two colours first."
   defp error_message(:already_invented), do: "That has already been invented."
   defp error_message(:already_open), do: "That invention is already being worked on."
@@ -298,7 +261,7 @@ defmodule MyLiegeWeb.GameLive do
         <div class="grid gap-10 lg:grid-cols-2">
           <div id="column-village" class="space-y-8">
             <.village game={@game} selected={@selected} blocked?={@blocked?} />
-            <.build_buttons game={@game} selected={@selected} party={@party} />
+            <.build_buttons game={@game} selected={@selected} />
           </div>
 
           <div id="column-state" class="space-y-8">
@@ -345,7 +308,12 @@ defmodule MyLiegeWeb.GameLive do
                 </span>
               </p>
               <p id="suspicion" class="mt-1 text-sm tabular-nums">
-                king's suspicion {@game.suspicion}
+                king's suspicion {@game.suspicion} of {@game.config.king_suspicion_threshold}
+                <span :if={last_haul(@reports)} id="suspicion-last-haul" class="opacity-60">
+                  ({signed_count(last_haul(@reports).haul.suspicion_change)} at the last haul, week {last_haul(
+                    @reports
+                  ).week})
+                </span>
               </p>
               <p
                 :if={:plough in @game.inventions}
@@ -683,10 +651,11 @@ defmodule MyLiegeWeb.GameLive do
           </span>
           <span
             :if={expedition?(place)}
-            id={"hunt-#{place.id}"}
+            id={"camp-#{place.id}"}
             class="text-sm tabular-nums opacity-60"
           >
-            away, back at the end of week {place.return_week}, about {hunt_estimate(@game, place)} food at mid luck
+            bag {units(place.bag)} food, next haul after {@game.config.way_hunting_haul_weeks -
+              place.weeks} more hunting week(s)
           </span>
           <span
             :if={invention?(place)}
@@ -719,7 +688,7 @@ defmodule MyLiegeWeb.GameLive do
             trained after week {Training.last_week(worker.training_started, @game.config)}
           </span>
           <button
-            :if={@selected && not away_place?(place)}
+            :if={@selected}
             id={"place-#{place.id}"}
             phx-click="place"
             phx-value-building={place.id}
@@ -729,13 +698,13 @@ defmodule MyLiegeWeb.GameLive do
           </button>
         </div>
         <div
-          :for={type <- closed_routes(@game)}
-          id={"route-locked-#{type}"}
+          :for={type <- closed_ways(@game)}
+          id={"way-locked-#{type}"}
           class="flex flex-wrap items-center gap-3 opacity-60"
           title={way_title(type, @game)}
         >
           <div class={["h-4 w-4 rounded-sm", type |> type_colour() |> colour_class()]}></div>
-          <span class="min-w-24 text-sm">{trade_name(type)}</span>
+          <span class="min-w-24 text-sm">{way_name(type)}</span>
           <.locked type={type} game={@game} />
         </div>
         <div id="unplaced" class="flex flex-wrap items-center gap-3">
@@ -771,7 +740,6 @@ defmodule MyLiegeWeb.GameLive do
 
   attr :game, Game, required: true
   attr :selected, :integer, default: nil
-  attr :party, :list, default: []
 
   defp build_buttons(assigns) do
     assigns = assign(assigns, :affordable?, Game.can_afford_building?(assigns.game))
@@ -795,48 +763,6 @@ defmodule MyLiegeWeb.GameLive do
           <span class={["inline-block h-3 w-3 rounded-sm", type |> type_colour() |> colour_class()]}></span>
           {type}
           <.locked type={type} game={@game} />
-        </button>
-      </div>
-      <h2 class="mt-4 mb-2 font-semibold">Hunt</h2>
-      <p class="mb-2 text-sm opacity-60">
-        Free; up to {@game.config.way_hunting_max_party} arrived hunters; raises the king's suspicion.
-      </p>
-      <div id="hunting-party" class="mb-2 flex flex-wrap items-center gap-2 text-sm">
-        <span>party</span>
-        <span :if={@party == []} class="opacity-60">empty</span>
-        <button
-          :for={worker <- party_workers(@game, @party)}
-          id={"party-#{worker.id}"}
-          phx-click="remove_from_party"
-          phx-value-id={worker.id}
-          title="take out of the party"
-          class={["inline-block h-5 w-5 rounded-sm hover:opacity-60", colour_class(worker.colour)]}
-        ></button>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <button
-          id="add-to-party"
-          phx-click="add_to_party"
-          disabled={
-            is_nil(@selected) or @selected in @party or
-              length(@party) >= @game.config.way_hunting_max_party
-          }
-          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          add the selected worker
-        </button>
-        <button
-          id="set-out-hunting"
-          phx-click="set_out"
-          disabled={hunt_check(@game, @party) != :ok}
-          title={way_title(:hunting, @game)}
-          class="inline-flex items-center gap-2 rounded border px-2 py-1 text-sm hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-        >
-          <span class={[
-            "inline-block h-3 w-3 rounded-sm",
-            :hunting |> type_colour() |> colour_class()
-          ]}></span>
-          set out hunting <.locked type={:hunting} game={@game} />
         </button>
       </div>
       <h2 class="mt-4 mb-2 font-semibold">Invent</h2>
@@ -915,47 +841,35 @@ defmodule MyLiegeWeb.GameLive do
          do: route |> Place.type() |> Trades.price(worker, game.config) |> units()
   end
 
-  # the trade routes not open yet: shown locked until the books open them
-  defp closed_routes(game),
-    do: Enum.filter(Trades.types(), &(Trades.route(game.places, &1) == nil))
-
-  defp routes_message([]), do: nil
-
-  defp routes_message(types),
-    do: Enum.map_join(types, " ", &"The #{trade_name(&1)} route is open: place traders on it.")
-
-  defp trade_name(:grain_trade), do: "grain trade route"
-
-  defp away?(game, worker_id) do
-    with %{place: place_id} when place_id != nil <- selected_worker(game, worker_id),
-         %{} = place <- Enum.find(game.places, &(&1.id == place_id)),
-         do: away_place?(place),
-         else: (_ -> false)
+  # the standing ways (trade route, hunting camp) not open yet: shown locked until the books
+  # open them
+  defp closed_ways(game) do
+    for %{engine: engine, type: type} = blueprint <- Blueprint.ways(),
+        engine in [:trade, :expedition],
+        not Ways.open?(game.places, blueprint),
+        do: type
   end
 
-  defp away_place?(place), do: Placement.check_leave(place) != :ok
+  defp ways_message([]), do: nil
 
-  defp party_workers(game, party), do: Enum.map(party, &selected_worker(game, &1))
+  defp ways_message(types),
+    do: Enum.map_join(types, " ", &"The #{way_name(&1)} is open: place workers on it.")
 
-  defp hunt_check(game, party) do
-    hunters =
-      for %{} = worker <- party_workers(game, party),
-          do: {worker, Enum.find(game.places, &(&1.id == worker.place))}
+  defp way_name(:grain_trade), do: "grain trade route"
+  defp way_name(:hunting), do: "hunting camp"
 
-    Hunting.check_start(hunters, game.books, game.config)
-  end
+  defp haul_message(nil), do: nil
 
-  # the haul of a hunt away at mid luck, in whole food
-  defp hunt_estimate(game, hunt),
-    do: game.workers |> Place.workers_at(hunt.id) |> Hunting.haul(:mid, game.config) |> units()
-
-  defp hunts_message([]), do: nil
-
-  defp hunts_message(results),
+  defp haul_message(%{hunters: hunters, luck: luck, food: food, suspicion_change: change}),
     do:
-      Enum.map_join(results, " ", fn %{hunters: hunters, luck: luck, food: food} ->
-        "A hunting party of #{hunters} returned with #{units(food)} food (#{luck} luck)."
-      end)
+      "#{hunters} hunter(s) brought a haul of #{units(food)} food (#{luck} luck); " <>
+        "the king's suspicion #{signed_count(change)}."
+
+  # the last report with a haul, newest first in `reports`
+  defp last_haul(reports), do: Enum.find(reports, & &1.haul)
+
+  defp signed_count(change) when change > 0, do: "+#{change}"
+  defp signed_count(change), do: "#{change}"
 
   defp invention_state(type, game) do
     case Inventions.check_start(type, game.places, game.inventions, game.books) do
@@ -1028,8 +942,8 @@ defmodule MyLiegeWeb.GameLive do
 
   defp place_name(%Project{gives: {:book, colour}}), do: "#{colour} book"
   defp place_name(%Project{gives: {:invention, :plough}}), do: "improved plough"
-  defp place_name(%Trade{} = trade), do: trade |> Place.type() |> trade_name()
-  defp place_name(%Expedition{}), do: "hunt"
+  defp place_name(%Trade{} = trade), do: trade |> Place.type() |> way_name()
+  defp place_name(%Expedition{} = camp), do: camp |> Place.type() |> way_name()
 
   defp place_name(place), do: Place.type(place)
 

@@ -3,40 +3,75 @@ defmodule MyLiege.Engine.Rules.HuntingTest do
 
   alias MyLiege.Engine.Place.{Blueprint, Expedition}
   alias MyLiege.Engine.Random
-  alias MyLiege.Engine.Rules.{Books, Hunting}
+  alias MyLiege.Engine.Rules.Hunting
   alias MyLiege.Engine.Worker
   alias MyLiege.EngineFixtures
 
-  @unlocked %{Books.none() | red: 1, green: 1}
-
   setup do
-    %{config: EngineFixtures.config()}
+    %{config: EngineFixtures.config(), rand: 1 |> Random.new() |> elem(1)}
   end
 
-  describe "R17: time and haul" do
-    test "away 3 + 12 + 3 weeks", %{config: config} do
-      assert Hunting.weeks(config) == 18
+  defp camp(fields \\ []),
+    do: struct!(%Expedition{id: 3, blueprint: Blueprint.fetch!(:hunting)}, fields)
+
+  defp hunter(id, colour, travel \\ 0),
+    do: %Worker{id: id, colour: colour, place: 3, travel: travel}
+
+  defp always(luck, config) do
+    table = %{low: 0, mid: 0, high: 0} |> Map.put(luck, 10)
+    %{config | way_hunting_party: Map.new(1..4, &{&1, table})}
+  end
+
+  describe "R17: the week's hunting" do
+    test "a hunter adds 15 × his factor against red to the bag", %{config: config} do
+      assert Hunting.hunter_week(%Worker{colour: :red}, config) == 15_000
+      assert Hunting.hunter_week(%Worker{colour: :violet}, config) == 11_250
+      assert Hunting.hunter_week(%Worker{colour: :green}, config) == 7_500
+      assert Hunting.hunter_week(%Worker{colour: :red, trained: true}, config) == 22_500
     end
 
-    test "a hunter brings 15 × 12 × his factor against red", %{config: config} do
-      assert Hunting.hunter_haul(worker(:red), config) == 180_000
-      assert Hunting.hunter_haul(worker(:blue), config) == 135_000
-      assert Hunting.hunter_haul(worker(:violet), config) == 135_000
-      assert Hunting.hunter_haul(worker(:green), config) == 90_000
-      assert Hunting.hunter_haul(worker(:red, true), config) == 270_000
-      assert Hunting.hunter_haul(worker(:green, true), config) == 45_000
+    test "arrived hunters fill the bag and the week counts; no draw before the haul",
+         %{config: config, rand: rand} do
+      workers = [hunter(1, :red), hunter(2, :green), hunter(3, :red, 2)]
+
+      assert {%Expedition{bag: 22_500, weeks: 1, hunted_in_block: true}, nil, ^rand} =
+               Hunting.hunt(camp(), workers, config, rand)
     end
 
-    test "the party's hauls summed, × the luck factor, rounded down once", %{config: config} do
-      party = [worker(:red), worker(:blue)]
+    test "a week without an arrived hunter changes nothing", %{config: config, rand: rand} do
+      camp = camp(bag: 5_000, weeks: 2)
 
-      assert Hunting.haul(party, :low, config) == 157_500
-      assert Hunting.haul(party, :mid, config) == 315_000
-      assert Hunting.haul(party, :high, config) == 472_500
+      assert {^camp, nil, ^rand} = Hunting.hunt(camp, [hunter(1, :red, 1)], config, rand)
+      assert {^camp, nil, ^rand} = Hunting.hunt(camp, [], config, rand)
+    end
 
-      odd = EngineFixtures.config(way_hunting_luck: %{low: 333, mid: 1000, high: 1500})
-      # 90 + 90 = 180, × 0.333 = 59.94 (each alone 29.97: rounding once keeps the total)
-      assert Hunting.haul([worker(:green), worker(:green)], :low, odd) == 59_940
+    test "at haul_weeks counted weeks: one draw by the arrived hunters, bag × luck, bag and count start again",
+         %{config: config, rand: rand} do
+      config = always(:high, config)
+      camp = camp(bag: 75_000, weeks: 5)
+      workers = [hunter(1, :red), hunter(2, :red), hunter(3, :red, 1)]
+
+      {camp, haul, next} = Hunting.hunt(camp, workers, config, rand)
+
+      # 75 + 2 × 15 = 105, × 1.5
+      assert haul == %{hunters: 2, luck: :high, food: 157_500}
+      assert %Expedition{bag: 0, weeks: 0} = camp
+      assert next != rand
+    end
+
+    test "the haul is rounded down", %{config: config} do
+      assert Hunting.haul(1_001, :low, config) == 500
+    end
+  end
+
+  describe "R17: leaving" do
+    test "a camp no worker is on loses its bag and count; one with a travelling hunter keeps them" do
+      camp = camp(bag: 50_000, weeks: 4, hunted_in_block: true)
+
+      assert [%Expedition{bag: 0, weeks: 0, hunted_in_block: true}] =
+               Hunting.abandon_empty([camp], [%Worker{id: 1, colour: :red, place: 1}])
+
+      assert Hunting.abandon_empty([camp], [hunter(1, :red, 3)]) == [camp]
     end
   end
 
@@ -64,81 +99,4 @@ defmodule MyLiege.Engine.Rules.HuntingTest do
       assert {:low, _} = Hunting.draw_luck(1, always_low, rand)
     end
   end
-
-  describe "R17: setting out" do
-    test "needs the way unlocked, 1 to max_party distinct arrived workers not away",
-         %{config: config} do
-      farm = EngineFixtures.new_building(1, :farm)
-      away = %Expedition{id: 9, blueprint: Blueprint.fetch!(:hunting), return_week: 20}
-      a = {worker(:red, false, 1), nil}
-      b = {worker(:green, false, 2), farm}
-
-      assert Hunting.check_start([a], Books.none(), config) == {:error, :locked}
-      assert Hunting.check_start([], @unlocked, config) == {:error, :party_size}
-
-      five = for id <- 1..5, do: {worker(:red, false, id), nil}
-      assert Hunting.check_start(five, @unlocked, config) == {:error, :party_size}
-      assert Hunting.check_start([a, a], @unlocked, config) == {:error, :duplicate}
-
-      assert Hunting.check_start([a, {worker(:red, false, 3), away}], @unlocked, config) ==
-               {:error, :away}
-
-      travelling = {%{worker(:red, false, 4) | travel: 1}, nil}
-      assert Hunting.check_start([a, travelling], @unlocked, config) == {:error, :travelling}
-
-      assert Hunting.check_start([a, b], @unlocked, config) == :ok
-      assert Hunting.check_start(Enum.take(five, 4), @unlocked, config) == :ok
-    end
-
-    test "a hunt set out at week N returns at the end of week N + 18", %{config: config} do
-      places = Hunting.new_expedition([EngineFixtures.new_building(1, :farm)], 5, config)
-
-      assert %Expedition{id: 2, return_week: 23} = hunt = List.last(places)
-      assert hunt.blueprint == Blueprint.fetch!(:hunting)
-    end
-  end
-
-  describe "R17: return" do
-    test "in its return week: luck drawn, haul, the hunt removed, the party released" do
-      config =
-        EngineFixtures.config(
-          travel_weeks: 1,
-          way_hunting_party: %{
-            1 => %{low: 10, mid: 0, high: 0},
-            2 => %{low: 0, mid: 0, high: 10},
-            3 => %{low: 2, mid: 4, high: 4},
-            4 => %{low: 1, mid: 3, high: 6}
-          }
-        )
-
-      hunt = %Expedition{id: 3, blueprint: Blueprint.fetch!(:hunting), return_week: 18}
-      later = %{hunt | id: 4, return_week: 30}
-
-      workers = [
-        %{worker(:red, false, 1) | place: 3},
-        %{worker(:blue, false, 2) | place: 3},
-        %{worker(:red, false, 5) | place: 4}
-      ]
-
-      {_seed, rand} = Random.new(1)
-
-      assert {[^later], released, 472_500, [%{hunters: 2, luck: :high, food: 472_500}], next} =
-               Hunting.return([hunt, later], workers, 18, config, rand)
-
-      assert next != rand
-
-      assert Enum.map(released, &{&1.id, &1.place, &1.travel}) == [
-               {1, nil, 1},
-               {2, nil, 1},
-               {5, 4, 0}
-             ]
-
-      # no hunt returning: no draw
-      assert {_, ^workers, 0, [], ^rand} =
-               Hunting.return([hunt, later], workers, 17, config, rand)
-    end
-  end
-
-  defp worker(colour, trained \\ false, id \\ 1),
-    do: %Worker{id: id, colour: colour, trained: trained}
 end

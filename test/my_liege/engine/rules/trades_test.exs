@@ -2,11 +2,9 @@ defmodule MyLiege.Engine.Rules.TradesTest do
   use ExUnit.Case, async: true
 
   alias MyLiege.Engine.Place.{Blueprint, Trade}
-  alias MyLiege.Engine.Rules.{Books, Trades}
+  alias MyLiege.Engine.Rules.Trades
   alias MyLiege.Engine.Worker
   alias MyLiege.EngineFixtures
-
-  @unlocked %{Books.none() | yellow: 1, green: 1}
 
   setup do
     %{config: EngineFixtures.config()}
@@ -44,26 +42,6 @@ defmodule MyLiege.Engine.Rules.TradesTest do
       assert Trades.capacity(:grain_trade, config) == 8
       assert Trades.travel_weeks(:grain_trade, config) == 3
       assert Trades.food(:grain_trade, config) == 40_000
-    end
-  end
-
-  describe "R16: the route opens" do
-    test "once the books unlock it, with the next free id and no traders" do
-      farm = EngineFixtures.new_building(1, :farm)
-
-      assert Trades.open([farm], Books.none()) == {[farm], []}
-
-      assert {[^farm, %Trade{id: 2, traders: []} = route], [:grain_trade]} =
-               Trades.open([farm], @unlocked)
-
-      assert route.blueprint == Blueprint.fetch!(:grain_trade)
-      assert Trades.route([farm, route], :grain_trade) == route
-    end
-
-    test "only once" do
-      {places, _} = Trades.open([], @unlocked)
-
-      assert Trades.open(places, @unlocked) == {places, []}
     end
   end
 

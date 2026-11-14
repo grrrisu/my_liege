@@ -10,11 +10,11 @@ defmodule MyLiege.Engine.SimSteps.TradeRoute do
   @behaviour MyLiege.Engine.SimStep
 
   alias MyLiege.Engine.Place.Trade
-  alias MyLiege.Engine.Rules.Trades
+  alias MyLiege.Engine.Rules.{Trades, Travel}
 
   @impl true
   def run(game, report) do
-    workers = with_start_travel(game.workers, report.start.workers)
+    workers = Travel.as_at_start(game.workers, report.start.workers)
 
     {places, totals} =
       Enum.map_reduce(game.places, %{gold_paid: 0, food: 0, traders: 0}, fn
@@ -41,11 +41,5 @@ defmodule MyLiege.Engine.SimSteps.TradeRoute do
          food_from_trade: totals.food,
          traders: totals.traders
      }}
-  end
-
-  # travel counts down in step 3; the trade uses each worker's travel at the start of the week
-  defp with_start_travel(workers, start_workers) do
-    start_travel = Map.new(start_workers, &{&1.id, &1.travel})
-    Enum.map(workers, &%{&1 | travel: Map.get(start_travel, &1.id, &1.travel)})
   end
 end

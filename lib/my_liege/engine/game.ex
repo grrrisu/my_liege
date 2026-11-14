@@ -16,7 +16,6 @@ defmodule MyLiege.Engine.Game do
     PlaceWorker,
     RefuseProject,
     StartBook,
-    StartHunt,
     StartInvention,
     UnplaceWorker
   }
@@ -191,9 +190,6 @@ defmodule MyLiege.Engine.Game do
 
   @doc "See `MyLiege.Engine.Actions.StartInvention`."
   def start_invention(%__MODULE__{} = game, type), do: StartInvention.run(game, type)
-
-  @doc "See `MyLiege.Engine.Actions.StartHunt`."
-  def start_hunt(%__MODULE__{} = game, worker_ids), do: StartHunt.run(game, worker_ids)
 
   @doc "The price of any building, in thousandths of gold."
   def build_cost(%__MODULE__{config: config}), do: Fixed.from(config.build_cost_gold)
