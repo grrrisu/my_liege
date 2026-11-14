@@ -47,13 +47,14 @@ defmodule MyLiege.Engine.WaysTest do
       assert report.spoiled.food == 1_350
     end
 
-    test "more granaries don't lower spoilage further, but each costs upkeep", %{game: game} do
+    test "each working granary costs upkeep; protection never exceeds the stock", %{game: game} do
       game = EngineFixtures.add_building(game, :granary)
       {:ok, game} = Game.place_worker(game, 1, 4)
       game = %{game | stocks: %{game.stocks | culture: 20_000}}
       {:ok, report, game} = Game.run_week(game)
 
-      # nobody farms: 24 − 6 = 18 food
+      # nobody farms: 24 − 6 = 18 food, all protected (2 × 300 > 18)
+      assert report.food_protected == 18_000
       assert report.spoiled.food == 180
       assert report.culture_upkeep == 10_000
       assert game.stocks.culture == 10_000
@@ -84,12 +85,28 @@ defmodule MyLiege.Engine.WaysTest do
       assert report.happiness.ratio == 750
     end
 
-    test "exports granary_working and culture_upkeep", %{game: game} do
+    test "exports granary_working, culture_upkeep and food_protected", %{game: game} do
       game = %{game | stocks: %{game.stocks | culture: 20_000}}
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",0,true,5000,0,0,0,0,0,0,false")
+      # 24 + 9 − 2 × 3 = 27 food, all of it under the granary's 300
+      assert String.ends_with?(row, ",0,true,5000,0,0,0,0,0,0,false,27000")
+    end
+
+    test "each working granary protects up to place.granary.food_capacity; the rest spoils at the good's rate",
+         %{game: game} do
+      game = EngineFixtures.add_building(game, :granary)
+      game = %{game | workers: game.workers ++ [%Worker{id: 9, colour: :blue, place: nil}]}
+      {:ok, game} = Game.place_worker(game, 9, 4)
+      game = %{game | stocks: %{game.stocks | food: 850_000}}
+      {:ok, report, game} = Game.run_week(game)
+
+      # 850 + 9 (the farm) − 3 × 3 eaten = 850: 600 protected → 6, 250 → 12.5
+      assert report.granaries_working == 2
+      assert report.food_protected == 600_000
+      assert report.spoiled.food == 18_500
+      assert game.stocks.food == 831_500
     end
   end
 
@@ -171,7 +188,7 @@ defmodule MyLiege.Engine.WaysTest do
       {:ok, report, _game} = Game.run_week(game)
       [_header, row] = [report] |> Reporting.to_csv() |> String.split("\n", trim: true)
 
-      assert String.ends_with?(row, ",1,false,0,0,0,0,0,0,0,false")
+      assert String.ends_with?(row, ",1,false,0,0,0,0,0,0,0,false,0")
     end
   end
 
@@ -317,8 +334,8 @@ defmodule MyLiege.Engine.WaysTest do
       {reports, _game} = EngineFixtures.run_weeks(game, 4)
       rows = reports |> Reporting.to_csv() |> String.split("\n", trim: true) |> tl()
 
-      assert rows |> Enum.at(2) |> String.ends_with?(",0,0,0,0,0,1,0,false")
-      assert rows |> Enum.at(3) |> String.ends_with?(",40000,0,0,24000,1,0,false")
+      assert rows |> Enum.at(2) |> String.ends_with?(",0,0,0,0,0,1,0,false,0")
+      assert rows |> Enum.at(3) |> String.ends_with?(",40000,0,0,24000,1,0,false,0")
     end
   end
 
@@ -431,8 +448,8 @@ defmodule MyLiege.Engine.WaysTest do
       food = List.last(reports).food_from_hunting
 
       assert food > 0
-      assert rows |> Enum.at(7) |> String.ends_with?(",0,0,0,0,1,false")
-      assert rows |> Enum.at(8) |> String.ends_with?(",#{food},0,0,0,1,false")
+      assert rows |> Enum.at(7) |> String.ends_with?(",0,0,0,0,1,false,0")
+      assert rows |> Enum.at(8) |> String.ends_with?(",#{food},0,0,0,1,false,0")
     end
   end
 

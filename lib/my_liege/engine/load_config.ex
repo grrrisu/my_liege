@@ -128,6 +128,7 @@ defmodule MyLiege.Engine.LoadConfig do
       book_work: "book.work",
       place_granary_food_spoilage: "place.granary.food_spoilage_permille",
       place_granary_culture_upkeep: "place.granary.culture_upkeep",
+      place_granary_food_capacity: "place.granary.food_capacity",
       way_plough_work: "way.plough.work",
       way_plough_capacity: "way.plough.capacity",
       way_plough_bonus: "way.plough.bonus_permille",

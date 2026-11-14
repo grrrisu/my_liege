@@ -12,15 +12,14 @@ defmodule MyLiege.Engine.Rules.Spoilage do
   alias MyLiege.Engine.Rules.Granary
 
   @doc """
-  Returns `{stocks, spoiled}`, both maps of product => amount. `granary_working?`: whether a
-  granary was working this week.
+  Returns `{stocks, spoiled}`, both maps of product => amount. `food_protected`: the food the
+  working granaries protect (R14, `Granary.protected/3`), 0 without one.
   """
-  def spoil(stocks, %Config{} = config, granary_working? \\ false) do
-    rates = %{config.good_spoilage | food: Granary.food_spoilage(granary_working?, config)}
-
+  def spoil(stocks, %Config{} = config, food_protected \\ 0) do
     spoiled =
-      Map.new(stocks, fn {product, stock} ->
-        {product, spoiled(stock, Map.fetch!(rates, product))}
+      Map.new(stocks, fn
+        {:food, stock} -> {:food, Granary.food_spoiled(stock, food_protected, config)}
+        {product, stock} -> {product, spoiled(stock, Map.fetch!(config.good_spoilage, product))}
       end)
 
     {Map.merge(stocks, spoiled, fn _product, stock, lost -> stock - lost end), spoiled}

@@ -49,6 +49,7 @@ defmodule MyLiege.Engine.SimSteps.Production do
       | production: production,
         happiness: happiness,
         granary_working: granaries > 0,
+        granaries_working: granaries,
         culture_upkeep: upkeep,
         demand_progress: demand_progress(game)
     }

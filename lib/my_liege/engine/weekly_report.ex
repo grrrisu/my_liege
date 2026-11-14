@@ -24,7 +24,9 @@ defmodule MyLiege.Engine.WeeklyReport do
   R12: `books` are the books held at the end of the week (colour => count); `books_finished`
   the colours of the books finished that week.
 
-  R14: `granary_working` is whether a granary had a working keeper that week;
+  R14: `granary_working` is whether a granary had a working keeper that week,
+  `granaries_working` how many (not exported); `food_protected` the food they protected at
+  that week's spoilage (thousandths);
   `culture_upkeep` the culture taken from the stock for the granaries' upkeep (thousandths).
   R15: `inventions` are the types invented at the end of the week; `inventions_finished` the
   types finished that week.
@@ -86,6 +88,8 @@ defmodule MyLiege.Engine.WeeklyReport do
     books: nil,
     books_finished: [],
     granary_working: false,
+    granaries_working: 0,
+    food_protected: 0,
     culture_upkeep: 0,
     inventions: nil,
     inventions_finished: [],
@@ -136,6 +140,8 @@ defmodule MyLiege.Engine.WeeklyReport do
           books: %{atom() => non_neg_integer()} | nil,
           books_finished: [atom()],
           granary_working: boolean(),
+          granaries_working: non_neg_integer(),
+          food_protected: non_neg_integer(),
           culture_upkeep: non_neg_integer(),
           inventions: [atom()] | nil,
           inventions_finished: [atom()],

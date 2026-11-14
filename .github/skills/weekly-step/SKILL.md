@@ -50,7 +50,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | # | Step | Module (`SimSteps.*` → rule) | Reads | Writes |
 |---|------|--------|-------|--------|
 | 0 | Tax count (R7), count weeks only | `TaxCount` → `Rules.Taxes.assess/2` | **all** workers before this week's birth | `game.tax_due`, `report.tax_due` |
-| 1 | Production (R2), granary upkeep (R14), the ploughs' bonus (R15), happiness (R11) | `Production` → `Rules.Production.output/5` and `project_output/5`, `Rules.Granary.working/3`, `upkeep/3` and `culture_for_happiness/2`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on projects (`Rules.Staffing.working/3`); `game.inventions`; the culture stock; **all** workers at the start of the week (population) | home buildings' output (farm workers × the plough bonus once invented; a granary produces nothing): `report.production` (food and defence after the happiness step), added to `stocks`; the granaries' upkeep taken from `stocks.culture` (never below 0): `report.culture_upkeep`, `report.granary_working`; `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture minus the upkeep, never below 0; demand projects' output (same step), books' and inventions' output (as in a blue building × the experience of the book's colour, or of the invention's good's home colour; Manameter at the **start** of the week) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
+| 1 | Production (R2), granary upkeep (R14), the ploughs' bonus (R15), happiness (R11) | `Production` → `Rules.Production.output/5` and `project_output/5`, `Rules.Granary.working/3`, `upkeep/3` and `culture_for_happiness/2`, `Rules.Happiness.assess/4` and `apply_step/3` | placed workers with travel 0 in buildings and on projects (`Rules.Staffing.working/3`); `game.inventions`; the culture stock; **all** workers at the start of the week (population) | home buildings' output (farm workers × the plough bonus once invented; a granary produces nothing): `report.production` (food and defence after the happiness step), added to `stocks`; the granaries' upkeep taken from `stocks.culture` (never below 0): `report.culture_upkeep`, `report.granary_working`, `report.granaries_working` (how many); `report.happiness` (`ratio`, `step`, `step_without_grace`) from the buildings' culture minus the upkeep, never below 0; demand projects' output (same step), books' and inventions' output (as in a blue building × the experience of the book's colour, or of the invention's good's home colour; Manameter at the **start** of the week) into each project's `progress`, up to its target, the rest lost; `report.demand_progress` |
 | 2 | Mana (R3) | `Mana` → `Rules.Mana.produced/4` | same workers and their places (not the workers' colour or training) | `report.mana` |
 | 3 | Travel (R2) | `Travel` → `Rules.Travel.count_down/1` | every worker's `travel` | `travel` − 1, not below 0 |
 | 4 | Manameter update (R4) | `ManameterUpdate` → `Rules.ManameterUpdate.update/3` | old Manameter, this week's mana | `manameter` |
@@ -66,7 +66,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 12 | Demand made (R7), demand weeks only | `DemandMade` → `Rules.Demands.make/5`, `open_project/2` | week, Manameter, workers at the start of the week | `game.demand`, for knowledge and culture its project appended to `places`; `report.demand`, `report.demand_progress` (0 for a project) |
 | 13 | Trade route (R16), every week | `TradeRoute` → `Rules.Trades.settle/4` | each route's queue, its traders' travel at the **start** of the week, the gold stock | `stocks.gold` (− each price paid), `stocks.food` (+ `way_grain_trade_food_per_week` per paying trader), the queue cut to the workers still on the route; `report.gold_to_trade`, `food_from_trade`, `traders` |
 | 14 | Bandits (R10), every week | `Bandits` → `Rules.Bandits.run/6` | `bandits` (threat, raid week), gold after steps 10–13, `report.production.defence`, week | `bandits`, `stocks.gold` (raid), `report.bandit_pressure`, `bandit_protected`, `bandit_threat_change`, `bandit_raid`, `gold_robbed` |
-| 15 | Spoilage (R9), granary (R14) | `Spoilage` → `Rules.Spoilage.spoil/3` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`); food at `place_granary_food_spoilage` if `report.granary_working` (step 1) | `stocks`, `report.spoiled`; `report.food_left` and `report.gold` are after it |
+| 15 | Spoilage (R9), granary (R14) | `Spoilage` → `Rules.Spoilage.spoil/3` | every stock above 0, `good_spoilage` (per mille, key `good.<good>.spoilage_permille`); food in two parts: `Granary.protected/3` (`report.granaries_working` from step 1 × `place_granary_food_capacity`, at most the stock) at `place_granary_food_spoilage`, the rest at the good's rate, each rounded down (`Granary.food_spoiled/3`) | `stocks`, `report.spoiled`, `report.food_protected`; `report.food_left` and `report.gold` are after it |
 | 16 | End of week | `EndOfWeek` | the final game | `report.manameter`, `food_left`, `gold`, `builders`, `travelling`, `bandit_threat`, `bandits_weeks_to_raid`, `books`, `inventions`, `game_over`; `start: nil` |
 
 Consequences of the order:
@@ -199,7 +199,9 @@ Consequences of the order:
 - **Granary (R14):** a violet building for food, ordered and built as usual; capacity
   `place_capacity.granary`. Its keeper produces nothing (`Production.produces?/1`), makes
   mana (2 violet, 1 green). A granary works while its keeper works (`Granary.working/3`):
-  then food spoils at `place_granary_food_spoilage` in step 15 (however many granaries), and
+  in step 15 each working granary protects up to `place_granary_food_capacity` food (all
+  of them together at most the stock), which spoils at `place_granary_food_spoilage`; the
+  rest of the stock spoils at the good's rate, each part rounded down in thousandths; and
   each working granary takes `place_granary_culture_upkeep` culture from the stock in step 1,
   never below 0; what is taken is subtracted from the culture for happiness, never below 0.
 - **Improved plough I and II (R15):** `Game.start_invention(game, type)` with `:plough` or
@@ -248,7 +250,8 @@ Consequences of the order:
 travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, king_took, spoiled,
 gold_spent_buildings, bandit_pressure, bandit_protected, bandit_threat, bandit_threat_change,
 bandits_weeks_to_raid, bandit_raid, gold_robbed, happiness, books, books_finished,
-granary_working, culture_upkeep, inventions, inventions_finished, food_short,
+granary_working, granaries_working, food_protected, culture_upkeep, inventions,
+inventions_finished, food_short,
 food_from_trade, gold_to_trade, traders, ways_opened, hunters, haul, food_from_hunting,
 suspicion, suspicion_miss, stock_change,
 project_change, game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders

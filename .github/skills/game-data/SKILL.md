@@ -94,7 +94,8 @@ is left out when a group has only one thing (`travel.weeks`).
 | `build_cost_gold` | int | `build.cost_gold` | `Game.build_cost/1`, `Game.construct/2`, GameLive |
 | `build_capacity` | int | `build.capacity` | `Rules.Placement.capacity/2` (sites), `Bot.Placing` (`earnings`), GameLive |
 | `book_work` | int (knowledge units) | `book.work` | `Rules.Books.new_book/3` (a book's target, `Fixed.from`) |
-| `place_granary_food_spoilage` | ‰ | `place.granary.food_spoilage_permille` | `Rules.Granary.food_spoilage/2` (via `Rules.Spoilage.spoil/3`), GameLive |
+| `place_granary_food_spoilage` | ‰ | `place.granary.food_spoilage_permille` | `Rules.Granary.food_spoiled/3` (via `Rules.Spoilage.spoil/3`), the protected food's rate |
+| `place_granary_food_capacity` | int (food units per working granary) | `place.granary.food_capacity` | `Rules.Granary.protected/3` (`Fixed.from`) |
 | `place_granary_culture_upkeep` | int (culture units a week) | `place.granary.culture_upkeep` | `Rules.Granary.upkeep/3` (`Fixed.from`) |
 | `way_plough_work` | int (knowledge units) | `way.plough.work` | `Rules.Inventions.new_invention/3` (the target, `Fixed.from`) |
 | `way_plough_capacity` | int | `way.plough.capacity` | `Rules.Inventions.capacity/2` (via `Rules.Placement.capacity/2`) |
@@ -127,7 +128,7 @@ is left out when a group has only one thing (`travel.weeks`).
 | `king_demand_deadline_weeks` | int | `king.demand.deadline_weeks` | `Rules.Demands.schedule/3`, `make/5` |
 | `king_demand_population_share` | ‰ | `king.demand.population_share_permille` | `Rules.Demands.make/5` |
 | `king_demand_production_weeks` | int | `king.demand.production_weeks` | `Rules.Demands.make/5` |
-| `good_spoilage` | `%{good => ‰}` | `good.<good>.spoilage_permille` ×5 | `Rules.Spoilage.spoil/3`, `Rules.Granary.food_spoilage/2` |
+| `good_spoilage` | `%{good => ‰}` | `good.<good>.spoilage_permille` ×5 | `Rules.Spoilage.spoil/3`, `Rules.Granary.food_spoiled/3` (the unprotected food) |
 | `bandit_threshold` | int (×1000 in use) | `bandit.threshold` | `Rules.Bandits.threshold/1` (also `Forecast`, GameLive) |
 | `bandit_warning_weeks` | int | `bandit.warning_weeks` | `Rules.Bandits` (sets `raid_week`) |
 | `bandit_cover_weeks` | int | `bandit.cover_weeks` | `Rules.Bandits.protected/2` |
@@ -290,9 +291,11 @@ the steps fill it. The field-by-step mapping is the "Order inside a week" table 
   (thousandths, the camp's haul that week), `suspicion` (end of the week), `gold_to_trade` (thousandths, paid to the
   trade route that week), `traders` (on the route in the week's trade step, arrived or not), `hunters` (on the camp in
   the week's step 8, arrived or not), `suspicion_miss` (the threshold counted a miss that
-  week).
+  week), `food_protected` (thousandths, protected by the working granaries at that week's
+  spoilage, R14).
 - **Not exported**: `start` (the game at the start of the week, `nil` once the week is done),
-  `stock_change` and `project_change` (for `Forecast`), `bandit_protected`,
+  `stock_change` and `project_change` (for `Forecast`), `granaries_working` (how many
+  granaries worked, for the spoilage step), `bandit_protected`,
   `bandit_threat_change` and `bandit_raid` (for the UI), `books_finished` (the colours of
   the books finished that week), `inventions_finished` (the types finished that week), `food_short` (the week was short of
   food, R8), `ways_opened` (the trade route and hunting camp opened that week), `haul` (the week's
