@@ -38,8 +38,9 @@ rules vs. steps) is in the `engine-architecture` skill.
   (`Actions.UnplaceWorker`), `Game.construct/2` (`Actions.Construct`),
   `Game.decide_tax/2` (`Actions.DecideTax`), `Game.decide_demand/2`
   (`Actions.DecideDemand`), `Game.refuse_project/1` (`Actions.RefuseProject`),
-  `Game.start_book/2` (`Actions.StartBook`) and `Game.start_invention/2`
-  (`Actions.StartInvention`).
+  `Game.start_book/2` (`Actions.StartBook`), `Game.start_invention/2`
+  (`Actions.StartInvention`) and `Game.start_trade/3` (`Actions.StartTrade`, pays the
+  trade's gold at once).
   Changes take effect in week N + 1. `construct/2` pays `build_cost_gold` from the gold stock
   at once and adds it to `gold_spent_buildings` of week N's report (`{:error, :not_enough_gold}`
   if the stock is short; `{:error, :locked}` for a way without its two books, R13).
@@ -58,6 +59,7 @@ rules vs. steps) is in the `engine-architecture` skill.
 | 7 | Construction (R2) | `Construction` → `Rules.Construction.advance_sites/4` | sites (`%Place.Project{}`), builders as at the **start** of the week (before step 3) | `progress` (+1 per arrived builder); a done site replaced by its `%Place.Building{}` with a new id; its builders `place: nil` with `travel_weeks` |
 | 8 | Books finished (R12) | `Books` → `Rules.Books.finish/4`, `Rules.Placement.release/3` | book projects with `progress >= target` | `game.books` (+1 of the colour), the project removed from `places`, its writer `place: nil` with `travel_weeks`; `report.books_finished` |
 | 8 | Inventions finished (R15), after the books | `Inventions` → `Rules.Inventions.finish/4`, `Rules.Placement.release/3` | invention projects with `progress >= target` | `game.inventions` (+ the type), the project removed from `places`, its workers `place: nil` with `travel_weeks`; `report.inventions_finished` |
+| 8 | Trades return (R16), after the inventions | `Trades` → `Rules.Trades.return/4`, `Rules.Placement.release/3` | trades whose `return_week` is this week | `stocks.food` (+ the trade's food), the trade removed from `places`, its trader `place: nil` with `travel_weeks`; `report.food_from_trade` |
 | 9 | Training ends (R5) | `TrainingEnd` → `Rules.Training.finish/4` | trainees in the guildhouse, week | `trained`, `place: nil`, `travel_weeks`, `report.trained` |
 | 10 | Tax payment (R7), due weeks only | `TaxPayment` → `Rules.Taxes.settle/3` | gold after production, `tax_due`, `pay_tax` | `stocks.gold`, `misses`, `game_over`, `report.tax`, `report.king_took.gold` |
 | 11 | Demand delivery (R7): deadline week, a project done, or a project refused before the week | `DemandDelivery` → `Rules.Demands.settle/4`, `Rules.Placement.release/3` | stocks, `demand`, its project, `deliver_demand` | stocks (not for projects), the project removed from `places` and its workers released, `misses`, `game_over`, `report.demand_outcome`, `report.king_took` |
@@ -71,6 +73,8 @@ Consequences of the order:
 - Production, mana and construction see travel as it was before step 3, and training starts
   after the travel, so a worker placed at state N does nothing in N + 1 and works from N + 2.
 - An invention finished in step 8 of week M takes effect from the production of week M + 1.
+- A trade's food arrives in step 8: after eating and birth, before taxes, demands, bandits
+  and spoilage of the same week.
 - A granary works (spoilage, upkeep) in the weeks its keeper works: the staffing at the
   start of the week, the same as production and mana.
 - Workers released in steps 7, 8 and 9 (and 11, from a demand project) keep their full travel into the next week: released at
@@ -186,6 +190,14 @@ Consequences of the order:
   building × green's experience (`Rules.Inventions.written/3`); mana 2 blue, 1 green. Step 8
   appends `:plough` to `game.inventions`; from then on each farm worker's output ×
   (1000 + `way_plough_bonus`) ÷ 1000, rounded down per worker, before happiness.
+- **Grain trade (R16):** `Game.start_trade(game, worker_id, :grain_trade)` (unlocked,
+  arrived trader not already away, enough gold) pays `Rules.Trades.cost/3` (gold × 1000 ÷
+  the trader's factor against yellow) and appends a `%Place.Trade{}` with `return_week =
+  week + 2 × way_grain_trade_travel_weeks + way_grain_trade_trade_weeks`; the trader is on
+  it at travel 0. Every week until then he is a working worker for mana (2 yellow, 1 green;
+  `Staffing.works?/2`) but produces nothing (`Production.produces?/1`); he eats and counts
+  for taxes; `Placement.check_leave/1` refuses moving or unplacing him (`:away`). Step 8 of
+  the return week adds `way_grain_trade_food` to the food stock and releases him.
 
 ## Units
 
@@ -199,7 +211,8 @@ Consequences of the order:
 travelling, gold, tax_due, tax, demand, demand_outcome, demand_progress, king_took, spoiled,
 gold_spent_buildings, bandit_pressure, bandit_protected, bandit_threat, bandit_threat_change,
 bandits_weeks_to_raid, bandit_raid, gold_robbed, happiness, books, books_finished,
-granary_working, culture_upkeep, inventions, inventions_finished, stock_change,
+granary_working, culture_upkeep, inventions, inventions_finished, food_from_trade,
+stock_change,
 project_change, game_over, start}` (`start`: see `engine-architecture`). `builders` counts arrived builders
 on sites and `travelling` the workers with travel above 0, both at the end of the week;
 `king_took` is `%{food, gold}`, what the king took that week on misses.

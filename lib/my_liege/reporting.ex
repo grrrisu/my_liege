@@ -28,6 +28,7 @@ defmodule MyLiege.Reporting do
   R14/R15: `plough_done` is whether the improved plough is invented at the end of the week;
   `granary_working` whether a granary had a working keeper that week; `culture_upkeep` the
   culture taken from the stock for the granaries that week (thousandths).
+  R16: `food_from_trade` is the food the returning trades brought that week (thousandths).
   """
 
   alias MyLiege.Engine.Pentagon
@@ -52,7 +53,7 @@ defmodule MyLiege.Reporting do
       ["happiness_ratio", "happiness_step"] ++
       ["game_over"] ++
       Enum.map(Pentagon.colours(), &"books_#{&1}") ++
-      ["plough_done", "granary_working", "culture_upkeep"]
+      ["plough_done", "granary_working", "culture_upkeep", "food_from_trade"]
   end
 
   defp row(report) do
@@ -88,7 +89,12 @@ defmodule MyLiege.Reporting do
         report.game_over
       ] ++
       Enum.map(Pentagon.colours(), &Map.fetch!(report.books, &1)) ++
-      [:plough in report.inventions, report.granary_working, report.culture_upkeep]
+      [
+        :plough in report.inventions,
+        report.granary_working,
+        report.culture_upkeep,
+        report.food_from_trade
+      ]
   end
 
   defp pressure(:unbounded), do: "inf"

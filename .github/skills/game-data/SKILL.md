@@ -60,8 +60,8 @@ is left out when a group has only one thing (`travel.weeks`).
 - **Group**, the system: `game`, `start`, `birth`, `place`, `good`, `efficiency`, `mana`,
   `manameter`, `training`, `build`, `travel`, `king`, `bandit`, `happiness`, `book`, `way`
   (v2 later: `trade`, `expedition`, `suspicion`). A way that is a building keeps its keys
-  under `place.<type>.*` (`place.granary.capacity`); a way that is an invention under
-  `way.<type>.*` (`way.plough.work`).
+  under `place.<type>.*` (`place.granary.capacity`); a way that is an invention or a trade
+  under `way.<type>.*` (`way.plough.work`, `way.grain_trade.gold`).
 - **Item**, a name the code already uses: place type, good, colour, training level,
   relation; also the king's `tax` and `demand`, and happiness levels `level1` to `level3`.
 - **Unit** from the ending: `_permille`, `_weeks`, otherwise a whole amount.
@@ -97,6 +97,10 @@ is left out when a group has only one thing (`travel.weeks`).
 | `way_plough_work` | int (knowledge units) | `way.plough.work` | `Rules.Inventions.new_invention/3` (the target, `Fixed.from`) |
 | `way_plough_capacity` | int | `way.plough.capacity` | `Rules.Inventions.capacity/2` (via `Rules.Placement.capacity/2`) |
 | `way_plough_bonus` | ‰ | `way.plough.bonus_permille` | `Rules.Inventions.farm_output/3`, GameLive |
+| `way_grain_trade_gold` | int (gold units, at factor 1000) | `way.grain_trade.gold` | `Rules.Trades.cost/3` |
+| `way_grain_trade_food` | int (food units) | `way.grain_trade.food` | `Rules.Trades.food/2` |
+| `way_grain_trade_travel_weeks` | int | `way.grain_trade.travel_weeks` | `Rules.Trades.weeks/2` (×2) |
+| `way_grain_trade_trade_weeks` | int | `way.grain_trade.trade_weeks` | `Rules.Trades.weeks/2` |
 | `travel_weeks` | int | `travel.weeks` | `Rules.Travel.depart/3`, `Rules.Training.first_week/2` |
 | `training_min_share` | ‰ | `training.min_share_permille` | `Rules.Training.check/3` |
 | `training_weeks` | int | `training.weeks` | `Rules.Training.last_week/2` |
@@ -138,9 +142,10 @@ you add one, ask the designer whether it should be a CSV key.
 | Colours in pentagon order `green, yellow, blue, red, violet` (Growth, Wealth, Wisdom, Strength, Culture) | `Pentagon` `@colours`, `colours/0` | everything that iterates colours, the `Manameter` struct keys, `LoadConfig`, `Reporting` |
 | Manameter total 1000 | `Manameter.total_shares/0` | `LoadConfig` (validation) |
 | Same / neighbour / opposite from pentagon distance | `Pentagon.relation/2` | `Rules.Production` |
-| Place type → colour, type → good; home places, ways (granary violet→food, building; plough blue→food, invention), guildhouse neutral | `Place.Blueprint` catalogue, `types/0`, `building_types/0`, `home_types/0`, `ways/0`, `way?/1`, `goods/0`, `home_type/1`, `home_colour/1` | everything that iterates types or goods |
+| Place type → colour, type → good; home places, ways (granary violet→food, building; plough blue→food, invention; grain trade yellow→food, trade), guildhouse neutral | `Place.Blueprint` catalogue, `types/0`, `building_types/0`, `home_types/0`, `trade_types/0`, `ways/0`, `way?/1`, `goods/0`, `home_type/1`, `home_colour/1` | everything that iterates types or goods |
 | A way unlocks with 1 book of its colour and 1 of its good's home colour | `Rules.Ways.missing/2` | `Construct`, `Rules.Inventions.check_start/4`, GameLive |
 | The improved plough's bonus applies to farm workers only | `Rules.Production` (`with_bonus`) | `Production.output/5` |
+| A trade's gold divides by the trader's factor against the trade's colour; its two travel legs are equal | `Rules.Trades.cost/3`, `weeks/2` | `StartTrade`, GameLive |
 | The experience factor's normal share 200 ‰ (books and inventions) | `Rules.Books` `@normal_share` | `Books.written/3`, `Inventions.written/3` |
 | Starting buildings: farm (id 1) and watchtower (id 2), both ready | `Place.Building.starting/0` | `Game.new/2` |
 | Starting workers: green on the farm, red in the tower | `Worker.starting/2` (the counts come from the config) | `Game.new/2` |
@@ -168,9 +173,9 @@ you add one, ask the designer whether it should be a CSV key.
 | `week` | int, last week run | 0 | `run_week/1` (+1) |
 | `demand_weeks` | `[week]`, one per half year at most | `Demands.schedule/3` in `new/2` | never (tests: `EngineFixtures.game_without_demands/2` sets `[]`) |
 | `workers` | `[%Worker{}]` | `Worker.starting/2` | `place_worker/3`, `unplace_worker/2` (between weeks); steps `Travel`, `Birth` (appends), `Construction` and `TrainingEnd` (release) |
-| `places` | `[%Place.Building{} \| %Place.Project{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `start_book/2`, `start_invention/2` (append a project), `refuse_project/1` (removes the demand project); steps `Production` (project progress), `Construction` (site progress; replaces a done site by a building with a new id), `Books`, `Inventions` (remove done projects), `DemandDelivery` (removes the settled demand project), `DemandMade` (appends a demand project) |
+| `places` | `[%Place.Building{} \| %Place.Project{} \| %Place.Trade{}]` | `Place.Building.starting/0` | `construct/2` (appends a site with `Rules.Construction.new_site/3`, between weeks), `start_book/2`, `start_invention/2` (append a project), `start_trade/3` (appends a trade), step `Trades` (removes a returned trade), `refuse_project/1` (removes the demand project); steps `Production` (project progress), `Construction` (site progress; replaces a done site by a building with a new id), `Books`, `Inventions` (remove done projects), `DemandDelivery` (removes the settled demand project), `DemandMade` (appends a demand project) |
 | `manameter` | `%Manameter{}` ‰ | `config.manameter_start` | `ManameterUpdate` step |
-| `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2` (gold); steps `Production` (+, and − the granaries' culture upkeep), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
+| `stocks` | `%{food, knowledge, defence, gold, culture}` thousandths | `starting_stocks/1` | `construct/2`, `start_trade/3` (gold); step `Trades` (+ food on return); steps `Production` (+, and − the granaries' culture upkeep), `Eating` (food), `TaxPayment` (gold), `DemandDelivery`, `Bandits` (gold), `Spoilage` |
 | `report` | `%WeeklyReport{}` | week-0 report | `run_week/1`; `construct/2` adds to `gold_spent_buildings` |
 | `tax_due` | thousandths \| nil | nil | `TaxCount` sets it, `TaxPayment` clears it |
 | `pay_tax` | bool \| nil | nil | `decide_tax/2` sets it, `TaxPayment` clears it |
@@ -208,6 +213,8 @@ Fixed.from(book_work)` and `gives: {:book, colour}`; `Actions.StartBook` appends
 `Production` step adds its writer's output (× experience) to `progress`, the `Books` step
 removes it once done and adds the book to `game.books`.
 
+A trade is not a project: see `%Place.Trade{}` below.
+
 An invention (R15) has its way's catalogue blueprint (`Blueprint.fetch!(:plough)`: blue,
 food), `target: Fixed.from(way_plough_work)` and `gives: {:invention, type}`;
 `Actions.StartInvention` appends it (unlocked, not open, not invented), the `Production`
@@ -220,6 +227,13 @@ home colour, the good), `target` the demand's amount and `gives: {:demand, due_w
 appended by `DemandMade` (`Rules.Demands.open_project/2`); the `Production` step adds its
 workers' output to `progress`, up to the target; `DemandDelivery` and `refuse_project/1`
 remove it and release its workers.
+
+### `%Place.Trade{}` ([place/trade.ex](../../../lib/my_liege/engine/place/trade.ex))
+
+`id`, `blueprint` (its way's catalogue entry, `engine: :trade`) and `return_week` never
+change. `Actions.StartTrade` appends it with `return_week = week + Rules.Trades.weeks/2`
+and puts the trader on it (`worker.place`, travel 0); the `Trades` step removes it at the
+end of `return_week`, adds its food and releases the trader.
 
 ## 4. The weekly report
 
@@ -237,7 +251,8 @@ the steps fill it. The field-by-step mapping is the "Order inside a week" table 
   bandit_pressure, bandit_threat, bandits_weeks_to_raid, gold_robbed, happiness_ratio,
   happiness_step, game_over, books (`books_<colour>` in pentagon order, held at the end of
   the week), `plough_done` (`:plough in report.inventions`, end of the week),
-  `granary_working`, `culture_upkeep` (thousandths, taken that week).
+  `granary_working`, `culture_upkeep` (thousandths, taken that week), `food_from_trade`
+  (thousandths, brought by the trades that returned that week).
 - **Not exported**: `start` (the game at the start of the week, `nil` once the week is done),
   `stock_change` and `project_change` (for `Forecast`), `bandit_protected`,
   `bandit_threat_change` and `bandit_raid` (for the UI), `books_finished` (the colours of

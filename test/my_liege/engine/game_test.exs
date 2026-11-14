@@ -75,6 +75,7 @@ defmodule MyLiege.Engine.GameTest do
                SimSteps.Construction,
                SimSteps.Books,
                SimSteps.Inventions,
+               SimSteps.Trades,
                SimSteps.TrainingEnd,
                SimSteps.TaxPayment,
                SimSteps.DemandDelivery,

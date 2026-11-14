@@ -7,8 +7,8 @@ defmodule MyLiege.Engine.Actions.PlaceWorker do
   off a site leaves the site's progress as it is.
 
   Returns `{:ok, game}` on success, or `{:error, reason}` with reason `:unknown_worker`,
-  `:unknown_place`, `:travelling`, `:full`, `:already_trained` or
-  `:below_threshold`. The placement takes effect in the next week.
+  `:unknown_place`, `:away` (a trader can't leave his trade, R16), `:travelling`, `:full`,
+  `:already_trained` or `:below_threshold`. The placement takes effect in the next week.
   """
 
   alias MyLiege.Engine.Game
@@ -31,13 +31,16 @@ defmodule MyLiege.Engine.Actions.PlaceWorker do
       config: game.config
     }
 
-    with :ok <- Placement.check_enter(place, worker, facts) do
+    with :ok <- game |> current_place(worker) |> Placement.check_leave(),
+         :ok <- Placement.check_enter(place, worker, facts) do
       training_started =
         if Placement.trains?(place), do: Training.first_week(game.week, game.config)
 
       {:ok, move(game, worker, place.id, training_started)}
     end
   end
+
+  defp current_place(game, worker), do: Enum.find(game.places, &(&1.id == worker.place))
 
   defp move(game, worker, place_id, training_started) do
     worker = %{worker | training_started: training_started}
