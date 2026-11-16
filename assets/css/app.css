@@ -106,3 +106,7 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+.game-shell {
+  grid-template-columns: clamp(240px, 18vw, 320px) minmax(0, 1fr) clamp(260px, 20vw, 340px);
+  grid-template-rows:    clamp(70px, 11vh, 110px) minmax(0, 1fr) clamp(70px, 11vh, 110px);
+}

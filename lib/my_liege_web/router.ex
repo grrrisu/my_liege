@@ -19,6 +19,7 @@ defmodule MyLiegeWeb.Router do
 
     get "/", PageController, :home
     live "/game", GameLive
+    live "/map", MapLive
   end
 
   # Other scopes may use custom stacks.
